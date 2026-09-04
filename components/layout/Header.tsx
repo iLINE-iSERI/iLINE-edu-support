@@ -30,6 +30,8 @@ export default function Header() {
   const { status, logout } = useAuth()
   // 인증 신원이 있어도 회원 등록 전이면 로그인 상태로 보지 않는다 (D-23)
   const isLoggedIn = status === 'member' || status === 'withdrawn'
+  // 'error'(확인 불가)일 때는 "가입 마저 하기"를 권하지 않는다.
+  // 이미 회원인데 조회만 실패했을 수 있기 때문이다.
   const needsRegister = status === 'unregistered'
 
   const isActive = (href: string) =>
@@ -88,8 +90,20 @@ export default function Header() {
                   href="/register"
                   className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
                 >
-                  회원 등록
+                  가입 마저 하기
                 </Link>
+              </>
+            ) : status === 'error' ? (
+              <>
+                <span className="rounded-lg bg-subtle px-3 py-2 text-sm text-ink-subtle">
+                  회원 확인 중
+                </span>
+                <button
+                  onClick={logout}
+                  className="rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-subtle"
+                >
+                  로그아웃
+                </button>
               </>
             ) : (
               <>
@@ -215,7 +229,7 @@ export default function Header() {
                   onClick={() => setOpen(false)}
                   className="touch-target flex items-center justify-center rounded-lg bg-brand-600 text-base font-semibold text-white"
                 >
-                  회원 등록
+                  가입 마저 하기
                 </Link>
               </div>
             ) : (

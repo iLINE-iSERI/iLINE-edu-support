@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, type ReactNode } from 'react'
 import { useAuth } from './AuthProvider'
+import SetupNotice from './SetupNotice'
 
 export default function MemberGate({
   children,
@@ -23,7 +24,7 @@ export default function MemberGate({
   children: ReactNode
   requireStaff?: boolean
 }) {
-  const { status, member } = useAuth()
+  const { status, member, errorMessage, isSetupIssue } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -41,12 +42,29 @@ export default function MemberGate({
     return <Notice title="로그인이 필요합니다" desc="로그인 화면으로 이동합니다." />
   }
 
+  if (status === 'error') {
+    return (
+      <div className="container-page py-16">
+        <div className="mx-auto max-w-lg">
+          {isSetupIssue ? (
+            <SetupNotice message={errorMessage} />
+          ) : (
+            <Notice
+              title="회원 정보를 확인하지 못했습니다"
+              desc={errorMessage || '잠시 후 다시 시도해 주세요.'}
+            />
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (status === 'unregistered') {
     return (
       <Notice
-        title="창의재단 회원 등록이 필요합니다"
-        desc="로그인은 되어 있지만 교원양성지원사업 회원으로 등록되지 않았습니다. 등록을 마치면 신청·정산 기능을 이용하실 수 있습니다."
-        action={{ href: `/register?next=${encodeURIComponent(pathname)}`, label: '회원 등록하기' }}
+        title="회원가입이 아직 끝나지 않았습니다"
+        desc="계정은 만들어졌지만 참여 정보 입력이 남아 있습니다. 2단계를 마치시면 신청·정산 기능을 이용하실 수 있습니다."
+        action={{ href: `/register?next=${encodeURIComponent(pathname)}`, label: '가입 마저 하기' }}
       />
     )
   }
