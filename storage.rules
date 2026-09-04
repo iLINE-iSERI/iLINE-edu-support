@@ -1,0 +1,68 @@
+rules_version = '2';
+
+// =============================================================================
+// 창의재단 — Storage 보안 규칙
+//
+// ⚠️ 그뤠잇의 기존 storage.rules 에 아래 match 블록을 **추가**하세요.
+//    같은 버킷을 공유하므로 통째로 덮어쓰면 그뤠잇 규칙이 사라집니다.
+//
+// 신분증·통장사본이 올라가는 곳이다. 공개 URL은 절대 허용하지 않는다.
+// 클라이언트 직접 업로드의 한계상 내용 검증은 불가하므로,
+// 최소한 크기와 MIME 타입은 여기서 막는다 (§6-2 ①).
+// =============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 담당자 판별은 Custom Claims 로 한다.
+    // (Storage 규칙에서는 Firestore 문서를 읽을 수 없다)
+    function isStaff() {
+      return isSignedIn() && request.auth.token.supportStaff == true;
+    }
+
+    function isAllowedType() {
+      return request.resource.contentType.matches('image/(jpeg|png|heic|heif|webp)')
+          || request.resource.contentType == 'application/pdf';
+    }
+
+    function isUnderSizeLimit() {
+      return request.resource.size < 20 * 1024 * 1024;  // 20MB
+    }
+
+    // 신청 서류 — 본인과 담당자만
+    match /support/applications/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid) || isStaff();
+      allow write: if isOwner(uid) && isAllowedType() && isUnderSizeLimit();
+      allow delete: if isOwner(uid) || isStaff();
+    }
+
+    // 정산 증빙 — 영수증·통장사본. 특히 민감하다.
+    match /support/settlements/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid) || isStaff();
+      allow write: if isOwner(uid) && isAllowedType() && isUnderSizeLimit();
+      allow delete: if isOwner(uid) || isStaff();
+    }
+
+    // 갤러리 제출물 — 공개 승인 여부와 무관하게 읽기는 로그인 사용자로 제한.
+    // 공개 노출은 앱이 Firestore의 approved 플래그를 보고 판단한다.
+    match /support/outputs/{uid}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid) && isUnderSizeLimit();
+      allow delete: if isOwner(uid) || isStaff();
+    }
+
+    // 공지 첨부 · 서식 자료실 — 공개 다운로드, 담당자만 업로드
+    match /support/public/{allPaths=**} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+  }
+}

@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isImage() {
+      return request.resource.contentType != null
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    function isUnder5MB() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    function isUnder20MB() {
+      return request.resource.size < 20 * 1024 * 1024;
+    }
+
+    // ===== 오프라인 강좌 포스터 =====
+    // 누구나 (로그인 사용자) 읽기, 관리자만 업로드/삭제, 5MB 이미지만
+    match /posters/offline-courses/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    // ===== 보상 상품 이미지 =====
+    match /rewards/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    // ===== 강좌 썸네일 (메인 노출 위해 비로그인 읽기 허용) =====
+    match /courses/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    // ===== 자료실 첨부 파일 (PDF, PPT, 한글 등 모든 형식 허용) =====
+    match /posts/resource/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isUnder20MB();
+      allow delete: if isAdmin();
+    }
+
+    // ===== 공지사항 첨부 이미지 =====
+    match /posts/notice/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    // 그 외 posts 경로 (호환성 — 기존 데이터)
+    match /posts/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isImage() && isUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+
+    // =========================================================================
+    // 창의재단 교원양성지원사업 (/support/**)   ← 여기서부터 추가분
+    //
+    // 신분증·통장사본이 올라가는 경로입니다. 공개 URL을 절대 허용하지 않습니다.
+    // 위쪽 헬퍼(isSignedIn, isUnder20MB)를 재사용합니다.
+    // =========================================================================
+
+    function isSupportOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Storage 규칙에서 Firestore를 읽을 수는 있으나 비용·지연이 크므로
+    // 담당자 판별은 Custom Claims 로 한다. (Phase 5에서 부여)
+    function isSupportStaff() {
+      return isSignedIn() && request.auth.token.supportStaff == true;
+    }
+
+    function isSupportAllowedType() {
+      return request.resource.contentType.matches('image/(jpeg|png|heic|heif|webp)')
+          || request.resource.contentType == 'application/pdf';
+    }
+
+    // ----- 신청 서류 (신분증·재직증명서 등) -----
+    match /support/applications/{uid}/{allPaths=**} {
+      allow read: if isSupportOwner(uid) || isSupportStaff();
+      allow write: if isSupportOwner(uid) && isSupportAllowedType() && isUnder20MB();
+      allow delete: if isSupportOwner(uid) || isSupportStaff();
+    }
+
+    // ----- 정산 증빙 (영수증·통장사본) — 특히 민감 -----
+    match /support/settlements/{uid}/{allPaths=**} {
+      allow read: if isSupportOwner(uid) || isSupportStaff();
+      allow write: if isSupportOwner(uid) && isSupportAllowedType() && isUnder20MB();
+      allow delete: if isSupportOwner(uid) || isSupportStaff();
+    }
+
+    // ----- 갤러리 제출물 -----
+    // 공개 노출 여부는 앱이 Firestore의 approved 플래그로 판단한다.
+    match /support/outputs/{uid}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSupportOwner(uid) && isUnder20MB();
+      allow delete: if isSupportOwner(uid) || isSupportStaff();
+    }
+
+    // ----- 공지 첨부 · 서식 자료실 (공개 다운로드) -----
+    match /support/public/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSupportStaff();
+    }
+
+    // 그 외 경로는 기본 거부
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

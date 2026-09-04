@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useAuth } from '@/components/auth/AuthProvider'
 
 /**
  * 창의재단 헤더 (D-14)
@@ -12,9 +13,6 @@ import { usePathname } from 'next/navigation'
  * 그 아래 줄에 대메뉴 4개 (D-13)
  *
  * D-24: 모바일에서는 대메뉴와 계정 영역이 햄버거 안으로 들어간다.
- *
- * ⏸ 인증 연동 전이라 지금은 비로그인 상태로 고정되어 있다.
- *    Phase 2에서 useSupportAuth() 로 교체한다.
  */
 
 const NAV = [
@@ -30,8 +28,10 @@ export default function Header() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
-  // ⏸ Phase 2에서 실제 인증 상태로 교체
-  const isLoggedIn = false
+  const { status, logout } = useAuth()
+  // 인증 신원이 있어도 회원 등록 전이면 로그인 상태로 보지 않는다 (D-23)
+  const isLoggedIn = status === 'member' || status === 'withdrawn'
+  const needsRegister = status === 'unregistered'
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/')
@@ -64,7 +64,10 @@ export default function Header() {
             </a>
             {isLoggedIn ? (
               <>
-                <button className="rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-subtle">
+                <button
+                  onClick={logout}
+                  className="rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-subtle"
+                >
                   로그아웃
                 </button>
                 <Link
@@ -72,6 +75,21 @@ export default function Header() {
                   className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
                 >
                   마이페이지
+                </Link>
+              </>
+            ) : needsRegister ? (
+              <>
+                <button
+                  onClick={logout}
+                  className="rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-subtle"
+                >
+                  로그아웃
+                </button>
+                <Link
+                  href="/register"
+                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+                >
+                  회원 등록
                 </Link>
               </>
             ) : (
@@ -184,10 +202,23 @@ export default function Header() {
                 >
                   마이페이지
                 </Link>
-                <button className="flex w-full items-center rounded-lg px-3 py-3 text-left text-base text-ink-muted">
+                <button
+                  onClick={logout}
+                  className="flex w-full items-center rounded-lg px-3 py-3 text-left text-base text-ink-muted"
+                >
                   로그아웃
                 </button>
               </>
+            ) : needsRegister ? (
+              <div className="px-3 py-3">
+                <Link
+                  href="/register"
+                  onClick={() => setOpen(false)}
+                  className="touch-target flex items-center justify-center rounded-lg bg-brand-600 text-base font-semibold text-white"
+                >
+                  회원 등록
+                </Link>
+              </div>
             ) : (
               <div className="flex gap-2 px-3 py-3">
                 <Link

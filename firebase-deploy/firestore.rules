@@ -1,0 +1,312 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== 헬퍼 함수 =====
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isEnrolledIn(courseId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseId));
+    }
+
+    // ===== Users (랭킹 표시 위해 모든 인증 사용자 읽기 허용) =====
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ===== Courses / Categories / StudentGroups =====
+    match /courses/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    // 메인 화면(비로그인 방문자) 노출 위해 read 공개
+    match /categories/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // 코드에서 사용 중인 그룹 컬렉션 (UserProfile.group 값과 연결)
+    match /groups/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    // 호환: 과거 명칭 (다른 곳에서 참조될 수 있어 그대로 유지)
+    match /studentGroups/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ===== Enrollments (수강 등록) =====
+    match /enrollments/{id} {
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ===== Progress (학습 진도) =====
+    match /progress/{id} {
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create, update: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // ===== Posts (공지/자료실) =====
+    match /posts/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ===== Q&A =====
+    match /qna/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid;
+      allow update: if isSignedIn()
+        && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ===== Point Rules / History =====
+    match /pointRules/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /pointHistory/{id} {
+      // resource == null 허용: dedup 체크 시 미존재 문서 getDoc이 막히지 않도록
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ===== Rewards / Claims =====
+    match /rewards/{id} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      // 관리자는 자유 수정, 일반 사용자는 교환 시 재고를 정확히 1 감소시키는 경우에만 허용
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+        && resource.data.stock > 0
+        && request.resource.data.stock == resource.data.stock - 1
+      );
+    }
+    match /rewardClaims/{id} {
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ===== Course Comments =====
+    // 읽기: 작성자 + 해당 강좌 수강생 + 관리자
+    // 작성: 수강 등록한 사용자가 본인 ID로만
+    // 삭제: 관리자만
+    match /courseComments/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid ||
+        isEnrolledIn(resource.data.courseId) ||
+        isAdmin()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && isEnrolledIn(request.resource.data.courseId);
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ===== Settings (수료증 등 전역 설정) =====
+    match /settings/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ===== Offline Courses (메인 페이지에서 비로그인 방문자도 미리보기 가능) =====
+    match /offlineCourses/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ===== Offline Applications =====
+    match /offlineApplications/{id} {
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ===== Hidden Click Counter (히든 그뤠잇 일별 카운트) =====
+    match /hiddenClicks/{id} {
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create, update: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // ===== Quiz Attempts =====
+    match /quizAttempts/{id} {
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // 창의재단 교원양성지원사업 (support_*)   ← 여기서부터 추가분
+    //
+    // 그뤠잇 데이터와 완전히 분리된 컬렉션입니다 (D-8).
+    // 위쪽 헬퍼(isSignedIn, isOwner)를 재사용하고, 중복 정의를 피하기 위해
+    // 창의재단 전용 헬퍼는 isSupport* 로 이름을 구분했습니다.
+    // =========================================================================
+
+    function supportMemberData() {
+      return get(/databases/$(database)/documents/support_users/$(request.auth.uid)).data;
+    }
+
+    // 창의재단 회원인가 — "로그인했는가"가 아니라 "회원 문서가 있는가" (D-23)
+    function isSupportMember() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/support_users/$(request.auth.uid))
+        && supportMemberData().status == 'active';
+    }
+
+    function isSupportStaff() {
+      return isSupportMember() && supportMemberData().role == 'staff';
+    }
+
+    // ----- 창의재단 회원 -----
+    match /support_users/{uid} {
+      allow get: if isOwner(uid) || isSupportStaff();
+      allow list: if isSupportStaff();
+
+      // 최초 등록 시 스스로 staff 권한을 부여하지 못하게 고정
+      allow create: if isOwner(uid)
+        && request.resource.data.role == 'applicant'
+        && request.resource.data.status == 'active'
+        && request.resource.data.email is string
+        && request.resource.data.name is string
+        && request.resource.data.consents is list;
+
+      allow update: if (isOwner(uid)
+                        && request.resource.data.role == resource.data.role)
+                    || isSupportStaff();
+
+      // 삭제 금지 — 탈퇴는 status 변경으로 (보존 의무)
+      allow delete: if false;
+    }
+
+    // ----- 신청서 -----
+    match /support_applications/{appId} {
+      allow get: if isSupportMember()
+        && (resource.data.uid == request.auth.uid || isSupportStaff());
+      allow list: if isSupportStaff();
+
+      allow create: if isSupportMember()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'draft';
+
+      // 신청자는 작성중/보완요청 상태에서만 수정. 상태 변경은 담당자만.
+      allow update: if isSupportStaff()
+        || (isSupportMember()
+            && resource.data.uid == request.auth.uid
+            && resource.data.status in ['draft', 'revision']
+            && request.resource.data.uid == resource.data.uid);
+
+      allow delete: if false;
+    }
+
+    // ----- 정산 -----
+    match /support_settlements/{id} {
+      allow get: if isSupportMember()
+        && (resource.data.uid == request.auth.uid || isSupportStaff());
+      allow list: if isSupportStaff();
+
+      allow create: if isSupportMember()
+        && request.resource.data.uid == request.auth.uid;
+
+      allow update: if isSupportStaff()
+        || (isSupportMember()
+            && resource.data.uid == request.auth.uid
+            && resource.data.status in ['draft', 'rejected']);
+
+      allow delete: if false;
+    }
+
+    // ----- 갤러리(산출물) -----
+    match /support_outputs/{id} {
+      // 담당자가 승인한 것만 공개
+      allow read: if resource.data.approved == true
+        || (isSignedIn() && resource.data.submittedByUid == request.auth.uid)
+        || isSupportStaff();
+
+      allow create: if isSupportMember()
+        && request.resource.data.submittedByUid == request.auth.uid
+        && request.resource.data.approved == false;
+
+      // 공개 승인은 담당자만
+      allow update: if isSupportStaff()
+        || (isSupportMember()
+            && resource.data.submittedByUid == request.auth.uid
+            && request.resource.data.approved == resource.data.approved);
+
+      allow delete: if isSupportStaff();
+    }
+
+    // ----- 공지 · 서식 자료실 (공개) -----
+    match /support_notices/{id} {
+      allow read: if true;
+      allow write: if isSupportStaff();
+    }
+
+    match /support_resources/{id} {
+      allow read: if true;
+      allow write: if isSupportStaff();
+    }
+
+  }
+}
