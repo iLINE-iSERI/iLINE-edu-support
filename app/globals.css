@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   디자인 토큰 — 색·타이포·간격의 단일 출처
+   다크모드는 여기서만 재정의하고 컴포넌트는 건드리지 않는다.
+   ========================================================================= */
+:root {
+  /* 사업 브랜드 (남색) */
+  --brand: #1e3a8a;
+  --brand-strong: #172e6e;
+  --brand-soft: #e8edfa;
+
+  /* 중립 */
+  --gray-0: #ffffff;
+  --gray-50: #fafafa;
+  --gray-100: #f4f4f5;
+  --gray-200: #e4e4e7;
+  --gray-300: #d4d4d8;
+  --gray-500: #71717a;
+  --gray-600: #52525b;
+  --gray-800: #27272a;
+  --gray-900: #18181b;
+
+  /* 의미 색 */
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #f5f7fb;
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --text: var(--gray-900);
+  --text-muted: var(--gray-600);
+  --text-subtle: var(--gray-500);
+
+  /* 신청서 상태 (§4-4) */
+  --status-draft: var(--gray-500);
+  --status-submitted: #2563eb;
+  --status-reviewing: #2563eb;
+  --status-revision: #d97706;
+  --status-approved: #15803d;
+  --status-rejected: var(--gray-500);
+
+  /* 타이포 — 한글 폴백 포함 */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic",
+    "Noto Sans KR", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --brand: #93b4fd;
+    --brand-strong: #bfd2fe;
+    --brand-soft: #1a2748;
+
+    --bg: #0b0f14;
+    --bg-elevated: #151a21;
+    --bg-subtle: #1c2430;
+    --border: #2a2a30;
+    --border-strong: #3a3a42;
+    --text: #f4f4f5;
+    --text-muted: #a1a1aa;
+    --text-subtle: #8b8b93;
+
+    --status-submitted: #60a5fa;
+    --status-reviewing: #60a5fa;
+    --status-revision: #fbbf24;
+    --status-approved: #4ade80;
+  }
+}
+
+/* =========================================================================
+   기본 스타일
+   ========================================================================= */
+@layer base {
+  html {
+    /* 앵커 이동 시 고정 헤더에 가려지지 않도록 */
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* D-24: iOS에서 입력 시 자동 확대되지 않도록 16px 이상 유지 */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* 키보드 사용자를 위한 뚜렷한 포커스 표시 (KWCAG) */
+  :focus-visible {
+    outline: 3px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* 모션 최소화 설정 존중 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* 본문 최대폭 컨테이너 — 모바일 우선 여백 */
+  .container-page {
+    @apply mx-auto w-full max-w-container px-4 sm:px-6 lg:px-8;
+  }
+
+  /* 터치 타깃 44px 이상 (D-24) */
+  .touch-target {
+    @apply min-h-touch min-w-touch;
+  }
+
+  /* 넓은 표는 이 컨테이너로 감싼다 — 본문이 가로로 밀리지 않게 */
+  .table-scroll {
+    @apply -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0;
+  }
+}
+
+/* 건너뛰기 링크 (KWCAG) */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--gray-900);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 0 0 8px 0;
+}
+.skip-link:focus {
+  left: 0;
+}
