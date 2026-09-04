@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { getDb, COL } from './config'
-import type { SupportUser, Consent } from '@/lib/types'
+import type { SupportUser, Consent, ConsentPurpose } from '@/lib/types'
 
 /** 현재 약관 버전 — 문구를 바꾸면 반드시 올린다 (동의 이력 추적용) */
 export const CONSENT_VERSION = '2026-09-01'
@@ -27,11 +27,18 @@ export async function getMember(uid: string): Promise<SupportUser | null> {
 
 export interface RegisterInput {
   name: string
-  affiliation: string
-  position: string
+  /** 학번 */
+  studentId: string
+  /** 전공(학과) */
+  major: string
+  /** 학년 */
+  grade: string
   phone: string
-  /** 동의한 항목들 — 필수 동의가 빠지면 등록하지 않는다 */
-  agreedPurposes: string[]
+  /**
+   * 동의 결과 — 거부(false)도 그대로 기록한다.
+   * 초상권은 나중에 갤러리 게시 가부 판단에 쓰이므로 특히 중요.
+   */
+  consents: Record<ConsentPurpose, boolean>
 }
 
 /**
@@ -45,8 +52,11 @@ export async function registerMember(
   input: RegisterInput
 ): Promise<void> {
   const now = Timestamp.now()
-  const consents: Consent[] = input.agreedPurposes.map((purpose) => ({
+  const consents: Consent[] = (
+    Object.entries(input.consents) as [ConsentPurpose, boolean][]
+  ).map(([purpose, agreed]) => ({
     purpose,
+    agreed,
     version: CONSENT_VERSION,
     agreedAt: now,
   }))
@@ -55,8 +65,9 @@ export async function registerMember(
     email,
     authProvider,
     name: input.name.trim(),
-    affiliation: input.affiliation.trim(),
-    position: input.position.trim(),
+    studentId: input.studentId.trim(),
+    major: input.major.trim(),
+    grade: input.grade,
     phone: input.phone.replace(/[^0-9]/g, ''),
     role: 'applicant',
     status: 'active',
@@ -69,7 +80,7 @@ export async function registerMember(
 /** 회원정보 수정 */
 export async function updateMember(
   uid: string,
-  patch: Partial<Pick<SupportUser, 'name' | 'affiliation' | 'position' | 'phone'>>
+  patch: Partial<Pick<SupportUser, 'name' | 'studentId' | 'major' | 'grade' | 'phone'>>
 ): Promise<void> {
   await updateDoc(doc(getDb(), COL.users, uid), {
     ...patch,

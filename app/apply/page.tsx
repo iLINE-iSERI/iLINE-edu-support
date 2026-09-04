@@ -1,26 +1,87 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import PageHeader from '@/components/ui/PageHeader'
-import Placeholder from '@/components/ui/Placeholder'
+import EmptyState from '@/components/ui/EmptyState'
+import ProgramCard from '@/components/apply/ProgramCard'
+import { listPublishedPrograms, getProgramPhase } from '@/lib/firebase/programs'
+import { isFirebaseConfigured } from '@/lib/firebase/config'
+import type { Program } from '@/lib/types'
 
-export const metadata = { title: '프로그램 신청' }
-
+/**
+ * 프로그램 신청 — 공개된 프로그램 목록.
+ *
+ * 신청서 항목은 프로그램마다 다르므로(사용자 확정), 이 화면에서
+ * 프로그램을 먼저 고르고 상세로 들어간다.
+ */
 export default function ApplyPage() {
+  const [programs, setPrograms] = useState<Program[] | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isFirebaseConfigured()) {
+      setPrograms([])
+      return
+    }
+    listPublishedPrograms()
+      .then(setPrograms)
+      .catch((e) => {
+        console.error(e)
+        setError(
+          '프로그램 목록을 불러오지 못했습니다. 보안 규칙이 아직 적용되지 않았을 수 있습니다.'
+        )
+        setPrograms([])
+      })
+  }, [])
+
+  const open = programs?.filter((p) => getProgramPhase(p) !== 'closed') ?? []
+  const closed = programs?.filter((p) => getProgramPhase(p) === 'closed') ?? []
+
   return (
     <>
       <PageHeader
         title="프로그램 신청"
-        description="신청 안내와 절차를 확인하고 신청서를 작성합니다."
+        description="참여하실 프로그램을 선택해 신청하세요. 프로그램마다 신청 항목과 참여 방식이 다릅니다."
       />
-      <Placeholder
-        phase="Phase 3"
-        blockedBy="H-1 신청서 폼 명세"
-        items={[
-          '신청 안내 및 절차',
-          '신청서 작성 — 다단계 폼 + 임시저장',
-          '증빙 첨부 (신분증 등, 최소화 원칙 D-3)',
-          '신청서 미리보기 / 인쇄 · PDF 자동 생성',
-          '* 폼 필드 확정 전까지 셸만 구현',
-        ]}
-      />
+
+      <div className="container-page space-y-8 py-10">
+        {programs === null ? (
+          <p className="text-sm text-ink-muted">불러오는 중…</p>
+        ) : error ? (
+          <EmptyState title="목록을 불러오지 못했습니다" desc={error} />
+        ) : programs.length === 0 ? (
+          <EmptyState
+            title="공개된 프로그램이 없습니다"
+            desc="접수가 시작되면 이곳에 프로그램이 표시됩니다. 공고는 알림마당에서도 확인하실 수 있습니다."
+          />
+        ) : (
+          <>
+            {open.length > 0 && (
+              <section>
+                <h2 className="text-lg font-bold tracking-tight">접수중 · 예정</h2>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {open.map((p) => (
+                    <ProgramCard key={p.id} program={p} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {closed.length > 0 && (
+              <section>
+                <h2 className="text-lg font-bold tracking-tight text-ink-muted">
+                  지난 프로그램
+                </h2>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {closed.map((p) => (
+                    <ProgramCard key={p.id} program={p} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </div>
     </>
   )
 }

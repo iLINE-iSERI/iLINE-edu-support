@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { SITE } from '@/lib/config/site'
 
 /**
  * 사업 홈 (support.iline.or.kr/)
@@ -8,7 +9,7 @@ import Link from 'next/link'
  */
 
 const STEPS = [
-  { n: '01', title: '회원가입', desc: '창의재단 회원 등록' },
+  { n: '01', title: '회원가입', desc: '기본 정보 · 동의서 등록' },
   { n: '02', title: '신청서 작성', desc: '웹에서 작성 · 임시저장' },
   { n: '03', title: '심사 · 선정', desc: '마이페이지에서 결과 확인' },
   { n: '04', title: '활동 · 정산', desc: '증빙 제출 · 산출물 공유' },
@@ -39,10 +40,10 @@ export default function SupportHomePage() {
       <section className="border-b border-line bg-brand-soft/60 dark:bg-brand-900/20">
         <div className="container-page py-12 sm:py-16">
           <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
-            한국과학창의재단
+            {SITE.funder}
           </p>
           <h1 className="mt-2 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl lg:text-4xl">
-            교원양성지원사업
+            {SITE.programName}
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-muted">
             과제 신청부터 정산, 산출물 공유까지 온라인으로 처리합니다.
@@ -59,7 +60,7 @@ export default function SupportHomePage() {
                   <span className="text-xs text-ink-subtle">D-14</span>
                 </div>
                 <p className="mt-2 text-lg font-bold">
-                  2026년 교원양성지원사업 과제 공모
+                  2026년 {SITE.programName} 프로그램 공모
                 </p>
                 <p className="mt-1 text-sm text-ink-muted">
                   접수기간 2026. 9. 1. ~ 9. 18. 18:00

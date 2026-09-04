@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { SITE } from '@/lib/config/site'
 
 /**
  * 창의재단 헤더 (D-14)
@@ -21,8 +22,6 @@ const NAV = [
   { href: '/gallery', label: '갤러리' },
   { href: '/notice', label: '알림마당' },
 ] as const
-
-const INTRO_URL = process.env.NEXT_PUBLIC_INTRO_URL || 'https://iline.or.kr'
 
 export default function Header() {
   const [open, setOpen] = useState(false)
@@ -44,20 +43,20 @@ export default function Header() {
           <Link
             href="/"
             className="flex min-w-0 items-center gap-2"
-            aria-label="교원양성지원사업 홈"
+            aria-label={`${SITE.programName} 홈`}
           >
             <span className="text-lg font-extrabold tracking-tight text-brand-600 dark:text-brand-300">
-              교원양성지원사업
+              {SITE.programName}
             </span>
             <span className="hidden truncate text-xs text-ink-subtle sm:inline">
-              한국과학창의재단
+              {SITE.funder}
             </span>
           </Link>
 
           {/* 데스크톱 계정 영역 */}
           <nav className="hidden items-center gap-1 md:flex" aria-label="계정">
             <a
-              href={INTRO_URL}
+              href={SITE.introUrl}
               className="rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-subtle"
             >
               iLINE 홈
@@ -188,7 +187,7 @@ export default function Header() {
             <div className="my-2 border-t border-line" />
 
             <a
-              href={INTRO_URL}
+              href={SITE.introUrl}
               className="flex items-center rounded-lg px-3 py-3 text-base text-ink-muted"
             >
               iLINE 홈

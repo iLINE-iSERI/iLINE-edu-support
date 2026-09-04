@@ -29,12 +29,14 @@ function MypageContent() {
         <div className="container-page pt-8">
           <dl className="grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-ink-subtle">소속</dt>
-              <dd className="mt-0.5 font-medium">{member.affiliation}</dd>
+              <dt className="text-ink-subtle">학번</dt>
+              <dd className="mt-0.5 font-medium">{member.studentId}</dd>
             </div>
             <div>
-              <dt className="text-ink-subtle">직위</dt>
-              <dd className="mt-0.5 font-medium">{member.position}</dd>
+              <dt className="text-ink-subtle">전공 · 학년</dt>
+              <dd className="mt-0.5 font-medium">
+                {member.major} · {member.grade}
+              </dd>
             </div>
             <div>
               <dt className="text-ink-subtle">이메일</dt>

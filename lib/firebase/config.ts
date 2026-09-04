@@ -72,6 +72,7 @@ export function getStorageClient(): FirebaseStorage {
 /** Firestore 컬렉션 이름 — 그뤠잇과 충돌하지 않도록 접두어 고정 */
 export const COL = {
   users: 'support_users',
+  programs: 'support_programs',
   applications: 'support_applications',
   settlements: 'support_settlements',
   outputs: 'support_outputs',

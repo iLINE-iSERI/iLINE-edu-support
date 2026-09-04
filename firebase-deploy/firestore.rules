@@ -240,6 +240,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+
+    // ----- 프로그램 (공개 읽기, 담당자만 관리) -----
+    match /support_programs/{id} {
+      allow read: if resource.data.published == true || isSupportStaff();
+      allow write: if isSupportStaff();
+    }
+
     // ----- 신청서 -----
     match /support_applications/{appId} {
       allow get: if isSupportMember()

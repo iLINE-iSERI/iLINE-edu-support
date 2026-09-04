@@ -1,5 +1,6 @@
 import PageHeader from '@/components/ui/PageHeader'
 import DraftNotice from '@/components/ui/DraftNotice'
+import { SITE } from '@/lib/config/site'
 
 export const metadata = { title: '사업소개' }
 
@@ -12,17 +13,18 @@ export const metadata = { title: '사업소개' }
 
 const DRAFT = {
   purpose:
-    '학교 현장의 교원이 인공지능 교육을 직접 설계하고 수업에 적용할 수 있도록 연수·개발·실행을 지원합니다. 참여 교원이 만든 지도안과 수업 사례는 갤러리를 통해 다른 교원과 공유됩니다.',
-  target: ['현직 초·중등 교원', '교육대학원 재학생 등 예비교원'],
+    '예비교원이 교육 현장에 나가기 전에 인공지능 교육을 직접 설계하고 실습해 볼 수 있도록 프로그램 참여와 자료 개발, 활동비를 지원합니다. 참여자가 만든 지도안과 활동 사례는 갤러리를 통해 공유됩니다.',
+  // 대상 = 예비교원 (확정)
+  target: ['교원양성기관 재학생 (예비교원)', '교육대학원 재학생'],
   support: [
-    { label: '연수 참여', desc: 'AI 교육 관련 연수 과정 참여 지원' },
-    { label: '수업 개발', desc: '지도안·교구 등 수업 자료 개발 지원' },
+    { label: '프로그램 참여', desc: 'AI 교육 관련 프로그램 참여 지원' },
+    { label: '자료 개발', desc: '지도안·교구 등 수업 자료 개발 지원' },
     { label: '활동비', desc: '여비 등 활동에 필요한 실비 정산 지원' },
   ],
   schedule: [
     { period: '2026. 9.', title: '사업 공고 및 신청 접수', done: true },
     { period: '2026. 10.', title: '심사 및 참여자 선정', done: false },
-    { period: '2026. 10. ~ 11.', title: '연수 및 수업 개발·적용', done: false },
+    { period: '2026. 10. ~ 11.', title: '프로그램 참여 및 자료 개발', done: false },
     { period: '2026. 11.', title: '산출물 제출', done: false },
     { period: '2026. 12.', title: '정산 및 사업 종료', done: false },
   ],
@@ -33,7 +35,7 @@ export default function AboutPage() {
     <>
       <PageHeader
         title="사업소개"
-        description="한국과학창의재단 교원양성지원사업의 목적과 추진 체계, 참여 자격을 안내합니다."
+        description={`${SITE.funder} ${SITE.programName}의 목적과 추진 체계, 참여 자격을 안내합니다.`}
       />
 
       <div className="container-page space-y-12 py-10 sm:py-12">
@@ -65,11 +67,11 @@ export default function AboutPage() {
             ))}
           </ul>
           <p className="mt-3 text-sm text-ink-subtle">
-            개인 또는 팀으로 참여할 수 있습니다. 팀으로 활동하는 경우에도{' '}
-            <strong className="font-semibold text-ink-muted">
-              구성원이 각각 신청
-            </strong>
-            해야 합니다.
+            신청은 <strong className="font-semibold text-ink-muted">개인 단위가 기본</strong>
+            입니다. 팀으로 활동하시더라도 구성원이 각자 신청해 주세요. 다만{' '}
+            <strong className="font-semibold text-ink-muted">단체 프로그램</strong>
+            은 대표자가 팀원 명단과 함께 신청합니다. 프로그램별 세부 자격은 각
+            공고를 확인해 주세요.
           </p>
         </section>
 
@@ -145,7 +147,7 @@ export default function AboutPage() {
                     scope="row"
                     className="py-3 pr-4 text-left font-medium text-ink"
                   >
-                    한국과학창의재단
+                    {SITE.funder}
                   </th>
                   <td className="py-3">사업 총괄 · 예산 지원</td>
                 </tr>
@@ -154,7 +156,7 @@ export default function AboutPage() {
                     scope="row"
                     className="py-3 pr-4 text-left font-medium text-ink"
                   >
-                    제주대학교 지능소프트웨어교육연구소
+                    {SITE.operator}
                   </th>
                   <td className="py-3">사업 운영 · 참여자 지원 · 성과 관리</td>
                 </tr>
@@ -163,9 +165,9 @@ export default function AboutPage() {
                     scope="row"
                     className="py-3 pr-4 text-left font-medium text-ink"
                   >
-                    참여 교원
+                    참여 학생 (예비교원)
                   </th>
-                  <td className="py-3">수업 개발 · 현장 적용 · 산출물 제출</td>
+                  <td className="py-3">프로그램 참여 · 자료 개발 · 산출물 제출</td>
                 </tr>
               </tbody>
             </table>
