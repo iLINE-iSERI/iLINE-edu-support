@@ -86,6 +86,28 @@ async function uploadPdf(
   name: string,
   pdf: Buffer
 ): Promise<string> {
+  // 같은 이름이 이미 있으면 다시 올리지 않는다.
+  //
+  // 동기화는 앞 단계(드라이브)가 성공하고 뒤 단계(시트)만 실패할 수 있다.
+  // 그 상태에서 '다시 시도'를 누르면 처음부터 다시 도는데, 이 확인이 없으면
+  // 누를 때마다 드라이브에 같은 PDF가 한 장씩 쌓인다.
+  // 파일명에 신청번호가 들어 있어 이름이 곧 식별자 역할을 한다.
+  const escaped = name.replace(/'/g, "\\'")
+  const found = await drive.files.list({
+    q: `name = '${escaped}' and '${folderId}' in parents and trashed = false`,
+    fields: 'files(id, webViewLink)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const already = found.data.files?.[0]
+  if (already) {
+    return (
+      already.webViewLink ||
+      `https://drive.google.com/file/d/${already.id}/view`
+    )
+  }
+
   // ⚠️ Readable 은 파일 맨 위에서 정적으로 import 한다.
   //    await import('node:stream') 로 가져오면 번들러에 따라 네임스페이스가
   //    한 겹 더 씌워져 Readable 이 undefined 가 된다.
