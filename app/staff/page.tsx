@@ -251,6 +251,32 @@ function ApplicationRow({
         ))}
       </div>
 
+      {/* 시트 동기화 상태 — 담당자가 "왜 시트에 없지?"를 여기서 알 수 있게 */}
+      {app.driveSyncError ? (
+        <p className="mt-3 rounded-lg bg-status-revision/10 px-3 py-2 text-xs leading-relaxed text-status-revision">
+          <strong>구글 시트 반영 실패</strong> — {app.driveSyncError}
+          <br />
+          신청 자체는 정상 접수되었습니다. 설정은 docs/11-sheet-drive-setup.md 참고.
+        </p>
+      ) : app.sheetSyncedAt ? (
+        <p className="mt-3 text-xs text-ink-subtle">
+          구글 시트 반영 완료
+          {app.driveFolderUrl && (
+            <>
+              {' · '}
+              <a
+                href={app.driveFolderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >
+                드라이브에서 열기
+              </a>
+            </>
+          )}
+        </p>
+      ) : null}
+
       {/* ── 상태 변경 ─────────────────────────────────────── */}
       <div className="mt-4 border-t border-line pt-4">
         <div className="flex flex-wrap gap-2">

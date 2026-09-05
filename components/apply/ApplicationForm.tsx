@@ -11,7 +11,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { submitApplication } from '@/lib/firebase/applications'
+import { submitApplication, requestSync } from '@/lib/firebase/applications'
 import ApplicationSheet from './ApplicationSheet'
 import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
@@ -90,7 +90,11 @@ export default function ApplicationForm({
       }
 
       setStep(files.length > 0 ? '파일을 올리는 중…' : '제출하는 중…')
-      await submitApplication({ program, member, uid, note, files, pdf })
+      const appId = await submitApplication({ program, member, uid, note, files, pdf })
+
+      // 시트·드라이브 반영. 실패해도 제출은 이미 끝났으므로 기다리지 않는다.
+      void requestSync(appId)
+
       router.replace('/mypage?submitted=1')
     } catch (err) {
       console.error('[iLINE] 신청서 제출 실패:', err)

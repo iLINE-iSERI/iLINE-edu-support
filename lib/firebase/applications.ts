@@ -173,3 +173,35 @@ export async function getApplication(id: string): Promise<Application | null> {
   if (!snap.exists()) return null
   return { id: snap.id, ...snap.data() } as Application
 }
+
+/**
+ * 제출 직후 구글 시트·드라이브 동기화를 요청한다 (D-7 / D-30).
+ *
+ * ⚠️ **실패해도 신청은 이미 완료다.** 그래서 오류를 던지지 않고 기록만 한다.
+ *    시트는 담당자 편의를 위한 사본이고, 원본은 Firebase 에 있다.
+ *    여기서 예외를 던지면 "제출은 됐는데 실패 화면이 뜨는" 최악이 된다.
+ *
+ * 서버 설정이 없으면 응답이 skipped 로 오고, 그것도 정상이다.
+ */
+export async function requestSync(applicationId: string): Promise<void> {
+  try {
+    const auth = (await import('./config')).getAuthClient()
+    const token = await auth.currentUser?.getIdToken()
+    if (!token) return
+
+    const res = await fetch('/api/sync/application', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ applicationId }),
+    })
+
+    if (!res.ok) {
+      console.warn('[iLINE] 시트 동기화 실패(신청은 정상 접수됨):', await res.text())
+    }
+  } catch (e) {
+    console.warn('[iLINE] 시트 동기화 요청 실패(신청은 정상 접수됨):', e)
+  }
+}
