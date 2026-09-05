@@ -128,7 +128,10 @@ service cloud.firestore {
     // 화면의 중복 확인만으로는 부족하다 — 탭 두 개, 뒤로가기 후 재제출 같은
     // 경로로 통과해 시트에 두 줄·드라이브에 PDF 두 개가 쌓인다.
     //
-    // 취소된 신청건 때문에 다시 신청해야 하면 **담당자가 이 문서를 지우면** 된다.
+    // ⚠️ 재신청을 열어주려면 **이 문서만 지워서는 안 된다.** 화면(/apply/[programId])이
+    //    신청서 문서를 보고 먼저 막기 때문에, 신청서 문서도 함께 처리해야 한다.
+    //    담당자가 콘솔을 직접 만지지 않도록 '신청 취소' 기능을 붙이는 것이 숙제다
+    //    (docs/TODO-later.md 🟠W). 그때까지는 두 문서를 모두 지워야 한다.
     match /support_application_keys/{keyId} {
       allow get, list: if isStaff();
       allow create: if isMember()
