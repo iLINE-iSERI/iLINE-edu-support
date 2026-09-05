@@ -8,10 +8,12 @@
  * 첨부란이 나타난다. 설계 배경은 docs/07-application-form.md 참고.
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { submitApplication } from '@/lib/firebase/applications'
+import ApplicationSheet from './ApplicationSheet'
+import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import type { Program, SupportUser } from '@/lib/types'
 
@@ -33,7 +35,10 @@ export default function ApplicationForm({
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const [step, setStep] = useState('')
   const [error, setError] = useState('')
+  /** PDF로 뜰 인쇄본 — 화면 밖에 그려둔다 */
+  const sheetRef = useRef<HTMLDivElement>(null)
 
   const wantsNote = Boolean(program.noteLabel)
   const wantsFiles = Boolean(program.attachmentGuide)
@@ -73,17 +78,39 @@ export default function ApplicationForm({
 
     setBusy(true)
     try {
-      await submitApplication({ program, member, uid, note, files })
+      // ① 제출 시점의 신청서를 PDF 원본으로 뜬다 (D-28).
+      //    실패해도 제출 자체는 막지 않는다 — PDF는 사본 성격이고,
+      //    이것 때문에 학생이 신청을 못 하게 되는 게 더 큰 문제다.
+      setStep('신청서를 만드는 중…')
+      let pdf: Blob | null = null
+      try {
+        if (sheetRef.current) pdf = await elementToPdfBlob(sheetRef.current)
+      } catch (e) {
+        console.error('[iLINE] 신청서 PDF 생성 실패 — 제출은 계속합니다:', e)
+      }
+
+      setStep(files.length > 0 ? '파일을 올리는 중…' : '제출하는 중…')
+      await submitApplication({ program, member, uid, note, files, pdf })
       router.replace('/mypage?submitted=1')
     } catch (err) {
       console.error('[iLINE] 신청서 제출 실패:', err)
       setError(firestoreErrorMessage(err))
+      setStep('')
       setBusy(false)
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* PDF 원본 — 화면에는 보이지 않는다 */}
+      <ApplicationSheet
+        ref={sheetRef}
+        program={program}
+        member={member}
+        note={note}
+        fileNames={files.map((f) => f.name)}
+      />
+
       {/* ── 신청자 정보 — 확인만 ────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -204,8 +231,9 @@ export default function ApplicationForm({
 
       <div className="rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
         제출하시면 <strong>수정할 수 없습니다.</strong> 내용을 바꾸셔야 하는
-        경우 담당자에게 문의해 주세요. 제출 결과는 마이페이지에서 확인하실 수
-        있습니다.
+        경우 담당자에게 문의해 주세요. 제출 시점의 신청서는{' '}
+        <strong>PDF 원본으로 보관</strong>되며, 결과는 마이페이지에서 확인하실
+        수 있습니다.
       </div>
 
       <button
@@ -213,7 +241,7 @@ export default function ApplicationForm({
         disabled={busy}
         className="touch-target w-full rounded-xl bg-brand-600 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
       >
-        {busy ? '제출 중…' : '신청서 제출'}
+        {busy ? step || '제출 중…' : '신청서 제출'}
       </button>
     </form>
   )

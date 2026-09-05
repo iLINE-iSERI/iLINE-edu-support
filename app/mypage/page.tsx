@@ -8,7 +8,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import Placeholder from '@/components/ui/Placeholder'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
-import { listMyApplications } from '@/lib/firebase/applications'
+import { listMyApplications, fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { APPLICATION_STATUS_LABEL, type Application } from '@/lib/types'
 
@@ -112,11 +112,22 @@ function MypageContent() {
                       {a.programTitle || a.programId}
                     </p>
 
-                    {a.files?.length > 0 && (
-                      <p className="mt-1 text-sm text-ink-muted">
-                        첨부 {a.files.length}건
-                      </p>
-                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {a.generatedPdfPath && (
+                        <FileButton
+                          path={a.generatedPdfPath}
+                          label="제출한 신청서 (PDF)"
+                          primary
+                        />
+                      )}
+                      {a.files?.map((f) => (
+                        <FileButton
+                          key={f.storagePath}
+                          path={f.storagePath}
+                          label={f.fileName}
+                        />
+                      ))}
+                    </div>
 
                     {/* 보완 요청·미선정 사유 (D-10) */}
                     {a.reviewNote && (
@@ -159,6 +170,54 @@ function MypageContent() {
         ]}
       />
     </>
+  )
+}
+
+/**
+ * 제출한 파일 열기 — 신청서 PDF(D-28)와 첨부 서류 공용.
+ *
+ * 링크를 미리 만들어 두지 않고 누를 때 발급받는다.
+ * Storage 다운로드 URL 은 토큰이 붙은 주소라, 목록에 박아두면
+ * 화면을 캡처하거나 공유하는 것만으로 새어 나갈 수 있다.
+ */
+function FileButton({
+  path,
+  label,
+  primary,
+}: {
+  path: string
+  label: string
+  primary?: boolean
+}) {
+  const [busy, setBusy] = useState(false)
+
+  async function open() {
+    setBusy(true)
+    try {
+      window.open(await fileUrl(path), '_blank', 'noopener')
+    } catch (e) {
+      console.error('[iLINE] 파일 열기 실패:', e)
+      alert('파일을 여는 데 실패했습니다. 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={open}
+      disabled={busy}
+      title={label}
+      className={
+        'inline-flex max-w-full items-center rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50 ' +
+        (primary
+          ? 'border-line-strong hover:bg-subtle'
+          : 'border-line text-ink-muted hover:bg-subtle')
+      }
+    >
+      <span className="truncate">{busy ? '여는 중…' : label}</span>
+    </button>
   )
 }
 

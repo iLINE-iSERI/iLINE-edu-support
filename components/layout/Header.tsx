@@ -27,7 +27,9 @@ export default function Header() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
-  const { status, logout } = useAuth()
+  const { status, member, logout } = useAuth()
+  /** 담당자에게만 보이는 메뉴 — 없는 사람에게는 존재 자체를 알리지 않는다 */
+  const isStaff = member?.role === 'staff'
   // 인증 신원이 있어도 회원 등록 전이면 로그인 상태로 보지 않는다 (D-23)
   const isLoggedIn = status === 'member' || status === 'withdrawn'
   // 'error'(확인 불가)일 때는 "가입 마저 하기"를 권하지 않는다.
@@ -63,6 +65,14 @@ export default function Header() {
             >
               iLINE 홈
             </a>
+            {isStaff && (
+              <Link
+                href="/staff"
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-ink-muted hover:bg-subtle"
+              >
+                신청 관리
+              </Link>
+            )}
             {isLoggedIn ? (
               <>
                 <button
@@ -181,6 +191,15 @@ export default function Header() {
           className="border-t border-line bg-surface md:hidden"
         >
           <nav className="container-page py-2" aria-label="주요 메뉴">
+            {isStaff && (
+              <Link
+                href="/staff"
+                onClick={() => setOpen(false)}
+                className="flex items-center rounded-lg px-3 py-3 text-base font-bold text-brand-600 dark:text-brand-300"
+              >
+                신청 관리
+              </Link>
+            )}
             {NAV.map((item) => (
               <Link
                 key={item.href}

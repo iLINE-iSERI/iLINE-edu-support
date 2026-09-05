@@ -11,10 +11,11 @@ import {
   getDocs,
   query,
   where,
-  addDoc,
+  setDoc,
   serverTimestamp,
+  Timestamp,
 } from 'firebase/firestore'
-import { ref, uploadBytes } from 'firebase/storage'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { getDb, getStorageClient, COL, STORAGE_ROOT } from './config'
 import type {
   Application,
@@ -44,11 +45,12 @@ export function snapshotOf(member: SupportUser): ApplicantSnapshot {
 /** 첨부 파일 업로드 — 본인 경로에만 올라간다 (Storage 규칙과 일치) */
 async function uploadAttachment(
   uid: string,
+  appId: string,
   file: File
 ): Promise<Omit<AttachedFile, 'uploadedAt'>> {
-  // 파일명에 한글·공백이 섞여도 경로가 깨지지 않도록 시각을 접두어로 쓴다.
+  // 파일명에 한글·공백이 섞여도 경로가 깨지지 않도록 정리한다.
   const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_')
-  const path = `${STORAGE_ROOT}/applications/${uid}/${Date.now()}_${safeName}`
+  const path = `${STORAGE_ROOT}/applications/${uid}/${appId}/${Date.now()}_${safeName}`
 
   await uploadBytes(ref(getStorageClient(), path), file)
 
@@ -57,8 +59,7 @@ async function uploadAttachment(
     storagePath: path,
     fileName: file.name,
     size: file.size,
-    // uploadedAt 은 여기서 만들지 않는다. 클라이언트 시계는 틀릴 수 있으므로
-    // 문서를 저장할 때 서버 시각(serverTimestamp)으로 채운다.
+    // uploadedAt 은 문서를 저장할 때 채운다 (아래 주석 참고).
   }
 }
 
@@ -68,21 +69,40 @@ export interface SubmitInput {
   uid: string
   note?: string
   files: File[]
+  /** 제출 시점에 만든 신청서 PDF (D-28). 없으면 그냥 넘어간다 */
+  pdf?: Blob | null
 }
 
 /**
  * 신청서 제출.
  *
  * 임시저장을 두지 않으므로 바로 `submitted` 상태로 만든다 (D-29).
- * 파일을 먼저 올리고 문서를 만든다 — 순서가 반대면 업로드가 실패했을 때
- * 첨부가 비어 있는 신청서만 남는다.
+ *
+ * ⚠️ 문서 ID를 **미리 만들고** 파일부터 올린 뒤 마지막에 문서를 쓴다.
+ *    이유가 둘이다.
+ *      · 첨부와 PDF를 신청건별 폴더에 모을 수 있다
+ *      · 제출된(submitted) 신청서는 규칙상 신청자가 수정할 수 없다.
+ *        문서를 먼저 만들고 나중에 PDF 경로를 덧붙이려 하면 막힌다.
+ *    업로드가 중간에 실패하면 문서가 아예 안 만들어지므로,
+ *    '첨부 없는 신청서'가 남는 일도 없다.
  */
 export async function submitApplication(input: SubmitInput): Promise<string> {
-  const { program, member, uid, note, files } = input
+  const { program, member, uid, note, files, pdf } = input
+
+  const appRef = doc(collection(getDb(), COL.applications))
+  const base = `${STORAGE_ROOT}/applications/${uid}/${appRef.id}`
 
   const attached: Omit<AttachedFile, 'uploadedAt'>[] = []
   for (const f of files) {
-    attached.push(await uploadAttachment(uid, f))
+    attached.push(await uploadAttachment(uid, appRef.id, f))
+  }
+
+  let generatedPdfPath: string | undefined
+  if (pdf) {
+    generatedPdfPath = `${base}/신청서.pdf`
+    await uploadBytes(ref(getStorageClient(), generatedPdfPath), pdf, {
+      contentType: 'application/pdf',
+    })
   }
 
   const now = serverTimestamp()
@@ -94,19 +114,28 @@ export async function submitApplication(input: SubmitInput): Promise<string> {
     programTitle: program.title, // 프로그램이 수정돼도 신청 이력은 남는다
     participationType: program.participationType ?? 'individual',
     applicant: snapshotOf(member),
-    files: attached.map((a) => ({ ...a, uploadedAt: now })),
+    // ⚠️ 배열 안에는 serverTimestamp() 를 넣을 수 없다 (Firestore 제약).
+    //    그래서 첨부 시각만 클라이언트 시각을 쓴다. 몇 초 어긋날 수 있지만
+    //    이 값은 참고용이고, 제출 시각(submittedAt)은 서버 시각이라 문제없다.
+    files: attached.map((a) => ({ ...a, uploadedAt: Timestamp.now() })),
     submittedAt: now,
     createdAt: now,
     updatedAt: now,
   }
 
+  if (generatedPdfPath) payload.generatedPdfPath = generatedPdfPath
   if (note && note.trim()) {
     payload.note = note.trim()
     payload.noteLabel = program.noteLabel ?? '추가 기재'
   }
 
-  const written = await addDoc(collection(getDb(), COL.applications), payload)
-  return written.id
+  await setDoc(appRef, payload)
+  return appRef.id
+}
+
+/** 저장된 파일의 임시 열람 URL — 규칙을 통과한 사용자에게만 발급된다 */
+export async function fileUrl(storagePath: string): Promise<string> {
+  return getDownloadURL(ref(getStorageClient(), storagePath))
 }
 
 /** 내 신청 목록 — 최신 제출 순 */
