@@ -10,6 +10,7 @@
  */
 
 import 'server-only'
+import { Readable } from 'node:stream'
 import { google } from 'googleapis'
 import { getGoogleConfig } from './env'
 import type { Application } from '@/lib/types'
@@ -85,8 +86,10 @@ async function uploadPdf(
   name: string,
   pdf: Buffer
 ): Promise<string> {
-  const { Readable } = await import('node:stream')
-
+  // ⚠️ Readable 은 파일 맨 위에서 정적으로 import 한다.
+  //    await import('node:stream') 로 가져오면 번들러에 따라 네임스페이스가
+  //    한 겹 더 씌워져 Readable 이 undefined 가 된다.
+  //    (09-05: "Cannot read properties of undefined (reading 'from')")
   const res = await drive.files.create({
     supportsAllDrives: true,
     requestBody: { name, parents: [folderId], mimeType: 'application/pdf' },

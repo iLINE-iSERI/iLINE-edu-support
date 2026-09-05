@@ -62,3 +62,33 @@ export async function updateApplicationStatus(
     updatedAt: serverTimestamp(),
   })
 }
+
+/**
+ * 시트 동기화 재시도 (담당자용).
+ *
+ * 연동 설정을 고친 뒤 이미 들어온 신청 건을 다시 올릴 때 쓴다.
+ * 이게 없으면 설정을 고칠 때마다 신청서를 새로 제출해야 한다.
+ *
+ * 서버가 다시 요청자를 검증하므로, 이 함수를 부를 수 있다는 것만으로
+ * 권한이 생기지는 않는다.
+ */
+export async function retrySync(applicationId: string): Promise<void> {
+  const { getAuthClient } = await import('./config')
+  const token = await getAuthClient().currentUser?.getIdToken()
+  if (!token) throw new Error('로그인 정보를 확인할 수 없습니다.')
+
+  const res = await fetch('/api/sync/application', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ applicationId }),
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || '동기화에 실패했습니다.')
+  if (data.skipped === 'not-configured') {
+    throw new Error('서버에 구글 연동 설정이 없습니다. 환경변수를 확인해 주세요.')
+  }
+}

@@ -15,7 +15,11 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
-import { listAllApplications, updateApplicationStatus } from '@/lib/firebase/staff'
+import {
+  listAllApplications,
+  updateApplicationStatus,
+  retrySync,
+} from '@/lib/firebase/staff'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
@@ -253,11 +257,15 @@ function ApplicationRow({
 
       {/* 시트 동기화 상태 — 담당자가 "왜 시트에 없지?"를 여기서 알 수 있게 */}
       {app.driveSyncError ? (
-        <p className="mt-3 rounded-lg bg-status-revision/10 px-3 py-2 text-xs leading-relaxed text-status-revision">
-          <strong>구글 시트 반영 실패</strong> — {app.driveSyncError}
-          <br />
-          신청 자체는 정상 접수되었습니다. 설정은 docs/11-sheet-drive-setup.md 참고.
-        </p>
+        <div className="mt-3 rounded-lg bg-status-revision/10 px-3 py-2 text-xs leading-relaxed text-status-revision">
+          <p>
+            <strong>구글 시트 반영 실패</strong> — {app.driveSyncError}
+          </p>
+          <p className="mt-1">
+            신청 자체는 정상 접수되었습니다. 설정은 docs/11-sheet-drive-setup.md 참고.
+          </p>
+          <SyncRetry id={app.id} onDone={onSaved} />
+        </div>
       ) : app.sheetSyncedAt ? (
         <p className="mt-3 text-xs text-ink-subtle">
           구글 시트 반영 완료
@@ -325,6 +333,40 @@ function ApplicationRow({
         </div>
       </div>
     </li>
+  )
+}
+
+/** 설정을 고친 뒤 이미 들어온 건을 다시 올릴 때 (신청서 재제출 없이) */
+function SyncRetry({ id, onDone }: { id: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function run() {
+    setBusy(true)
+    setMsg('')
+    try {
+      await retrySync(id)
+      setMsg('반영했습니다.')
+      onDone()
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : '실패했습니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <span className="mt-2 flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy}
+        className="rounded-md border border-status-revision/50 px-3 py-1.5 font-semibold disabled:opacity-50"
+      >
+        {busy ? '다시 시도 중…' : '다시 시도'}
+      </button>
+      {msg && <span className="text-ink-muted">{msg}</span>}
+    </span>
   )
 }
 
