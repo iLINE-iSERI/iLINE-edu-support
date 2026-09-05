@@ -17,10 +17,42 @@ import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import type { Program, SupportUser } from '@/lib/types'
 
-/** 첨부 가능한 형식 — Storage 규칙과 같은 범위로 맞춘다 */
-const ACCEPT = 'image/jpeg,image/png,image/heic,image/heif,image/webp,application/pdf'
+/**
+ * 첨부 가능한 형식 — **Storage 규칙과 같은 범위**로 맞춘다.
+ *
+ * ⚠️ `<input accept>` 는 파일 선택창의 기본 필터일 뿐이다. 사용자가 '모든 파일'로
+ *    바꾸면 무엇이든 고를 수 있으므로 **여기서 직접 검사해야** 한다.
+ *    검사하지 않으면 Storage 규칙이 거부할 때까지 아무도 모르고, 그때는 이미
+ *    PDF 생성과 일부 업로드가 끝난 뒤라 **고아 파일**이 남는다.
+ */
+const ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+  'image/webp',
+  'application/pdf',
+]
+/** 확장자 대비책 — HEIC 등은 브라우저가 MIME 타입을 비워 보낼 때가 있다 */
+const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'pdf']
+const ACCEPT = ALLOWED_TYPES.join(',')
 const MAX_BYTES = 20 * 1024 * 1024
 const MAX_FILES = 5
+
+/** 거부 사유 — 받아도 되는 파일이면 null */
+function rejectReason(f: File, alreadyPicked: number): string | null {
+  const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
+  if (!ALLOWED_TYPES.includes(f.type) && !ALLOWED_EXT.includes(ext)) {
+    return '사진 또는 PDF만 올릴 수 있습니다'
+  }
+  if (f.size > MAX_BYTES) {
+    return `20MB를 넘습니다 (${(f.size / 1024 / 1024).toFixed(1)}MB)`
+  }
+  if (alreadyPicked >= MAX_FILES) {
+    return `첨부는 최대 ${MAX_FILES}개까지입니다`
+  }
+  return null
+}
 
 export default function ApplicationForm({
   program,
@@ -37,6 +69,12 @@ export default function ApplicationForm({
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState('')
   const [error, setError] = useState('')
+  /**
+   * 첨부에서 걸러진 파일들 — 제출 오류(error)와 **따로** 둔다.
+   * 같은 상태에 담아두면 제출 버튼을 누르는 순간 지워져서,
+   * "경고는 떴는데 그대로 제출되더라"가 된다. (09-05 실제 발생)
+   */
+  const [rejected, setRejected] = useState<{ name: string; why: string }[]>([])
   /** PDF로 뜰 인쇄본 — 화면 밖에 그려둔다 */
   const sheetRef = useRef<HTMLDivElement>(null)
 
@@ -46,21 +84,33 @@ export default function ApplicationForm({
   const consent = (purpose: string) =>
     member.consents.some((c) => c.purpose === purpose && c.agreed)
 
-  function handleFiles(list: FileList | null) {
-    setError('')
-    if (!list) return
+  /**
+   * 고른 파일을 한 개씩 판정한다.
+   *
+   * 통과한 것만 목록에 넣고, 걸러진 것은 **사유와 함께 화면에 남긴다.**
+   * 예전에는 문제가 하나라도 있으면 전부 버리고 경고만 띄웠는데,
+   * 그 경고가 제출 시 지워져 **첨부한 줄 알고 제출하는 사고**가 났다.
+   */
+  function handleFiles(list: FileList | null, input: HTMLInputElement | null) {
+    if (!list || list.length === 0) return
 
-    const picked = Array.from(list)
-    const tooBig = picked.find((f) => f.size > MAX_BYTES)
-    if (tooBig) {
-      setError(`"${tooBig.name}" 파일이 20MB를 넘습니다.`)
-      return
+    const accepted: File[] = [...files]
+    const bad: { name: string; why: string }[] = []
+
+    for (const f of Array.from(list)) {
+      const why = rejectReason(f, accepted.length)
+      if (why) bad.push({ name: f.name, why })
+      else accepted.push(f)
     }
-    const merged = [...files, ...picked].slice(0, MAX_FILES)
-    if (files.length + picked.length > MAX_FILES) {
-      setError(`첨부는 최대 ${MAX_FILES}개까지입니다.`)
-    }
-    setFiles(merged)
+
+    setFiles(accepted)
+    setRejected(bad)
+    if (bad.length === 0) setError('')
+
+    // 같은 파일을 다시 고를 수 있도록 입력칸을 비운다.
+    // 비우지 않으면 '같은 파일 재선택'이 change 이벤트를 일으키지 않아
+    // 사용자가 다시 시도해도 아무 반응이 없다.
+    if (input) input.value = ''
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -73,6 +123,15 @@ export default function ApplicationForm({
     }
     if (program.attachmentRequired && files.length === 0) {
       setError('첨부 서류를 올려 주세요.')
+      return
+    }
+    // 걸러진 파일이 남아 있으면 제출을 막는다.
+    // 그대로 보내면 신청자는 첨부한 줄 알고, 담당자는 서류가 없다고 본다.
+    if (rejected.length > 0) {
+      setError(
+        '첨부하지 못한 파일이 있습니다. 아래 안내를 확인하고 다시 올리시거나, ' +
+          '그대로 제출하시려면 [무시하고 계속]을 눌러 주세요.'
+      )
       return
     }
 
@@ -195,12 +254,42 @@ export default function ApplicationForm({
             type="file"
             multiple
             accept={ACCEPT}
-            onChange={(e) => handleFiles(e.target.files)}
+            onChange={(e) => handleFiles(e.target.files, e.target)}
             className="mt-4 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2.5 file:font-semibold file:text-white"
           />
           <p className="mt-2 text-xs text-ink-subtle">
             사진 또는 PDF · 1개당 20MB 이하 · 최대 {MAX_FILES}개
           </p>
+
+          {/* 걸러진 파일 — 제출할 때까지 사라지지 않는다 */}
+          {rejected.length > 0 && (
+            <div
+              role="alert"
+              className="mt-3 rounded-xl border border-status-revision/40 bg-status-revision/10 p-3 text-sm"
+            >
+              <p className="font-bold text-status-revision">
+                첨부하지 못한 파일 {rejected.length}개
+              </p>
+              <ul className="mt-1.5 space-y-1 text-ink-muted">
+                {rejected.map((r, i) => (
+                  <li key={`${r.name}-${i}`} className="leading-relaxed">
+                    <span className="break-all font-medium">{r.name}</span>
+                    <span className="text-ink-subtle"> — {r.why}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => {
+                  setRejected([])
+                  setError('')
+                }}
+                className="mt-2 text-xs font-semibold text-ink-muted underline underline-offset-2"
+              >
+                무시하고 계속
+              </button>
+            </div>
+          )}
 
           {files.length > 0 && (
             <ul className="mt-3 space-y-2">
