@@ -75,26 +75,54 @@ async function ensureHeaders(
 }
 
 /**
+ * 드라이브에 올릴 파일 이름.
+ *
+ *   프로그램명_이름_20260905-1642.pdf
+ *
+ * 담당자가 폴더를 열었을 때 바로 읽히도록 사람 기준으로 짓는다.
+ * 신청번호는 **파일명에 넣지 않는다** — 대신 아래 appProperties 에 숨겨둔다.
+ */
+function pdfFileName(app: Application): string {
+  const clean = (v: string) =>
+    (v || '')
+      .replace(/[\\/:*?"<>|]/g, '') // 드라이브·윈도우에서 문제되는 문자
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 40)
+
+  const d = app.submittedAt?.toDate?.() ?? new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  const stamp =
+    `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
+    `-${p(d.getHours())}${p(d.getMinutes())}`
+
+  const program = clean(app.programTitle || app.programId) || '프로그램'
+  const name = clean(app.applicant?.name || '') || '이름없음'
+
+  return `${program}_${name}_${stamp}.pdf`
+}
+
+/**
  * 신청서 PDF 를 공유 드라이브에 올린다 (D-30).
  *
  * ⚠️ 반드시 **공유 드라이브** 여야 한다. 서비스 계정은 저장 용량이 없어서
  *    개인 드라이브에는 못 올린다. supportsAllDrives 도 빠뜨리면 안 된다.
+ *
+ * 중복 방지는 **파일명이 아니라 appProperties 의 신청번호**로 판단한다.
+ * 파일명은 사람이 읽기 좋게 짓기 때문에 동명이인 등으로 겹칠 수 있고,
+ * 그걸 식별자로 쓰면 남의 신청서를 자기 것으로 착각한다.
+ * appProperties 는 이 앱만 읽는 숨은 값이라 화면에는 보이지 않는다.
  */
 async function uploadPdf(
   drive: ReturnType<typeof google.drive>,
   folderId: string,
-  name: string,
+  app: Application,
   pdf: Buffer
 ): Promise<string> {
-  // 같은 이름이 이미 있으면 다시 올리지 않는다.
-  //
-  // 동기화는 앞 단계(드라이브)가 성공하고 뒤 단계(시트)만 실패할 수 있다.
-  // 그 상태에서 '다시 시도'를 누르면 처음부터 다시 도는데, 이 확인이 없으면
-  // 누를 때마다 드라이브에 같은 PDF가 한 장씩 쌓인다.
-  // 파일명에 신청번호가 들어 있어 이름이 곧 식별자 역할을 한다.
-  const escaped = name.replace(/'/g, "\\'")
   const found = await drive.files.list({
-    q: `name = '${escaped}' and '${folderId}' in parents and trashed = false`,
+    q:
+      `appProperties has { key='applicationId' and value='${app.id}' } ` +
+      `and '${folderId}' in parents and trashed = false`,
     fields: 'files(id, webViewLink)',
     pageSize: 1,
     supportsAllDrives: true,
@@ -108,13 +136,15 @@ async function uploadPdf(
     )
   }
 
-  // ⚠️ Readable 은 파일 맨 위에서 정적으로 import 한다.
-  //    await import('node:stream') 로 가져오면 번들러에 따라 네임스페이스가
-  //    한 겹 더 씌워져 Readable 이 undefined 가 된다.
-  //    (09-05: "Cannot read properties of undefined (reading 'from')")
   const res = await drive.files.create({
     supportsAllDrives: true,
-    requestBody: { name, parents: [folderId], mimeType: 'application/pdf' },
+    requestBody: {
+      name: pdfFileName(app),
+      parents: [folderId],
+      mimeType: 'application/pdf',
+      // 화면에는 안 보이는 표시. 재시도 시 같은 신청건을 알아보는 근거다.
+      appProperties: { applicationId: app.id },
+    },
     media: { mimeType: 'application/pdf', body: Readable.from(pdf) },
     fields: 'id, webViewLink',
   })
@@ -161,9 +191,8 @@ export async function syncApplication(
 
   let driveUrl = ''
   if (pdf) {
-    const safeName = `${app.id}_${ap?.name || '이름없음'}.pdf`.replace(/[/\\]/g, '_')
     driveUrl = await step('드라이브 업로드 · DRIVE_FOLDER_ID 확인', () =>
-      uploadPdf(drive, cfg.driveFolderId, safeName, pdf)
+      uploadPdf(drive, cfg.driveFolderId, app, pdf)
     )
   }
 
