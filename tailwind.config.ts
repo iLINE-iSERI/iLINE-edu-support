@@ -14,7 +14,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // 사업 브랜드 (남색 계열) — 그뤠잇의 청록과 구분
+        // 사업 브랜드 (남색 계열) — iLINE의 청록과 구분
         brand: {
           50: '#eef2fb',
           100: '#e8edfa',

@@ -56,7 +56,7 @@ Windows라면 탐색기에서 `node_modules`, `.next`, `.git`, `.env*`를 뺀 �
 
 ### S-2. Firebase 프로젝트 확인
 
-**먼저 확인해 주실 것**: 그뤠잇이 쓰고 있는 **기존 Firebase 프로젝트가 있습니까?**
+**먼저 확인해 주실 것**: iLINE이 쓰고 있는 **기존 Firebase 프로젝트가 있습니까?**
 
 | 상황 | 해야 할 일 |
 |---|---|
@@ -148,7 +148,7 @@ Windows라면 탐색기에서 `node_modules`, `.next`, `.git`, `.env*`를 뺀 �
 ### S-5. Vercel
 
 1. [vercel.com](https://vercel.com) → GitHub 계정으로 로그인
-2. `Add New > Project` → 그뤠잇 레포 선택 → `Import`
+2. `Add New > Project` → iLINE 레포 선택 → `Import`
    - Next.js는 자동 인식되므로 빌드 설정은 기본값 그대로
 3. `Settings > Environment Variables`에 S-6의 값들을 입력
    - 각 변수마다 `Production` / `Preview` / `Development` 체크

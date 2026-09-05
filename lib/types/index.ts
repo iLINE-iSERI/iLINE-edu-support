@@ -2,16 +2,17 @@
  * 창의재단 교원양성지원사업 — 도메인 타입
  *
  * 작업지시서 §6-3 스키마 기준. 컬렉션은 모두 `support_` 접두어로
- * 그뤠잇 데이터와 분리한다 (D-8).
+ * iLINE 데이터와 분리한다 (D-8).
  */
 
 import type { Timestamp } from 'firebase/firestore'
 
 /* ─────────────────────────────────────────────────────────────
-   회원 — support_users/{uid}   (D-6 / D-8 / D-23)
-   인증 신원(uid)은 그뤠잇과 공유하되, 이 문서가 있어야
-   창의재단 회원으로 인정한다. "로그인 여부"가 아니라
-   "이 문서의 존재 여부"로 접근을 판단한다.
+   회원 — support_users/{uid}   (D-6 / D-23 / D-25)
+   지원사업 전용 Firebase 프로젝트를 쓰므로 인증 신원(uid)도
+   iLINE과 완전히 별개다 (D-25). 다만 판별 규칙은 그대로다 —
+   "로그인 여부"가 아니라 "이 문서의 존재 여부"로 접근을 판단한다.
+   계정을 만들었더라도 이 문서가 없으면 회원이 아니다.
    ───────────────────────────────────────────────────────────── */
 
 export type SupportRole = 'applicant' | 'staff'
@@ -103,6 +104,19 @@ export interface Program {
   /** 접수 기간 */
   opensAt?: Timestamp
   closesAt?: Timestamp
+
+  /* ── 신청서 구성 (D-29) — 전부 선택 ─────────────────────────
+     프로그램마다 신청 항목이 달라지는 문제를, 폼 빌더를 만드는 대신
+     '자유 기재란 하나 + 첨부 하나'로 흡수한다.
+     값이 없으면 그 칸 자체가 화면에 나타나지 않는다. */
+
+  /** 자유 기재란의 이름 (예: '지원 동기'). 없으면 칸이 없다 */
+  noteLabel?: string
+  noteRequired?: boolean
+  /** 첨부 안내 문구. 없으면 첨부란이 없다 */
+  attachmentGuide?: string
+  attachmentRequired?: boolean
+
   /** 공개 여부 — 준비 중인 프로그램은 감춘다 */
   published: boolean
   createdAt: Timestamp
@@ -125,9 +139,26 @@ export interface TeamMember {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   신청서 — support_applications/{appId}
-   ⏸ 세부 필드는 H-1(폼 명세) 확정 후 채운다.
+   신청서 — support_applications/{appId}   (D-29)
+
+   신청자는 개인정보를 다시 입력하지 않는다. 회원 정보를 확인만 하고,
+   제출 시점에 그 값을 **복사해서 신청서에 박아둔다**(스냅샷).
+   회원이 나중에 연락처를 바꿔도 제출 당시의 신청서는 그대로여야 하고,
+   D-28의 PDF가 '원본'이 되려면 이게 전제다.
    ───────────────────────────────────────────────────────────── */
+
+/** 제출 시점의 신청자 정보 사본. 이후 회원 정보가 바뀌어도 변하지 않는다 */
+export interface ApplicantSnapshot {
+  name: string
+  studentId: string
+  major: string
+  grade: string
+  phone: string
+  email: string
+  /** 동의 여부 — 시트에 O/X 로 나간다 */
+  personalInfoConsent: boolean
+  portraitConsent: boolean
+}
 
 export type ApplicationStatus =
   | 'draft' // 작성 중
@@ -165,6 +196,8 @@ export interface Application {
 
   /** 어느 프로그램에 신청했는가 */
   programId: string
+  /** 신청 당시의 프로그램 이름 사본 — 프로그램이 수정돼도 이력이 남는다 */
+  programTitle?: string
   /** 신청 시점의 참여 방식 스냅샷 — 프로그램 설정이 바뀌어도 이력은 남는다 */
   participationType: ParticipationType
 
@@ -177,9 +210,13 @@ export interface Application {
   /** 팀원 전원의 개인정보 제공 동의를 받았다는 대표자 확인 */
   teamConsentConfirmed?: boolean
 
-  /** ⏸ H-1 대기 — 폼 명세 확정 시 구체 타입으로 대체 */
-  applicantInfo?: Record<string, unknown>
-  projectPlan?: Record<string, unknown>
+  /** 제출 시점의 신청자 정보 사본 (D-29) */
+  applicant: ApplicantSnapshot
+
+  /** 프로그램의 noteLabel 에 대한 답. 요구하지 않은 프로그램이면 없다 */
+  note?: string
+  /** 답을 어떤 이름으로 물었는지 — 나중에 프로그램 설정이 바뀌어도 이력이 남는다 */
+  noteLabel?: string
 
   files: AttachedFile[]
 

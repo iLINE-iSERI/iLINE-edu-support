@@ -44,25 +44,14 @@ apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
 
 ## 3. 넣을 값은 어디서 가져오나
 
-**그뤠잇과 같은 Firebase 프로젝트를 씁니다(D-8).** 그러니 새로 발급받을 필요 없이 **그뤠잇 값을 그대로** 쓰면 됩니다.
+⚠️ **2026-09-04 변경 (D-25)** — 지원사업은 **전용 Firebase 프로젝트**를 씁니다.
+예전 안내대로 **iLINE 값을 복사해 쓰면 안 됩니다.** 먼저
+`docs/06-new-firebase-project.md` 를 따라 새 프로젝트를 만드신 뒤,
+**그 프로젝트의 값**을 아래 방법으로 가져오세요.
 
-### 가장 쉬운 방법 — 그뤠잇 레포에서 복사
+### Firebase 콘솔에서 가져오기
 
-그뤠잇 레포(`iLINE-iSERI/iline`) 최상단에 **`.env.local.txt`** 파일이 있습니다.
-GitHub 웹에서 바로 열어볼 수 있습니다. 그 안에 필요한 6줄이 그대로 들어 있습니다.
-
-```
-NEXT_PUBLIC_FIREBASE_API_KEY=...
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
-NEXT_PUBLIC_FIREBASE_APP_ID=...
-```
-
-### 다른 방법 — Firebase 콘솔에서
-
-1. [console.firebase.google.com](https://console.firebase.google.com) → 프로젝트 선택
+1. [console.firebase.google.com](https://console.firebase.google.com) → **지원사업 프로젝트** 선택
 2. 좌측 상단 **⚙️ → 프로젝트 설정**
 3. **일반** 탭 맨 아래 **내 앱** → 웹 앱(`</>`) 선택
 4. **SDK 설정 및 구성** → `구성` 라디오 선택 → `firebaseConfig` 값이 보입니다

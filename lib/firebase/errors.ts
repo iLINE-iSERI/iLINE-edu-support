@@ -9,6 +9,8 @@
 
 export type FirebaseErrorKind =
   | 'permission-denied'
+  /** 색인이 없어 쿼리를 실행할 수 없음 — 설정 문제다 */
+  | 'failed-precondition'
   | 'unavailable'
   | 'not-found'
   | 'unknown'
@@ -20,6 +22,7 @@ export function firebaseErrorKind(err: unknown): FirebaseErrorKind {
       : ''
 
   if (code.includes('permission-denied')) return 'permission-denied'
+  if (code.includes('failed-precondition')) return 'failed-precondition'
   if (code.includes('unavailable') || code.includes('network'))
     return 'unavailable'
   if (code.includes('not-found')) return 'not-found'
@@ -30,6 +33,8 @@ export function firestoreErrorMessage(err: unknown): string {
   switch (firebaseErrorKind(err)) {
     case 'permission-denied':
       return '데이터에 접근할 권한이 없습니다. 보안 규칙이 아직 적용되지 않았을 수 있습니다.'
+    case 'failed-precondition':
+      return '조회에 필요한 색인이 없습니다. 브라우저 콘솔(F12)의 오류 메시지에 색인 생성 링크가 함께 나옵니다.'
     case 'unavailable':
       return '네트워크 연결을 확인해 주세요.'
     case 'not-found':

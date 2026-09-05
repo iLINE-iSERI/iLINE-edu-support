@@ -6,6 +6,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import ProgramCard from '@/components/apply/ProgramCard'
 import { listPublishedPrograms, getProgramPhase } from '@/lib/firebase/programs'
 import { isFirebaseConfigured } from '@/lib/firebase/config'
+import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import type { Program } from '@/lib/types'
 
 /**
@@ -26,10 +27,11 @@ export default function ApplyPage() {
     listPublishedPrograms()
       .then(setPrograms)
       .catch((e) => {
-        console.error(e)
-        setError(
-          '프로그램 목록을 불러오지 못했습니다. 보안 규칙이 아직 적용되지 않았을 수 있습니다.'
-        )
+        // 원인을 추측해 한 문장으로 덮어쓰지 않는다.
+        // 규칙 문제인지 색인 문제인지 네트워크 문제인지 구분해서 알려줘야
+        // 어디를 고쳐야 할지 알 수 있다.
+        console.error('[iLINE] 프로그램 목록 조회 실패:', e)
+        setError(firestoreErrorMessage(e))
         setPrograms([])
       })
   }, [])

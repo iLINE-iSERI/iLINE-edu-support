@@ -1,4 +1,4 @@
-// Firebase 초기화 — 그뤠잇과 같은 프로젝트를 사용한다 (D-8, S2)
+// Firebase 초기화 — iLINE과 같은 프로젝트를 사용한다 (D-8, S2)
 // 데이터는 support_* 컬렉션과 /support/ Storage 경로로 분리한다.
 //
 // ⚠️ 지연 초기화(lazy)로 구현한 이유
@@ -69,7 +69,7 @@ export function getStorageClient(): FirebaseStorage {
   return _storage
 }
 
-/** Firestore 컬렉션 이름 — 그뤠잇과 충돌하지 않도록 접두어 고정 */
+/** Firestore 컬렉션 이름 — iLINE과 충돌하지 않도록 접두어 고정 */
 export const COL = {
   users: 'support_users',
   programs: 'support_programs',

@@ -1,6 +1,7 @@
 // Firebase Authentication 래퍼
 //
-// 인증 신원(uid)은 그뤠잇과 공유하지만, 창의재단 이용 자격은
+// 계정은 iLINE과 별개다 (D-25 — 프로젝트가 다르므로 명부도 다르다).
+// 그리고 계정이 있다고 회원인 것도 아니다. 이용 자격은
 // support_users 문서의 존재 여부로 판단한다 (D-23).
 // 이 파일은 "인증"만 다루고, "회원 자격"은 lib/firebase/members.ts 가 다룬다.
 
@@ -18,7 +19,7 @@ import {
 import { getAuthClient } from './config'
 
 const googleProvider = new GoogleAuthProvider()
-// 계정 선택 화면을 항상 띄운다 — 그뤠잇 계정과 헷갈리지 않도록
+// 계정 선택 화면을 항상 띄운다 — iLINE 계정과 헷갈리지 않도록
 googleProvider.setCustomParameters({ prompt: 'select_account' })
 
 /** 이메일/비밀번호 회원가입 — 가입 직후 인증 메일을 보낸다 */

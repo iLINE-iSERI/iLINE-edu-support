@@ -10,7 +10,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   Timestamp,
 } from 'firebase/firestore'
 import { getDb, COL } from './config'
@@ -46,15 +45,25 @@ function toProgram(id: string, data: Record<string, unknown>): Program {
   return { id, ...data } as Program
 }
 
-/** 공개된 프로그램 목록 (최신 연도 우선) */
+/**
+ * 공개된 프로그램 목록 (최신 연도 우선)
+ *
+ * ⚠️ 정렬을 Firestore에 맡기지 않고 여기서 한다.
+ *    `where('published','==',true)` 와 `orderBy('year')` 를 함께 쓰면
+ *    Firestore가 **복합 색인(composite index)** 을 요구하고,
+ *    색인을 만들기 전까지 목록 조회가 통째로 실패한다(failed-precondition).
+ *    프로그램은 많아야 수십 건이라 클라이언트 정렬로 충분하고,
+ *    그 대가로 배포 절차가 하나 줄어든다.
+ */
 export async function listPublishedPrograms(): Promise<Program[]> {
   const q = query(
     collection(getDb(), COL.programs),
-    where('published', '==', true),
-    orderBy('year', 'desc')
+    where('published', '==', true)
   )
   const snap = await getDocs(q)
-  return snap.docs.map((d) => toProgram(d.id, d.data()))
+  return snap.docs
+    .map((d) => toProgram(d.id, d.data()))
+    .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
 }
 
 export async function getProgram(id: string): Promise<Program | null> {

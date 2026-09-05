@@ -7,6 +7,9 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import Badge from '@/components/ui/Badge'
 import { useAuth } from '@/components/auth/AuthProvider'
+import ApplicationForm from '@/components/apply/ApplicationForm'
+import { findMyApplication } from '@/lib/firebase/applications'
+import { APPLICATION_STATUS_LABEL } from '@/lib/types'
 import {
   getProgram,
   getProgramPhase,
@@ -15,19 +18,21 @@ import {
   formatPeriod,
 } from '@/lib/firebase/programs'
 import { isFirebaseConfigured } from '@/lib/firebase/config'
-import type { Program } from '@/lib/types'
+import type { Program, Application } from '@/lib/types'
 
 /**
- * 프로그램 상세 + 신청 진입.
+ * 프로그램 상세 + 신청.
  *
- * 신청서 본문은 H-1(프로그램별 항목) 확정 후 붙인다.
- * 지금은 "누가 신청할 수 있는지"와 "어떻게 신청하는지"까지만 안내한다.
+ * 신청서는 D-29의 최소 구성이다 — 개인정보는 회원 정보에서 가져오고,
+ * 자유 기재란·첨부는 프로그램이 요구할 때만 나타난다.
  */
 export default function ProgramDetailPage() {
   const params = useParams<{ programId: string }>()
-  const { status } = useAuth()
+  const { status, member, user } = useAuth()
 
   const [program, setProgram] = useState<Program | null | 'notfound'>(null)
+  /** 이미 신청했는가 — undefined: 확인 전, null: 안 함 */
+  const [mine, setMine] = useState<Application | null | undefined>(undefined)
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -41,6 +46,19 @@ export default function ProgramDetailPage() {
         setProgram('notfound')
       })
   }, [params.programId])
+
+  // 중복 신청 방지 — 회원으로 확인된 뒤에만 조회한다
+  useEffect(() => {
+    if (status !== 'member' || !user) return
+    findMyApplication(user.uid, params.programId)
+      .then(setMine)
+      .catch((e) => {
+        // 조회 실패를 '신청 안 함'으로 처리하면 중복 제출이 생긴다.
+        // 확인이 안 되면 폼을 열지 않고 안내만 한다.
+        console.error('[iLINE] 기존 신청 확인 실패:', e)
+        setMine(undefined)
+      })
+  }, [status, user, params.programId])
 
   if (program === null) {
     return (
@@ -174,19 +192,39 @@ export default function ProgramDetailPage() {
                 회원 등록
               </Link>
             </div>
-          ) : (
-            <div>
-              <p className="text-sm font-semibold text-ink-muted">
-                신청서 작성 — 준비 중
-              </p>
-              <p className="mt-1.5 text-sm leading-relaxed text-ink-subtle">
-                프로그램별 신청 항목이 확정되는 대로 이 자리에 신청서가
-                열립니다. 작성 중인 내용은 임시저장되며, 제출 전까지 수정하실 수
-                있습니다.
-              </p>
+          ) : mine ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold">이미 신청하셨습니다</p>
+                <p className="mt-1 text-sm text-ink-muted">
+                  현재 상태 ·{' '}
+                  <strong>{APPLICATION_STATUS_LABEL[mine.status]}</strong>
+                </p>
+              </div>
+              <Link
+                href="/mypage"
+                className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-6 font-semibold"
+              >
+                내 신청 현황
+              </Link>
             </div>
+          ) : mine === undefined ? (
+            <p className="text-sm text-ink-muted">신청 가능 여부 확인 중…</p>
+          ) : (
+            <p className="text-sm text-ink-muted">
+              아래 신청서를 확인하고 제출해 주세요.
+            </p>
           )}
         </div>
+
+        {/* 신청서 — 회원이고, 접수중이고, 아직 신청하지 않았을 때만 */}
+        {phase === 'open' &&
+          status === 'member' &&
+          member &&
+          user &&
+          mine === null && (
+            <ApplicationForm program={program} member={member} uid={user.uid} />
+          )}
 
         <Link
           href="/apply"

@@ -26,7 +26,7 @@ export const SITE = {
   /** 소속 대학 */
   university: '제주대학교',
 
-  /** 인트로 허브 (그뤠잇 레포가 담당하는 루트 도메인) */
+  /** 인트로 허브 (iLINE 레포가 담당하는 루트 도메인) */
   introUrl: process.env.NEXT_PUBLIC_INTRO_URL || 'https://iline.or.kr',
 
   /** 문의처 — ⏸ 확정 후 입력 */
