@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation'
 import { submitApplication, requestSync } from '@/lib/firebase/applications'
 import ApplicationSheet from './ApplicationSheet'
 import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
-import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
 import type { Program, SupportUser } from '@/lib/types'
 
 /**
@@ -157,7 +157,15 @@ export default function ApplicationForm({
       router.replace('/mypage?submitted=1')
     } catch (err) {
       console.error('[iLINE] 신청서 제출 실패:', err)
-      setError(firestoreErrorMessage(err))
+      // 규칙이 막은 경우 원인은 사실상 둘뿐이다 — 접수 기간이 아니거나,
+      // 이미 신청한 프로그램이거나. 일반적인 '권한 없음' 문구를 그대로 보여주면
+      // 신청자는 자기가 뭘 잘못했는지 알 수 없다.
+      setError(
+        firebaseErrorKind(err) === 'permission-denied'
+          ? '접수 기간이 아니거나 이미 신청하신 프로그램입니다. ' +
+              '화면을 새로고침해 상태를 확인해 주세요.'
+          : firestoreErrorMessage(err)
+      )
       setStep('')
       setBusy(false)
     }

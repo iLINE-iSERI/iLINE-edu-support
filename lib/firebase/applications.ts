@@ -13,6 +13,7 @@ import {
   where,
   setDoc,
   serverTimestamp,
+  writeBatch,
   Timestamp,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -129,8 +130,37 @@ export async function submitApplication(input: SubmitInput): Promise<string> {
     payload.noteLabel = program.noteLabel ?? '추가 기재'
   }
 
-  await setDoc(appRef, payload)
+  // 신청서와 '열쇠' 문서를 **한 묶음으로** 쓴다.
+  //
+  // 열쇠 문서 ID는 `{uid}_{programId}` 로 정해져 있고, 규칙이 생성만 허용한다.
+  // 그래서 같은 사람이 같은 프로그램에 두 번째로 제출하면 열쇠 쓰기가 거부되고,
+  // 묶음이 통째로 취소되어 **신청서도 안 만들어진다.**
+  //
+  // 화면에도 중복 확인(findMyApplication)이 있지만 그것만으로는 부족하다.
+  // 탭을 두 개 열어두거나 제출 직후 뒤로가기로 다시 누르면 통과해 버리고,
+  // 그러면 시트에 두 줄, 드라이브에 PDF 두 개가 쌓인다.
+  const batch = writeBatch(getDb())
+  batch.set(appRef, payload)
+  batch.set(doc(getDb(), COL.applicationKeys, applicationKeyId(uid, program.id)), {
+    uid,
+    programId: program.id,
+    applicationId: appRef.id,
+    createdAt: now,
+  })
+  await batch.commit()
+
   return appRef.id
+}
+
+/**
+ * 열쇠 문서 ID.
+ *
+ * ⚠️ 보안 규칙도 똑같이 `uid + '_' + programId` 로 계산한다.
+ *    여기서 값을 다듬으면 규칙과 어긋나 정상 제출까지 막힌다.
+ *    프로그램 ID는 Firestore 문서 ID라 슬래시가 들어갈 수 없으므로 그대로 붙인다.
+ */
+export function applicationKeyId(uid: string, programId: string): string {
+  return `${uid}_${programId}`
 }
 
 /** 저장된 파일의 임시 열람 URL — 규칙을 통과한 사용자에게만 발급된다 */

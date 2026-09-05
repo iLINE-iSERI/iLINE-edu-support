@@ -74,6 +74,12 @@ export const COL = {
   users: 'support_users',
   programs: 'support_programs',
   applications: 'support_applications',
+  /**
+   * 중복 신청 차단용 **열쇠 문서** — `{uid}_{programId}` 하나당 한 개.
+   * 내용은 거의 없고 **존재 자체가 잠금**이다. 규칙에서 생성만 허용하므로,
+   * 같은 사람이 같은 프로그램에 두 번째 열쇠를 만들려 하면 거부된다.
+   */
+  applicationKeys: 'support_application_keys',
   settlements: 'support_settlements',
   outputs: 'support_outputs',
   notices: 'support_notices',
