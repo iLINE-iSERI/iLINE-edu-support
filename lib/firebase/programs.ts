@@ -45,15 +45,31 @@ function toProgram(id: string, data: Record<string, unknown>): Program {
   return { id, ...data } as Program
 }
 
+/** 목록에서의 우선순위 — 작을수록 위 */
+const PHASE_ORDER: Record<ProgramPhase, number> = {
+  open: 0,
+  upcoming: 1,
+  closed: 2,
+}
+
 /**
- * 공개된 프로그램 목록 (최신 연도 우선)
+ * 공개된 프로그램 목록.
+ *
+ * 정렬 기준은 **지금 신청할 수 있는 것이 위**다.
+ *   ① 접수중 → 접수 예정 → 마감
+ *   ② 같은 상태끼리는 **마감이 임박한 순** (예정은 시작이 가까운 순)
+ *   ③ 그래도 같으면 최신 연도
+ *
+ * 연도 하나로만 정렬하면 같은 해 프로그램끼리 문서 ID 순으로 늘어서서,
+ * **접수 예정이 접수중보다 위에 오는 일이 생긴다.** 지금 신청 가능한 건이
+ * 뒤로 밀리면 접수 기간에 실제로 놓치는 사람이 나온다.
  *
  * ⚠️ 정렬을 Firestore에 맡기지 않고 여기서 한다.
- *    `where('published','==',true)` 와 `orderBy('year')` 를 함께 쓰면
+ *    `where('published','==',true)` 와 `orderBy(...)` 를 함께 쓰면
  *    Firestore가 **복합 색인(composite index)** 을 요구하고,
  *    색인을 만들기 전까지 목록 조회가 통째로 실패한다(failed-precondition).
- *    프로그램은 많아야 수십 건이라 클라이언트 정렬로 충분하고,
- *    그 대가로 배포 절차가 하나 줄어든다.
+ *    애초에 위 기준은 '현재 시각'에 따라 달라져서 색인으로는 표현되지 않는다.
+ *    프로그램은 많아야 수십 건이라 클라이언트 정렬로 충분하다.
  */
 export async function listPublishedPrograms(): Promise<Program[]> {
   const q = query(
@@ -61,9 +77,30 @@ export async function listPublishedPrograms(): Promise<Program[]> {
     where('published', '==', true)
   )
   const snap = await getDocs(q)
+  const now = new Date()
+
   return snap.docs
     .map((d) => toProgram(d.id, d.data()))
-    .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
+    .sort((a, b) => {
+      const pa = getProgramPhase(a, now)
+      const pb = getProgramPhase(b, now)
+      if (pa !== pb) return PHASE_ORDER[pa] - PHASE_ORDER[pb]
+
+      // 접수 예정은 '시작이 가까운 순', 나머지는 '마감이 가까운 순'.
+      // 날짜가 없는 건(상시 접수)은 맨 뒤로 보낸다.
+      const key = (p: Program) =>
+        (pa === 'upcoming' ? p.opensAt : p.closesAt)?.toDate().getTime()
+      const ka = key(a)
+      const kb = key(b)
+      if (ka !== kb) {
+        if (ka === undefined) return 1
+        if (kb === undefined) return -1
+        // 마감된 건은 '최근에 끝난 것'이 위로 오는 편이 자연스럽다
+        return pa === 'closed' ? kb - ka : ka - kb
+      }
+
+      return (b.year ?? 0) - (a.year ?? 0)
+    })
 }
 
 export async function getProgram(id: string): Promise<Program | null> {
