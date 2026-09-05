@@ -77,7 +77,8 @@ async function ensureHeaders(
 /**
  * 드라이브에 올릴 파일 이름.
  *
- *   프로그램명_이름_20260905-1642.pdf
+ *   프로그램명_이름_2609052229.pdf
+ *                  └── YYMMDDHHmm (24시간 표기)
  *
  * 담당자가 폴더를 열었을 때 바로 읽히도록 사람 기준으로 짓는다.
  * 신청번호는 **파일명에 넣지 않는다** — 대신 아래 appProperties 에 숨겨둔다.
@@ -90,11 +91,13 @@ function pdfFileName(app: Application): string {
       .trim()
       .slice(0, 40)
 
+  // YYMMDDHHmm — 연도 뒤 두 자리 + 월일 + 24시간 표기 시각.
+  // 붙여 쓰면 파일 이름이 짧고, 이름순 정렬이 곧 시간순 정렬이 된다.
   const d = app.submittedAt?.toDate?.() ?? new Date()
   const p = (n: number) => String(n).padStart(2, '0')
   const stamp =
-    `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
-    `-${p(d.getHours())}${p(d.getMinutes())}`
+    `${p(d.getFullYear() % 100)}${p(d.getMonth() + 1)}${p(d.getDate())}` +
+    `${p(d.getHours())}${p(d.getMinutes())}`
 
   const program = clean(app.programTitle || app.programId) || '프로그램'
   const name = clean(app.applicant?.name || '') || '이름없음'
