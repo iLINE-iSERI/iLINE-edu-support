@@ -100,6 +100,22 @@ async function uploadPdf(
   return res.data.webViewLink || `https://drive.google.com/file/d/${res.data.id}/view`
 }
 
+/**
+ * 어느 단계에서 실패했는지 오류 문구에 남긴다.
+ *
+ * 구글은 시트든 드라이브든 똑같이 "Requested entity was not found" 를 돌려준다.
+ * 단계 표시가 없으면 SHEET_ID 를 봐야 할지 DRIVE_FOLDER_ID 를 봐야 할지
+ * 알 수 없어서, 담당자가 설정 다섯 개를 전부 뒤지게 된다.
+ */
+async function step<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    throw new Error(`[${label}] ${msg}`)
+  }
+}
+
 export interface SyncResult {
   skipped?: true
   sheetRow?: number
@@ -124,10 +140,12 @@ export async function syncApplication(
   let driveUrl = ''
   if (pdf) {
     const safeName = `${app.id}_${ap?.name || '이름없음'}.pdf`.replace(/[/\\]/g, '_')
-    driveUrl = await uploadPdf(drive, cfg.driveFolderId, safeName, pdf)
+    driveUrl = await step('드라이브 업로드 · DRIVE_FOLDER_ID 확인', () =>
+      uploadPdf(drive, cfg.driveFolderId, safeName, pdf)
+    )
   }
 
-  await ensureHeaders(sheets, cfg.sheetId)
+  await step('시트 열기 · SHEET_ID 확인', () => ensureHeaders(sheets, cfg.sheetId))
 
   const row = [
     app.id,
@@ -146,13 +164,15 @@ export async function syncApplication(
     app.note ? `[${app.noteLabel || '추가 기재'}] ${app.note}` : '',
   ]
 
-  const appended = await sheets.spreadsheets.values.append({
-    spreadsheetId: cfg.sheetId,
-    range: 'A1',
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [row] },
-  })
+  const appended = await step('시트에 줄 추가', () =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId: cfg.sheetId,
+      range: 'A1',
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    })
+  )
 
   // '신청현황!A5:N5' 같은 문자열에서 행 번호만 뽑는다
   const updated = appended.data.updates?.updatedRange || ''
