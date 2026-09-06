@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import MemberGate from '@/components/auth/MemberGate'
@@ -92,6 +93,17 @@ function StaffContent() {
       />
 
       <div className="container-page space-y-6 py-8">
+        {/* 담당자가 사이트에서 할 수 있는 다른 일로 가는 길.
+            여기 없으면 주소를 외워서 들어가야 한다. */}
+        <div>
+          <Link
+            href="/staff/notices"
+            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+          >
+            공지 관리 →
+          </Link>
+        </div>
+
         {/* 필터 */}
         <div className="flex flex-wrap gap-3">
           <select

@@ -1,14 +1,14 @@
 import PageHeader from '@/components/ui/PageHeader'
 import NoticeNav from '@/components/layout/NoticeNav'
-import EmptyState from '@/components/ui/EmptyState'
+import NoticeList from '@/components/notice/NoticeList'
 
 export const metadata = { title: '공지사항' }
 
 /**
  * 공지사항 목록.
  *
- * ⏸ Firestore(support_notices) 연동은 보안 규칙 적용 후에 붙입니다.
- *    (docs/TODO-later.md A항목) 지금은 빈 상태 UI만 있습니다.
+ * 제목과 하위 메뉴는 서버에서 그리고, 목록만 클라이언트 컴포넌트로 뺀다.
+ * Firestore 조회가 브라우저에서 일어나기 때문이다.
  */
 export default function NoticePage() {
   return (
@@ -20,10 +20,7 @@ export default function NoticePage() {
       <NoticeNav />
 
       <div className="container-page py-10">
-        <EmptyState
-          title="등록된 공지사항이 없습니다"
-          desc="사업 공고와 일정 변경 등 안내가 이곳에 게시됩니다."
-        />
+        <NoticeList />
       </div>
     </>
   )

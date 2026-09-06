@@ -180,9 +180,14 @@ service cloud.firestore {
     }
 
     // ── 공지 · 서식 자료실 ───────────────────────────────────────────────
+    // 공지는 회원이 아니어도 읽는다 — 공고 안내는 가입 전에 보는 것이다.
+    // 작성자(authorUid)는 스스로를 속일 수 없게 본인으로 고정한다.
+    // 누가 올렸는지 남겨두면 잘못된 안내가 나갔을 때 확인할 수 있다.
     match /support_notices/{id} {
-      allow read: if true;              // 공개
-      allow write: if isStaff();
+      allow read: if true;
+      allow create: if isStaff()
+        && request.resource.data.authorUid == request.auth.uid;
+      allow update, delete: if isStaff();
     }
 
     match /support_resources/{id} {
