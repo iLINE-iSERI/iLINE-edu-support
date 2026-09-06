@@ -117,6 +117,18 @@ export interface Program {
   attachmentGuide?: string
   attachmentRequired?: boolean
 
+  /* ── 정산 구성 (D-41) ────────────────────────────────────
+     정산에 영수증이 필요한 프로그램도, 계좌만 받으면 되는 프로그램도 있다.
+     신청서와 같은 방식으로 **프로그램이 정한다**. */
+
+  /** 정산 안내 문구. 없으면 기본 문구가 나간다 */
+  settlementGuide?: string
+  /**
+   * 영수증을 반드시 내야 하는가.
+   * **값이 없으면 필수로 본다** — 증빙 없이 지급되는 쪽이 더 위험하다.
+   */
+  settlementReceiptRequired?: boolean
+
   /** 공개 여부 — 준비 중인 프로그램은 감춘다 */
   published: boolean
   createdAt: Timestamp

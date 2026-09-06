@@ -235,8 +235,11 @@ function SettlementRow({
       {/* ── 영수증 ─────────────────────────────────────────── */}
       <div className="mt-3">
         <p className="text-xs font-semibold text-ink-subtle">
-          영수증 {row.receipts?.length ?? 0}장 — 금액은 파일을 열어 확인해
-          주세요
+          {row.receipts?.length
+            ? `영수증 ${row.receipts.length}장 — 금액은 파일을 열어 확인해 주세요`
+            : // 영수증을 안 받는 프로그램일 수 있다(D-41). 누락과 구분되도록
+              // "없음"이라고만 하지 않고 프로그램 설정을 확인하라고 알린다.
+              '영수증 없음 — 이 프로그램이 영수증을 요구하지 않도록 설정되어 있을 수 있습니다'}
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           {row.receipts?.map((r) => (

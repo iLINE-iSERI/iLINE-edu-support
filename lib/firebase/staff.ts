@@ -140,6 +140,8 @@ export interface ProgramInput {
   noteRequired?: boolean
   attachmentGuide?: string
   attachmentRequired?: boolean
+  settlementGuide?: string
+  settlementReceiptRequired?: boolean
   published: boolean
 }
 
@@ -167,6 +169,11 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   put('closesAt', input.closesAt)
   put('noteLabel', input.noteLabel?.trim())
   put('attachmentGuide', input.attachmentGuide?.trim())
+  put('settlementGuide', input.settlementGuide?.trim())
+
+  // 영수증 필수 여부는 값이 없으면 '필수'로 해석되므로 **항상 저장한다.**
+  // 빈 값으로 두면 "필수 아님"으로 설정한 것이 다음 저장 때 되살아난다.
+  out.settlementReceiptRequired = input.settlementReceiptRequired !== false
 
   // 단체 프로그램이 아니면 인원 제한은 의미가 없다
   if (input.participationType === 'group') put('maxTeamSize', input.maxTeamSize)

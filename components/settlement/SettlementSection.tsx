@@ -8,16 +8,18 @@
  * 보유하게 된다(D-38의 '정산 단계에 받는다'는 판단이 여기서 실현된다).
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   submitSettlement,
   resubmitSettlement,
 } from '@/lib/firebase/settlements'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { getProgram } from '@/lib/firebase/programs'
 import {
   SETTLEMENT_STATUS_LABEL,
   type Application,
+  type Program,
   type Settlement,
 } from '@/lib/types'
 
@@ -72,6 +74,23 @@ export default function SettlementSection({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  /**
+   * 정산 구성은 **프로그램이 정한다** (D-41).
+   * 영수증이 필요한 프로그램도, 계좌만 받으면 되는 프로그램도 있어서
+   * 폼에 고정하지 않는다 — 신청서에서와 같은 판단(D-29).
+   *
+   * 조회에 실패하거나 값이 없으면 **필수로 본다.** 증빙 없이 지급되는 쪽이
+   * 더 위험하므로, 모를 때는 받는 쪽으로 기운다.
+   */
+  const [program, setProgram] = useState<Program | null>(null)
+  useEffect(() => {
+    getProgram(application.programId)
+      .then(setProgram)
+      .catch((e) => console.warn('[iLINE] 프로그램 조회 실패:', e))
+  }, [application.programId])
+
+  const receiptRequired = program?.settlementReceiptRequired !== false
+
   function handleFiles(list: FileList | null, input: HTMLInputElement | null) {
     if (!list || list.length === 0) return
     const accepted = [...files]
@@ -98,7 +117,7 @@ export default function SettlementSection({
     if (!accountHolder.trim()) return setError('예금주를 입력해 주세요.')
 
     const already = settlement?.receipts?.length ?? 0
-    if (files.length === 0 && already === 0) {
+    if (receiptRequired && files.length === 0 && already === 0) {
       return setError('영수증을 1장 이상 첨부해 주세요.')
     }
     if (rejected.length > 0) {
@@ -184,8 +203,14 @@ export default function SettlementSection({
 
       {!settlement && !open && (
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-          활동비 지급을 위해 <strong>지급 계좌</strong>와{' '}
-          <strong>영수증</strong>을 제출해 주세요.
+          활동비 지급을 위해 <strong>지급 계좌</strong>
+          {receiptRequired ? (
+            <>
+              와 <strong>영수증</strong>을 제출해 주세요.
+            </>
+          ) : (
+            <> 정보를 입력해 주세요. 영수증은 선택입니다.</>
+          )}
         </p>
       )}
 
@@ -243,10 +268,19 @@ export default function SettlementSection({
           </div>
 
           <div className="rounded-lg bg-surface p-4">
-            <p className="text-sm font-bold">영수증</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
-              지출 증빙을 촬영하거나 PDF로 첨부해 주세요. 사진 또는 PDF ·
-              1장당 20MB 이하 · 최대 {MAX_FILES}장.
+            <p className="text-sm font-bold">
+              영수증
+              {!receiptRequired && (
+                <span className="ml-1.5 text-xs font-semibold text-ink-subtle">
+                  (선택)
+                </span>
+              )}
+            </p>
+            <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-ink-subtle">
+              {program?.settlementGuide ||
+                '지출 증빙을 촬영하거나 PDF로 첨부해 주세요.'}
+              {'\n'}사진 또는 PDF · 1장당 20MB 이하 · 최대 {MAX_FILES}장
+              {!receiptRequired && ' · 이 프로그램은 영수증 없이도 제출됩니다'}
             </p>
 
             <input
