@@ -183,7 +183,17 @@ export async function listMyApplications(
     )
 }
 
-/** 이 프로그램에 이미 신청했는가 — 중복 신청 방지 */
+/**
+ * 이 프로그램에 이미 신청했는가 — 중복 신청 방지.
+ *
+ * ⚠️ **취소된 건(`cancelled`)은 세지 않는다.** 취소는 문서를 지우지 않고
+ *    상태로만 남기므로(W-2), 상태를 안 보면 취소해 준 뒤에도 화면이 계속
+ *    "이미 신청하셨습니다"로 막는다.
+ *
+ *    담당자가 취소하면 **열쇠 문서(규칙 차단)와 이 판정(화면 차단) 둘 다**
+ *    풀려야 재신청이 된다. 하나만 풀면 폼이 안 열리거나, 열려도 제출이 거부된다.
+ *    (09-06: 여기를 빠뜨려 재신청이 막혔던 적 있음)
+ */
 export async function findMyApplication(
   uid: string,
   programId: string
@@ -194,8 +204,14 @@ export async function findMyApplication(
     where('programId', '==', programId)
   )
   const snap = await getDocs(q)
-  const first = snap.docs[0]
-  return first ? ({ id: first.id, ...first.data() } as Application) : null
+
+  // 상태 조건까지 질의에 넣으면 복합 색인을 요구받는다. 한 사람이 한
+  // 프로그램에 남기는 문서는 많아야 몇 개라 여기서 거르는 편이 싸다.
+  const live = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as Application)
+    .filter((a) => a.status !== 'cancelled')
+
+  return live[0] ?? null
 }
 
 export async function getApplication(id: string): Promise<Application | null> {

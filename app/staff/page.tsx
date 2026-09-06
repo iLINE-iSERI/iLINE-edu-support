@@ -19,6 +19,7 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import {
   listAllApplications,
   updateApplicationStatus,
+  cancelApplication,
   retrySync,
 } from '@/lib/firebase/staff'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
@@ -31,6 +32,7 @@ import {
   type Program,
 } from '@/lib/types'
 
+/** 상태 변경 버튼으로 고를 수 있는 것 — 취소는 여기 넣지 않는다(아래 참고) */
 const FLOW: ApplicationStatus[] = [
   'submitted',
   'reviewing',
@@ -38,6 +40,9 @@ const FLOW: ApplicationStatus[] = [
   'approved',
   'rejected',
 ]
+
+/** 목록 필터 — 취소된 건도 찾아볼 수 있어야 한다 */
+const FILTERABLE: ApplicationStatus[] = [...FLOW, 'cancelled']
 
 export default function StaffPage() {
   return (
@@ -95,7 +100,13 @@ function StaffContent() {
       <div className="container-page space-y-6 py-8">
         {/* 담당자가 사이트에서 할 수 있는 다른 일로 가는 길.
             여기 없으면 주소를 외워서 들어가야 한다. */}
-        <div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/staff/programs"
+            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+          >
+            프로그램 관리 →
+          </Link>
           <Link
             href="/staff/notices"
             className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
@@ -129,7 +140,7 @@ function StaffContent() {
             className="touch-target rounded-xl border border-line-strong bg-surface px-3 text-sm"
           >
             <option value="">전체 상태</option>
-            {FLOW.map((s) => (
+            {FILTERABLE.map((s) => (
               <option key={s} value={s}>
                 {APPLICATION_STATUS_LABEL[s]}
               </option>
@@ -218,6 +229,36 @@ function ApplicationRow({
   }
 
   const ap = app.applicant
+
+  /**
+   * 신청 취소 — 상태를 'cancelled' 로 바꾸고 **중복 신청 잠금(열쇠 문서)을 푼다.**
+   * 사유는 위 입력칸의 내용을 그대로 쓴다. 신청자에게 보이는 문구다.
+   */
+  async function cancel() {
+    if (
+      !confirm(
+        `${ap?.name || '이 신청자'}님의 "${app.programTitle || app.programId}" ` +
+          '신청을 취소 처리합니다.\n\n' +
+          '· 신청 기록은 "취소됨"으로 남습니다\n' +
+          '· 신청자가 이 프로그램에 다시 신청할 수 있게 됩니다\n\n' +
+          '계속할까요?'
+      )
+    )
+      return
+
+    setBusy(true)
+    setMsg('')
+    try {
+      await cancelApplication(app, note, reviewerUid)
+      setMsg('취소 처리했습니다.')
+      onSaved()
+    } catch (e) {
+      console.error('[iLINE] 신청 취소 실패:', e)
+      setMsg(firestoreErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <li className="rounded-2xl border border-line bg-surface p-5">
@@ -344,6 +385,26 @@ function ApplicationRow({
           {msg && <span className="text-sm text-ink-muted">{msg}</span>}
         </div>
       </div>
+
+      {/* ── 신청 취소 (W-2) ───────────────────────────────────
+          위의 상태 버튼과 **일부러 떼어 놓았다.** 취소는 신청자가 같은
+          프로그램에 다시 신청할 수 있게 되는 되돌리기 어려운 처리라,
+          '검토 중'을 고르는 것과 같은 무게로 눌려서는 안 된다. */}
+      {app.status !== 'cancelled' && (
+        <div className="mt-3 border-t border-line pt-3">
+          <button
+            type="button"
+            onClick={cancel}
+            disabled={busy}
+            className="text-sm font-semibold text-status-revision underline underline-offset-2 disabled:opacity-50"
+          >
+            신청 취소 처리
+          </button>
+          <span className="ml-2 text-xs text-ink-subtle">
+            기록은 남고, 신청자가 이 프로그램에 다시 신청할 수 있게 됩니다.
+          </span>
+        </div>
+      )}
     </li>
   )
 }

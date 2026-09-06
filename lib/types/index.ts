@@ -167,6 +167,9 @@ export type ApplicationStatus =
   | 'revision' // 보완 요청
   | 'approved' // 선정
   | 'rejected' // 미선정
+  // 취소 — 신청자 요청 등으로 담당자가 물린 건. **지우지 않고 상태로 남긴다.**
+  // 지워버리면 "신청한 적 있다"는 사실 자체가 사라져서 나중에 확인할 수 없다.
+  | 'cancelled'
 
 export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
   draft: '작성 중',
@@ -175,6 +178,7 @@ export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
   revision: '보완 요청',
   approved: '선정',
   rejected: '미선정',
+  cancelled: '취소됨',
 }
 
 /** 첨부 파일 — Storage 원본 + 공유 드라이브 사본 (D-9) */
