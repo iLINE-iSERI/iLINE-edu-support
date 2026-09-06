@@ -69,8 +69,6 @@ interface FormState {
   noteRequired: boolean
   attachmentGuide: string
   attachmentRequired: boolean
-  settlementGuide: string
-  settlementReceiptRequired: boolean
   published: boolean
 }
 
@@ -90,10 +88,6 @@ const EMPTY: FormState = {
   noteRequired: false,
   attachmentGuide: '',
   attachmentRequired: false,
-  settlementGuide: '',
-  // 기본은 '영수증 필수'. 증빙 없이 지급되는 쪽이 더 위험하므로,
-  // 필요 없는 프로그램에서 담당자가 끄는 방향으로 둔다.
-  settlementReceiptRequired: true,
   // 새 공고는 항상 비공개로 시작한다. 미리보기가 없으므로,
   // 공개로 시작하면 작성 중인 내용이 그대로 학생에게 보인다.
   published: false,
@@ -113,9 +107,6 @@ function toForm(p: Program): FormState {
     noteRequired: Boolean(p.noteRequired),
     attachmentGuide: p.attachmentGuide ?? '',
     attachmentRequired: Boolean(p.attachmentRequired),
-    settlementGuide: p.settlementGuide ?? '',
-    // 값이 없는 옛 프로그램은 '필수'로 본다
-    settlementReceiptRequired: p.settlementReceiptRequired !== false,
     published: Boolean(p.published),
   }
 }
@@ -214,8 +205,6 @@ function StaffProgramsContent() {
       noteRequired: f.noteRequired,
       attachmentGuide: f.attachmentGuide,
       attachmentRequired: f.attachmentRequired,
-      settlementGuide: f.settlementGuide,
-      settlementReceiptRequired: f.settlementReceiptRequired,
       published: f.published,
     }
   }
@@ -559,41 +548,6 @@ function StaffProgramsContent() {
                   label="첨부를 필수로"
                 />
               )}
-            </div>
-
-            {/* ── 정산 구성 (D-41) ───────────────────────── */}
-            <div className="space-y-5 rounded-xl bg-subtle p-4">
-              <div>
-                <h3 className="font-bold">정산</h3>
-                <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
-                  <strong>선정된 참여자</strong>가 마이페이지에서 제출합니다.
-                  지급 계좌(은행·계좌번호·예금주)는 항상 받고,{' '}
-                  <strong>영수증은 프로그램마다 다를 수 있어</strong> 여기서
-                  정합니다.
-                </p>
-              </div>
-
-              <Check
-                checked={form.settlementReceiptRequired}
-                onChange={(v) => set('settlementReceiptRequired', v)}
-                label="영수증을 반드시 첨부하게 하기"
-                hint="끄면 계좌만 입력해도 정산을 제출할 수 있습니다. 지출 증빙이 필요 없는 프로그램에만 끄세요."
-              />
-
-              <Field
-                id="settlementGuide"
-                label="정산 안내 문구 (선택)"
-                hint="무엇을 어떻게 제출하는지 적어주세요. 비우면 기본 안내가 나갑니다."
-              >
-                <textarea
-                  id="pf-settlementGuide"
-                  rows={2}
-                  value={form.settlementGuide}
-                  onChange={(e) => set('settlementGuide', e.target.value)}
-                  placeholder="교통비 영수증을 촬영해 첨부해 주세요. 대중교통 이용 내역도 인정됩니다."
-                  className={inputCls()}
-                />
-              </Field>
             </div>
 
             <Check

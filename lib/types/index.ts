@@ -117,18 +117,6 @@ export interface Program {
   attachmentGuide?: string
   attachmentRequired?: boolean
 
-  /* ── 정산 구성 (D-41) ────────────────────────────────────
-     정산에 영수증이 필요한 프로그램도, 계좌만 받으면 되는 프로그램도 있다.
-     신청서와 같은 방식으로 **프로그램이 정한다**. */
-
-  /** 정산 안내 문구. 없으면 기본 문구가 나간다 */
-  settlementGuide?: string
-  /**
-   * 영수증을 반드시 내야 하는가.
-   * **값이 없으면 필수로 본다** — 증빙 없이 지급되는 쪽이 더 위험하다.
-   */
-  settlementReceiptRequired?: boolean
-
   /** 공개 여부 — 준비 중인 프로그램은 감춘다 */
   published: boolean
   createdAt: Timestamp
@@ -306,7 +294,14 @@ export interface Settlement {
     accountHolder: string
   }
 
-  /** 영수증 등 지출 증빙 */
+  /**
+   * 영수증 등 지출 증빙 — **선택이다** (D-41).
+   *
+   * 증빙이 필요한 회차도 계좌만 받으면 되는 회차도 있어서, 프로그램마다
+   * 설정을 두는 대신 **항상 낼 수 있게** 두었다. 필요 여부는 공고문과
+   * 담당자의 검토가 판단한다 — 증빙이 없어야 하는데 왔거나 있어야 하는데
+   * 없으면, 담당자가 반려하면서 사유를 적으면 된다.
+   */
   receipts: AttachedFile[]
 
   /** 담당자가 남기는 안내 — 신청자에게 그대로 보인다 */

@@ -237,9 +237,9 @@ function SettlementRow({
         <p className="text-xs font-semibold text-ink-subtle">
           {row.receipts?.length
             ? `영수증 ${row.receipts.length}장 — 금액은 파일을 열어 확인해 주세요`
-            : // 영수증을 안 받는 프로그램일 수 있다(D-41). 누락과 구분되도록
-              // "없음"이라고만 하지 않고 프로그램 설정을 확인하라고 알린다.
-              '영수증 없음 — 이 프로그램이 영수증을 요구하지 않도록 설정되어 있을 수 있습니다'}
+            : // 영수증은 선택이라 없는 것이 정상일 수 있다(D-41).
+              // 필요한 회차인데 안 왔다면 사유를 적어 반려하면 된다.
+              '영수증 없음 — 증빙이 필요한 프로그램이라면 사유를 적어 반려해 주세요'}
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           {row.receipts?.map((r) => (
