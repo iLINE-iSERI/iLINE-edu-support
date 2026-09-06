@@ -48,6 +48,8 @@ function StaffNoticesContent() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<NoticeInput>(EMPTY)
   const [busy, setBusy] = useState(false)
+  /** 잘못된 칸 → 칸 이름 옆에 붙일 사유. 폼이 길어서 맨 위 안내는 눈에 안 띈다 */
+  const [fieldError, setFieldError] = useState<{ title?: string; content?: string }>({})
 
   const load = useCallback(async () => {
     setError('')
@@ -68,34 +70,43 @@ function StaffNoticesContent() {
     setEditingId('')
     setForm(EMPTY)
     setError('')
+    setFieldError({})
   }
 
   function openEdit(n: Notice) {
     setEditingId(n.id)
     setForm({ title: n.title, content: n.content, pinned: n.pinned })
     setError('')
+    setFieldError({})
   }
 
   function close() {
     setEditingId(null)
     setForm(EMPTY)
+    setFieldError({})
+    setError('')
+  }
+
+  /** 문제가 난 칸으로 데려간다 — 커서까지 넣어 바로 고칠 수 있게 */
+  function focusField(key: 'title' | 'content', message: string) {
+    setFieldError({ [key]: message })
+    setError('표시된 칸을 확인해 주세요.')
+    const el = document.getElementById(key)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    window.setTimeout(() => el.focus({ preventScroll: true }), 250)
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
     if (!user) return
 
-    if (!form.title.trim()) {
-      setError('제목을 입력해 주세요.')
-      return
-    }
-    if (!form.content.trim()) {
-      setError('내용을 입력해 주세요.')
-      return
-    }
+    if (!form.title.trim()) return focusField('title', '제목을 입력해 주세요')
+    if (!form.content.trim()) return focusField('content', '내용을 입력해 주세요')
 
     setBusy(true)
     setError('')
+    setFieldError({})
     try {
       if (editingId) await updateNotice(editingId, form)
       else await createNotice(form, user.uid)
@@ -153,7 +164,9 @@ function StaffNoticesContent() {
           )}
         </div>
 
-        {error && (
+        {/* 폼이 닫혀 있을 때의 오류(목록 조회 실패 등)만 여기 표시한다.
+            폼이 열려 있으면 저장 버튼 옆에 붙는다 — 누른 자리에서 결과를 본다 */}
+        {error && editingId === null && (
           <p
             role="alert"
             className="rounded-lg bg-status-revision/10 px-3 py-2 text-sm leading-relaxed text-status-revision"
@@ -166,6 +179,7 @@ function StaffNoticesContent() {
         {editingId !== null && (
           <form
             onSubmit={save}
+            noValidate
             className="space-y-4 rounded-2xl border border-line bg-surface p-5"
           >
             <h2 className="font-bold">
@@ -173,28 +187,57 @@ function StaffNoticesContent() {
             </h2>
 
             <div>
-              <label htmlFor="title" className="block text-sm font-semibold">
-                제목
+              <label htmlFor="title" className="flex flex-wrap items-baseline gap-2">
+                <span className="text-sm font-semibold">제목</span>
+                {fieldError.title && (
+                  <span className="text-xs font-semibold text-status-revision">
+                    {fieldError.title}
+                  </span>
+                )}
               </label>
               <input
                 id="title"
                 value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="mt-2 w-full rounded-xl border border-line-strong bg-surface p-3 text-base outline-none focus:border-brand-600"
+                onChange={(e) => {
+                  setForm({ ...form, title: e.target.value })
+                  if (fieldError.title) setFieldError({ ...fieldError, title: undefined })
+                }}
+                aria-invalid={Boolean(fieldError.title)}
+                className={
+                  'mt-2 w-full rounded-xl border bg-surface p-3 text-base outline-none ' +
+                  (fieldError.title
+                    ? 'border-status-revision focus:border-status-revision'
+                    : 'border-line-strong focus:border-brand-600')
+                }
                 placeholder="예: 2026학년도 1학기 프로그램 참여자 모집"
               />
             </div>
 
             <div>
-              <label htmlFor="content" className="block text-sm font-semibold">
-                내용
+              <label htmlFor="content" className="flex flex-wrap items-baseline gap-2">
+                <span className="text-sm font-semibold">내용</span>
+                {fieldError.content && (
+                  <span className="text-xs font-semibold text-status-revision">
+                    {fieldError.content}
+                  </span>
+                )}
               </label>
               <textarea
                 id="content"
                 rows={12}
                 value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-                className="mt-2 w-full rounded-xl border border-line-strong bg-surface p-3 text-base leading-relaxed outline-none focus:border-brand-600"
+                onChange={(e) => {
+                  setForm({ ...form, content: e.target.value })
+                  if (fieldError.content)
+                    setFieldError({ ...fieldError, content: undefined })
+                }}
+                aria-invalid={Boolean(fieldError.content)}
+                className={
+                  'mt-2 w-full rounded-xl border bg-surface p-3 text-base leading-relaxed outline-none ' +
+                  (fieldError.content
+                    ? 'border-status-revision focus:border-status-revision'
+                    : 'border-line-strong focus:border-brand-600')
+                }
                 placeholder={
                   '줄바꿈은 그대로 표시됩니다.\n\n문단을 나누려면 빈 줄을 넣으세요.'
                 }
@@ -221,7 +264,7 @@ function StaffNoticesContent() {
               </span>
             </label>
 
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
               <button
                 type="submit"
                 disabled={busy}
@@ -237,6 +280,14 @@ function StaffNoticesContent() {
               >
                 취소
               </button>
+              {error && (
+                <span
+                  role="alert"
+                  className="text-sm font-semibold leading-relaxed text-status-revision"
+                >
+                  {error}
+                </span>
+              )}
             </div>
           </form>
         )}
