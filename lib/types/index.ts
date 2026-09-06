@@ -255,30 +255,60 @@ export interface Application {
 
 export type SettlementStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
 
-export interface SettlementItem {
-  /** 'transport' | 'lodging' | 'meal' | ... */
-  category: string
-  amount: number
-  receiptPath: string
-  driveFileId?: string
-  memo?: string
+export const SETTLEMENT_STATUS_LABEL: Record<SettlementStatus, string> = {
+  draft: '작성 중',
+  submitted: '제출 완료',
+  approved: '승인',
+  rejected: '반려',
 }
 
+/**
+ * 정산 (D-39) — 최소 구성.
+ *
+ * 지출 항목을 줄 단위로 받지 않는다. 신청서에서와 같은 판단이다(D-29):
+ * 회차마다 달라지는 항목을 미리 예측해 폼에 넣으려 하면 만들다 막힌다.
+ * **계좌 3칸 + 영수증 파일**이 전부다.
+ *
+ * ⚠️ 금액 칸이 없다. 담당자가 영수증을 열어 읽고 직접 합산한다(09-06 확정).
+ *    건수가 늘어 부담이 되면 숫자 한 칸을 추가하면 된다.
+ *
+ * ⚠️ `bankInfo` 는 **시트·드라이브로 절대 내보내지 않는다**(D-38).
+ *    사이트 안에서 담당자만 본다. 영수증은 드라이브 `02_정산` 으로 나간다.
+ */
 export interface Settlement {
   id: string
+  /** 어느 신청건에 대한 정산인가 — 선정된 건에만 붙는다 */
   applicationId: string
   uid: string
   status: SettlementStatus
-  totalAmount: number
-  /** 계좌 정보 — 민감정보. Rules로 본인·담당자만 읽기 */
-  bankInfo?: {
+
+  /** 신청 당시 정보 사본 — 신청서가 바뀌어도 정산 이력은 남는다 */
+  programId: string
+  programTitle?: string
+  applicantName?: string
+
+  /** 지급 계좌 — 사이트 밖으로 나가지 않는다 */
+  bankInfo: {
     bankName: string
     accountNumber: string
     accountHolder: string
   }
-  items: SettlementItem[]
-  driveFolderId?: string
+
+  /** 영수증 등 지출 증빙 */
+  receipts: AttachedFile[]
+
+  /** 담당자가 남기는 안내 — 신청자에게 그대로 보인다 */
   reviewNote?: string
+  reviewedBy?: string
+  reviewedAt?: Timestamp
+
+  /* 시트·드라이브 반영 상태 (신청서와 같은 방식) */
+  driveFolderUrl?: string
+  driveSyncError?: string
+  sheetRowId?: number
+  sheetSyncedAt?: Timestamp
+
+  submittedAt?: Timestamp
   createdAt: Timestamp
   updatedAt: Timestamp
 }

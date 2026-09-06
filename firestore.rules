@@ -129,9 +129,8 @@ service cloud.firestore {
     // 경로로 통과해 시트에 두 줄·드라이브에 PDF 두 개가 쌓인다.
     //
     // ⚠️ 재신청을 열어주려면 **이 문서만 지워서는 안 된다.** 화면(/apply/[programId])이
-    //    신청서 문서를 보고 먼저 막기 때문에, 신청서 문서도 함께 처리해야 한다.
-    //    담당자가 콘솔을 직접 만지지 않도록 '신청 취소' 기능을 붙이는 것이 숙제다
-    //    (docs/TODO-later.md 🟠W). 그때까지는 두 문서를 모두 지워야 한다.
+    //    신청서 문서의 상태도 보기 때문이다. 담당자 화면의 **[신청 취소 처리]**가
+    //    두 가지를 한 묶음으로 하므로, 콘솔을 직접 만질 일은 없다.
     match /support_application_keys/{keyId} {
       allow get, list: if isStaff();
       allow create: if isMember()
@@ -147,13 +146,21 @@ service cloud.firestore {
       allow list: if isStaff()
         || (isMember() && resource.data.uid == request.auth.uid);
 
-      allow create: if isMember() && request.resource.data.uid == request.auth.uid;
+      // 문서 ID 를 신청번호로 쓰므로(D-39) 두 번째 제출은 create 가 아니라
+      // update 로 판정되고, 아래 조건에 걸려 거부된다 — 중복 제출이 구조적으로
+      // 막힌다. 스스로 '승인' 상태를 부여하는 것도 여기서 차단한다.
+      allow create: if isMember()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status in ['draft', 'submitted'];
 
-      // 제출 후에는 신청자가 수정할 수 없다. 승인/반려는 담당자만.
+      // 제출 후에는 신청자가 수정할 수 없다. 반려된 건만 고쳐서 다시 낸다.
+      // 승인/반려는 담당자만.
       allow update: if isStaff()
         || (isMember()
             && resource.data.uid == request.auth.uid
-            && resource.data.status in ['draft', 'rejected']);
+            && request.resource.data.uid == resource.data.uid
+            && resource.data.status in ['draft', 'rejected']
+            && request.resource.data.status in ['draft', 'submitted']);
 
       allow delete: if false;
     }

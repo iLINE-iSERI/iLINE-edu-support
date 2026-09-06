@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
@@ -9,8 +9,14 @@ import Placeholder from '@/components/ui/Placeholder'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { listMyApplications, fileUrl } from '@/lib/firebase/applications'
+import { listMySettlements } from '@/lib/firebase/settlements'
+import SettlementSection from '@/components/settlement/SettlementSection'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
-import { APPLICATION_STATUS_LABEL, type Application } from '@/lib/types'
+import {
+  APPLICATION_STATUS_LABEL,
+  type Application,
+  type Settlement,
+} from '@/lib/types'
 
 export default function MypagePage() {
   return (
@@ -28,18 +34,32 @@ function MypageContent() {
   const justSubmitted = params.get('submitted') === '1'
 
   const [apps, setApps] = useState<Application[] | null>(null)
+  const [settlements, setSettlements] = useState<Settlement[]>([])
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!user) return
-    listMyApplications(user.uid)
-      .then(setApps)
-      .catch((e) => {
-        console.error('[iLINE] 신청 목록 조회 실패:', e)
-        setError(firestoreErrorMessage(e))
-        setApps([])
-      })
+    try {
+      const [list, mine] = await Promise.all([
+        listMyApplications(user.uid),
+        // 정산 조회가 실패해도 신청 현황은 보여야 한다 — 정산은 부가 정보다
+        listMySettlements(user.uid).catch((e) => {
+          console.warn('[iLINE] 정산 조회 실패:', e)
+          return []
+        }),
+      ])
+      setApps(list)
+      setSettlements(mine)
+    } catch (e) {
+      console.error('[iLINE] 신청 목록 조회 실패:', e)
+      setError(firestoreErrorMessage(e))
+      setApps([])
+    }
   }, [user])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   return (
     <>
@@ -136,6 +156,21 @@ function MypageContent() {
                         <p className="mt-1 text-ink-muted">{a.reviewNote}</p>
                       </div>
                     )}
+
+                    {/* 정산 — 선정된 건에만 (D-19 / D-39).
+                        아직 지급 대상이 아닌 사람에게 계좌를 물으면
+                        쓸 일 없는 계좌를 보유하게 된다 (D-38) */}
+                    {a.status === 'approved' && user && (
+                      <SettlementSection
+                        application={a}
+                        settlement={
+                          settlements.find((s) => s.applicationId === a.id) ??
+                          null
+                        }
+                        uid={user.uid}
+                        onDone={load}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>
@@ -161,11 +196,10 @@ function MypageContent() {
       </div>
 
       <Placeholder
-        phase="Phase 5 · 6"
-        blockedBy="선정 결과 · 정산 일정"
+        phase="Phase 4′ · 6"
+        blockedBy="갤러리 공개 방침"
         items={[
           '산출물 제출 (D-19) — 선정 이후 노출',
-          '정산 증빙 제출 (D-19) — 정산 기간 개시 후 노출',
           '회원정보 수정',
         ]}
       />
