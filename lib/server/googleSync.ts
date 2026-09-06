@@ -38,6 +38,65 @@ const HEADERS = [
   '추가 기재',
 ]
 
+/**
+ * 한국 시각으로 쪼개기.
+ *
+ * ⚠️ **서버(Vercel)는 UTC 로 돕니다.** `getHours()` 나 `toLocaleString('ko-KR')` 을
+ *    그냥 쓰면 서버 시간대를 따라가 **9시간 이른 값**이 나온다. 새벽 1시 제출이
+ *    전날 오후 4시로 기록되므로, **마감 직전 제출이 전날 것**이 된다.
+ *    마감 시비가 붙었을 때 근거로 쓸 수 없는 값이 된다. (09-06 실제 발생)
+ *
+ *    화면 쪽은 브라우저 시간대라 원래 정확했다 — 서버에서 만드는 값만 문제였다.
+ *    저장된 `submittedAt` 도 정확했고 **표시만 틀렸다.**
+ *
+ * 시간대 계산을 손으로 하지 않고 Intl 에 맡기는 이유: 표준시 규칙은 우리 코드가
+ * 아니라 시간대 데이터가 관리해야 한다. `+9시간` 을 직접 더하면 규칙이 바뀔 때
+ * 아무도 여기를 고칠 생각을 못 한다.
+ */
+const KST = 'Asia/Seoul'
+
+function seoulParts(d: Date) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: KST,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+
+  const p: Record<string, string> = {}
+  for (const part of fmt.formatToParts(d)) {
+    if (part.type !== 'literal') p[part.type] = part.value
+  }
+
+  // 일부 런타임이 자정을 '24' 로 돌려준다. 날짜는 이미 맞으므로 시각만 고친다.
+  if (p.hour === '24') p.hour = '00'
+
+  return p as {
+    year: string
+    month: string
+    day: string
+    hour: string
+    minute: string
+    second: string
+  }
+}
+
+/**
+ * 시트에 넣을 신청 일시 — `2026-09-06 01:52:57` (한국 시각).
+ *
+ * `2026. 9. 5. 오후 4:52:57` 같은 표기를 쓰지 않는다. 스프레드시트에서
+ * **글자 정렬이 곧 시간 정렬**이 되어야 담당자가 마감 순서를 눈으로 확인할 수 있다.
+ */
+function seoulStamp(d: Date | undefined): string {
+  if (!d) return ''
+  const p = seoulParts(d)
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`
+}
+
 function clients() {
   const cfg = getGoogleConfig()
   if (!cfg) return null
@@ -91,13 +150,11 @@ function pdfFileName(app: Application): string {
       .trim()
       .slice(0, 40)
 
-  // YYMMDDHHmm — 연도 뒤 두 자리 + 월일 + 24시간 표기 시각.
+  // YYMMDDHHmm — 연도 뒤 두 자리 + 월일 + 24시간 표기 시각. **한국 시각 기준.**
   // 붙여 쓰면 파일 이름이 짧고, 이름순 정렬이 곧 시간순 정렬이 된다.
   const d = app.submittedAt?.toDate?.() ?? new Date()
-  const p = (n: number) => String(n).padStart(2, '0')
-  const stamp =
-    `${p(d.getFullYear() % 100)}${p(d.getMonth() + 1)}${p(d.getDate())}` +
-    `${p(d.getHours())}${p(d.getMinutes())}`
+  const t = seoulParts(d)
+  const stamp = `${t.year.slice(2)}${t.month}${t.day}${t.hour}${t.minute}`
 
   const program = clean(app.programTitle || app.programId) || '프로그램'
   const name = clean(app.applicant?.name || '') || '이름없음'
@@ -204,7 +261,7 @@ export async function syncApplication(
   const row = [
     app.id,
     app.programTitle || app.programId,
-    app.submittedAt?.toDate?.().toLocaleString('ko-KR') || '',
+    seoulStamp(app.submittedAt?.toDate?.()),
     ap?.name || '',
     ap?.studentId || '',
     ap?.major || '',
