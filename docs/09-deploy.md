@@ -1,6 +1,6 @@
 # 배포하기 (Vercel + 가비아)
 
-> 목표: `support.iline.or.kr` 로 접속되게 만듭니다.
+> 목표: `edusupport.iline.or.kr` 로 접속되게 만듭니다.
 > 20~30분. 도메인 연결은 반영에 시간이 더 걸릴 수 있습니다.
 
 **iLINE 사이트는 이 과정에서 건드리지 않습니다.** 별도의 Vercel 프로젝트를 새로 만듭니다(D-20).
@@ -68,7 +68,7 @@
 | 항목 | 값 |
 |---|---|
 | 타입 | **CNAME** |
-| 호스트 | **`support`** ← `support.iline.or.kr` 이 아니라 `support` 만 |
+| 호스트 | **`edusupport`** ← `edusupport.iline.or.kr` 이 아니라 `edusupport` 만 |
 | 값/위치 | **Vercel 화면에 나온 주소** (보통 `cname.vercel-dns.com.`) |
 | TTL | 기본값 (600 등) |
 
@@ -89,7 +89,7 @@
 ## 3. Vercel 에 도메인 연결
 
 1. Vercel → 방금 만든 프로젝트 → **Settings → Domains**
-2. `support.iline.or.kr` 입력 → **Add**
+2. `edusupport.iline.or.kr` 입력 → **Add**
 3. Vercel 이 필요한 DNS 레코드를 보여줍니다. 2번에서 넣은 값과 다르면 **화면 값으로 고치세요**
 4. 연결되면 `Valid Configuration` 으로 바뀝니다
 
@@ -103,7 +103,7 @@ DNS 반영은 보통 **몇 분**, 길면 몇 시간 걸립니다. 바로 안 된
 
 두 개를 넣습니다.
 
-- `support.iline.or.kr` *(이미 넣으셨으면 통과)*
+- `edusupport.iline.or.kr` *(이미 넣으셨으면 통과)*
 - **Vercel 임시 주소** — `iline-edu-support.vercel.app` 처럼 실제 발급된 정확한 이름
 
 > **와일드카드(`*.vercel.app`)는 받지 않습니다.** 정확한 이름을 적으세요.
@@ -140,5 +140,5 @@ DNS 반영은 보통 **몇 분**, 길면 몇 시간 걸립니다. 바로 안 된
 | 화면은 뜨는데 로그인이 안 됨 | **승인된 도메인** 누락 (4번) |
 | 콘솔에 `환경변수가 없습니다` | Vercel 환경변수 누락 또는 오타 |
 | 빌드 실패 | 로컬에서 `npm run build` 를 돌려 같은 오류가 나는지 확인 |
-| 도메인이 계속 `Invalid Configuration` | DNS 반영 대기 중이거나 호스트를 `support.iline.or.kr` 로 적음 (→ `support` 만) |
+| 도메인이 계속 `Invalid Configuration` | DNS 반영 대기 중이거나 호스트를 `edusupport.iline.or.kr` 로 적음 (→ `edusupport` 만) |
 | iLINE 사이트가 멈춤 | **가비아에서 기존 레코드를 건드림.** 즉시 되돌리세요 |

@@ -49,10 +49,12 @@ export default function Header() {
             className="flex min-w-0 items-center gap-2"
             aria-label={`${SITE.programName} 홈`}
           >
-            <span className="text-lg font-extrabold tracking-tight text-brand-600 dark:text-brand-300">
+            {/* 사업 명칭이 길어서(09-06 확정) 한 줄에 다 넣으면 모바일에서
+                줄이 깨진다. 화면이 좁으면 글자를 줄이고 기관명은 감춘다. */}
+            <span className="truncate text-base font-extrabold leading-tight tracking-tight text-brand-600 sm:text-lg dark:text-brand-300">
               {SITE.programName}
             </span>
-            <span className="hidden truncate text-xs text-ink-subtle sm:inline">
+            <span className="hidden shrink-0 truncate text-xs text-ink-subtle lg:inline">
               {SITE.funder}
             </span>
           </Link>

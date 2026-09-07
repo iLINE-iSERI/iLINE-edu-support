@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { getDb, getStorageClient, COL, STORAGE_ROOT } from './config'
+import { CONSENT_VERSION } from './members'
 import type {
   Application,
   ApplicantSnapshot,
@@ -26,20 +27,38 @@ import type {
   SupportUser,
 } from '@/lib/types'
 
-/** 회원 정보 → 제출 시점 스냅샷 */
-export function snapshotOf(member: SupportUser): ApplicantSnapshot {
+/**
+ * 회원 정보 → 제출 시점 스냅샷.
+ *
+ * ⚠️ **초상권 동의만은 회원 문서에서 오지 않는다** (D-44). 이 신청서에서
+ *    방금 받은 답을 인자로 받는다. 회원 문서를 읽어버리면 가입 때의 옛 답이
+ *    조용히 딸려 들어와, 신청 화면에서 '동의하지 않음'을 골라도 시트에는
+ *    'O' 가 찍히게 된다. **화면과 기록이 어긋나는 종류의 사고**라
+ *    아무도 눈치채지 못한 채 사진이 게시될 수 있다.
+ */
+export function snapshotOf(
+  member: SupportUser,
+  portraitConsent: boolean
+): ApplicantSnapshot {
   const agreed = (purpose: string) =>
     member.consents.some((c) => c.purpose === purpose && c.agreed)
 
   return {
     name: member.name,
-    studentId: member.studentId,
-    major: member.major,
-    grade: member.grade,
+    // 유형(D-43)에 따라 채워지는 칸이 다르다. 없는 값은 빈 문자열 —
+    // Firestore 는 undefined 를 저장하지 못한다.
+    memberType: member.memberType ?? 'student',
+    affiliation: member.affiliation ?? '',
+    major: member.major ?? '',
+    studentId: member.studentId ?? '',
+    grade: member.grade ?? '',
+    position: member.position ?? '',
     phone: member.phone,
     email: member.email,
+    // 가입 때 받은 것 (회원 문서에서 복사)
     personalInfoConsent: agreed('personal_info'),
-    portraitConsent: agreed('portrait'),
+    // 이 신청서에서 방금 받은 것 (위 주석 참고)
+    portraitConsent,
   }
 }
 
@@ -68,6 +87,11 @@ export interface SubmitInput {
   program: Program
   member: SupportUser
   uid: string
+  /**
+   * 초상권 활용 동의 — 이 신청서에서 받은 답 (D-44).
+   * 선택 항목이지만 **답은 반드시 골라야** 여기까지 온다 (거부도 기록 대상).
+   */
+  portraitConsent: boolean
   note?: string
   files: File[]
   /** 제출 시점에 만든 신청서 PDF (D-28). 없으면 그냥 넘어간다 */
@@ -88,7 +112,7 @@ export interface SubmitInput {
  *    '첨부 없는 신청서'가 남는 일도 없다.
  */
 export async function submitApplication(input: SubmitInput): Promise<string> {
-  const { program, member, uid, note, files, pdf } = input
+  const { program, member, uid, portraitConsent, note, files, pdf } = input
 
   const appRef = doc(collection(getDb(), COL.applications))
   const base = `${STORAGE_ROOT}/applications/${uid}/${appRef.id}`
@@ -114,7 +138,9 @@ export async function submitApplication(input: SubmitInput): Promise<string> {
     programId: program.id,
     programTitle: program.title, // 프로그램이 수정돼도 신청 이력은 남는다
     participationType: program.participationType ?? 'individual',
-    applicant: snapshotOf(member),
+    applicant: snapshotOf(member, portraitConsent),
+    // 어느 문구에 동의한 것인지 (D-44). 동의 시각은 submittedAt(서버 시각).
+    portraitConsentVersion: CONSENT_VERSION,
     // ⚠️ 배열 안에는 serverTimestamp() 를 넣을 수 없다 (Firestore 제약).
     //    그래서 첨부 시각만 클라이언트 시각을 쓴다. 몇 초 어긋날 수 있지만
     //    이 값은 참고용이고, 제출 시각(submittedAt)은 서버 시각이라 문제없다.

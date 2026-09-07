@@ -148,7 +148,7 @@ Blaze 는 "무료 할당량을 넘긴 만큼만 청구"입니다. 무료 할당�
 
 **Authentication → 설정 → 승인된 도메인**
 
-**지금 추가할 것: `support.iline.or.kr` 하나입니다.**
+**지금 추가할 것: `edusupport.iline.or.kr` 하나입니다.** (09-06 확정)
 
 - `localhost` — 이미 들어 있습니다. 로컬 개발은 그대로 됩니다
 - `...firebaseapp.com` / `...web.app` — Firebase 호스팅 기본값. 건드리지 않습니다

@@ -13,12 +13,27 @@
 
 import { forwardRef } from 'react'
 import { SITE } from '@/lib/config/site'
-import type { Program, SupportUser } from '@/lib/types'
+import { profileRows, type Program, type SupportUser } from '@/lib/types'
 
 const ApplicationSheet = forwardRef<
   HTMLDivElement,
-  { program: Program; member: SupportUser; note: string; fileNames: string[] }
->(function ApplicationSheet({ program, member, note, fileNames }, ref) {
+  {
+    program: Program
+    member: SupportUser
+    note: string
+    fileNames: string[]
+    /**
+     * 초상권 동의 — **이 화면에서 방금 받은 답** (D-44).
+     * 회원 문서를 읽지 않는다. 읽으면 가입 때의 옛 답이 인쇄되어,
+     * 신청자가 화면에서 고른 것과 **제출된 원본이 달라진다.**
+     * `null` 은 아직 고르지 않음 — 제출이 막히므로 PDF에는 오지 않는다.
+     */
+    portraitConsent: boolean | null
+  }
+>(function ApplicationSheet(
+  { program, member, note, fileNames, portraitConsent },
+  ref
+) {
   const consent = (purpose: string) =>
     member.consents.some((c) => c.purpose === purpose && c.agreed) ? 'O' : 'X'
 
@@ -73,28 +88,24 @@ const ApplicationSheet = forwardRef<
       </Section>
 
       <Section title="신청자 정보">
-        <Table
-          rows={[
-            ['성명', member.name],
-            ['학번', member.studentId],
-            ['전공', member.major],
-            ['학년', member.grade],
-            ['연락처', member.phone],
-            ['이메일', member.email],
-          ]}
-        />
+        {/* 유형(D-43)에 따라 칸이 다르다 — lib/types 의 profileRows 가 정한다 */}
+        <Table rows={profileRows(member)} />
       </Section>
 
       <Section title="동의 여부">
         <Table
           rows={[
             ['개인정보 수집·이용 동의', consent('personal_info')],
-            ['초상권 활용 동의', consent('portrait')],
+            [
+              '초상권 활용 동의',
+              portraitConsent === null ? '' : portraitConsent ? 'O' : 'X',
+            ],
           ]}
         />
         <p style={{ fontSize: '12px', color: '#666', marginTop: '6px' }}>
-          위 동의는 회원가입 시 전자적으로 수집되었으며, 동의 일시와 약관
-          버전이 시스템에 기록되어 있습니다.
+          개인정보 수집·이용 동의는 회원가입 시, 초상권 활용 동의는 본 신청서
+          제출 시 전자적으로 수집되었으며, 각 동의 일시와 약관 버전이 시스템에
+          기록되어 있습니다.
         </p>
       </Section>
 

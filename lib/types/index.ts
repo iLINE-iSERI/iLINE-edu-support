@@ -22,16 +22,22 @@ export type MemberStatus = 'active' | 'withdrawn'
  * 동의 이력 (§2-2 ①)
  *
  * ⚠️ 거부(agreed: false)도 반드시 기록한다.
- *    특히 초상권은 나중에 "이 사람 사진을 갤러리에 써도 되는가"를
- *    판단해야 하므로, "동의 안 함"이 명시적으로 남아야 한다.
- *    기록이 없는 것과 거부한 것은 다르다.
+ *    "동의 안 함"이 명시적으로 남아야 한다 —
+ *    **기록이 없는 것과 거부한 것은 다르다.**
+ *    그래서 묻지 않은 항목은 줄 자체를 만들지 않는다.
+ *
+ * ⚠️ **회원 문서의 `consents` 에는 이제 `personal_info` 하나만 들어간다.**
+ *    초상권은 가입이 아니라 **프로그램 신청서**에서 받는다(D-44) —
+ *    `Application.applicant.portraitConsent` 를 보라.
+ *    가입 시점 초상권 기록이 남아 있는 옛 회원 문서가 있을 수 있는데,
+ *    **그 값은 더 이상 어디에서도 읽지 않는다.**
  */
 export type ConsentPurpose =
-  /** 개인정보 수집·이용 (필수) */
+  /** 개인정보 수집·이용 (필수) — 가입 단계 */
   | 'personal_info'
-  /** 사진·영상 촬영 및 초상권 활용 (선택) */
+  /** 사진·영상 촬영 및 초상권 활용 — **신청 단계로 이동(D-44).** 옛 문서 호환용 */
   | 'portrait'
-  /** 증빙 서류(신분증 등) 수집 — 신청 단계에서 별도 수집 */
+  /** 증빙 서류 수집 — **D-40 으로 폐기.** 서류를 아예 받지 않는다. 옛 문서 호환용 */
   | 'identity_document'
 
 export interface Consent {
@@ -43,6 +49,30 @@ export interface Consent {
   agreedAt: Timestamp
 }
 
+/**
+ * 회원 유형 (D-43)
+ *
+ * 처음에는 예비교원(학생)만 받는 전제로 학번·학년을 필수로 두었는데,
+ * **교원과 일반인도 가입해야 한다**는 요구가 나왔다(09-06 교수님).
+ * 유형에 따라 물어보는 것이 달라지므로 여기서 갈라준다.
+ *
+ * '교원'은 대학 교수와 초·중등 교사를 모두 포함한다. 사업명이
+ * '교원양성'이라 용어를 맞췄다 — '교수'로 하면 현직 교사가 어디에
+ * 속하는지 망설이게 된다.
+ */
+export type MemberType = 'student' | 'teacher' | 'general'
+
+export const MEMBER_TYPE_LABEL: Record<MemberType, string> = {
+  student: '학생',
+  teacher: '교원',
+  general: '일반',
+}
+
+/** 값이 없는 옛 회원은 학생으로 본다 — 그때는 학생만 받았다 */
+export function memberTypeOf(t?: MemberType): MemberType {
+  return t ?? 'student'
+}
+
 export interface SupportUser {
   uid: string
   /** 회원가입 시 인증한 이메일 — 별도로 받지 않는다 */
@@ -51,12 +81,18 @@ export interface SupportUser {
   authProvider: string
 
   name: string
-  /** 학번 */
-  studentId: string
-  /** 전공 (학과) */
+  /** 회원 유형 (D-43) — 값이 없는 옛 회원은 학생으로 본다 */
+  memberType?: MemberType
+  /** 소속 — 학생: 대학명 · 교원: 재직 기관 · 일반: 소속(선택) */
+  affiliation: string
+  /** 학과·전공 (학생·교원) — 교원은 담당 교과를 적기도 한다 */
   major: string
-  /** 학년 — '1' ~ '4', '5' 이상, '대학원', '기타' */
+  /** 학번 — 학생만 */
+  studentId: string
+  /** 학년 — 학생만. '1'~'4', '5+', 'grad', 'etc' */
   grade: string
+  /** 직위·직함 — 교원(교수·강사·교사 등)과 일반(선택) */
+  position: string
   phone: string
 
   role: SupportRole
@@ -67,10 +103,18 @@ export interface SupportUser {
   updatedAt: Timestamp
 }
 
-/** 초상권 활용에 동의했는가 — 갤러리 활동사진 게시 판단에 쓴다 */
-export function hasPortraitConsent(user: SupportUser | null): boolean {
-  if (!user) return false
-  return user.consents.some((c) => c.purpose === 'portrait' && c.agreed)
+/**
+ * 이 **신청건**의 활동 사진을 갤러리·자료집에 써도 되는가 (D-44).
+ *
+ * ⚠️ 회원이 아니라 **신청서**를 받는다. 초상권 동의는 프로그램마다 따로
+ *    받으므로 "이 사람이 동의했는가"라는 질문 자체가 성립하지 않는다.
+ *    같은 사람이 A 프로그램은 동의하고 B 프로그램은 거부할 수 있다.
+ *    사진을 올릴 때는 **그 사진이 나온 프로그램의 신청건**을 봐야 한다.
+ */
+export function hasPortraitConsent(
+  application: { applicant?: { portraitConsent?: boolean } } | null
+): boolean {
+  return application?.applicant?.portraitConsent === true
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -148,16 +192,120 @@ export interface TeamMember {
    ───────────────────────────────────────────────────────────── */
 
 /** 제출 시점의 신청자 정보 사본. 이후 회원 정보가 바뀌어도 변하지 않는다 */
+/**
+ * 제출 시점의 신청자 정보 사본.
+ *
+ * 회원이 나중에 정보를 고쳐도 **낸 신청서는 그대로여야** 하므로 복사해 둔다.
+ * 유형(D-43)에 따라 채워지는 칸이 다르다 — 교원·일반은 학번·학년이 비고,
+ * 학생은 직위가 빈다.
+ */
 export interface ApplicantSnapshot {
   name: string
-  studentId: string
+  memberType?: MemberType
+  /** 소속 — 대학명 · 재직 기관 등 */
+  affiliation?: string
   major: string
+  studentId: string
   grade: string
+  /** 직위·직함 — 교원·일반 */
+  position?: string
   phone: string
   email: string
-  /** 동의 여부 — 시트에 O/X 로 나간다 */
+  /** 개인정보 수집·이용 동의 — **회원 문서에서 복사**한 값 (가입 시 받음) */
   personalInfoConsent: boolean
+  /**
+   * 초상권 활용 동의 — **이 신청서에서 직접 받은 답** (D-44).
+   *
+   * 회원 문서에서 복사해 오는 값이 아니다. 신청할 때마다 다시 묻고,
+   * 그 프로그램의 활동 사진에 대한 답으로 여기 남는다.
+   * 동의한 문구의 버전은 `Application.portraitConsentVersion`,
+   * 동의한 시각은 `Application.submittedAt`(서버 시각)이다.
+   */
   portraitConsent: boolean
+}
+
+/**
+ * 유형에 맞는 '신분' 한 줄 — 시트·PDF·목록에서 공통으로 쓴다.
+ *
+ *   학생 → '20260000 · 3학년'
+ *   교원 → '부교수'
+ *   일반 → '연구원' (없으면 빈 문자열)
+ */
+export function identityLine(a: {
+  memberType?: MemberType
+  studentId?: string
+  grade?: string
+  position?: string
+}): string {
+  if (memberTypeOf(a.memberType) === 'student') {
+    const g = a.grade ? GRADE_LABEL[a.grade] ?? a.grade : ''
+    return [a.studentId, g].filter(Boolean).join(' · ')
+  }
+  return a.position ?? ''
+}
+
+/**
+ * 유형에 맞는 인적사항 표 — **화면·PDF·담당자 목록이 모두 이걸 쓴다** (D-43).
+ *
+ * 유형과 상관없이 칸을 고정해 두면 교원 신청서에 '학번 —', '학년 —' 같은
+ * 빈칸이 남는다. 그 빈칸은 "안 적은 것"인지 "물어보지 않은 것"인지 구분되지
+ * 않아서, 담당자가 신청자에게 다시 물어보게 만든다.
+ * 그래서 **물어보지 않은 칸은 아예 만들지 않는다.**
+ *
+ * 한 군데서 만들어 쓰는 이유: 화면과 PDF 가 각자 목록을 갖고 있으면
+ * 한쪽만 고쳤을 때 **신청자가 본 것과 제출된 것이 달라진다.**
+ *
+ * SupportUser 와 ApplicantSnapshot 이 같은 칸 이름을 쓰므로 둘 다 들어온다.
+ */
+export function profileRows(p: {
+  memberType?: MemberType
+  name?: string
+  affiliation?: string
+  major?: string
+  studentId?: string
+  grade?: string
+  position?: string
+  phone?: string
+  email?: string
+}): [string, string][] {
+  const type = memberTypeOf(p.memberType)
+  const rows: [string, string][] = [
+    ['회원 유형', MEMBER_TYPE_LABEL[type]],
+    ['이름', p.name ?? ''],
+  ]
+
+  if (type === 'student') {
+    rows.push(
+      ['소속 대학', p.affiliation ?? ''],
+      ['학과·전공', p.major ?? ''],
+      ['학번', p.studentId ?? ''],
+      ['학년', p.grade ? GRADE_LABEL[p.grade] ?? p.grade : '']
+    )
+  } else if (type === 'teacher') {
+    rows.push(
+      ['소속 기관', p.affiliation ?? ''],
+      ['학과·담당 교과', p.major ?? ''],
+      ['직위', p.position ?? '']
+    )
+  } else {
+    // 일반 — 소속·직함은 선택 항목이라 비어 있으면 줄 자체를 넣지 않는다
+    if (p.affiliation) rows.push(['소속', p.affiliation])
+    if (p.position) rows.push(['직함', p.position])
+  }
+
+  rows.push(['연락처', p.phone ?? ''], ['이메일', p.email ?? ''])
+  return rows
+}
+
+/** 학년 코드 → 사람이 읽는 말 */
+export const GRADE_LABEL: Record<string, string> = {
+  '1': '1학년',
+  '2': '2학년',
+  '3': '3학년',
+  '4': '4학년',
+  '5+': '5학년 이상',
+  grad: '대학원',
+  etc: '기타',
 }
 
 export type ApplicationStatus =
@@ -216,6 +364,15 @@ export interface Application {
 
   /** 제출 시점의 신청자 정보 사본 (D-29) */
   applicant: ApplicantSnapshot
+
+  /**
+   * 초상권 동의서의 문구 버전 (D-44).
+   *
+   * 동의 자체는 `applicant.portraitConsent`, 동의 시각은 `submittedAt`.
+   * **버전이 없으면 "어느 문구에 동의한 것인지" 나중에 증명할 수 없다.**
+   * 동의서 문구를 고칠 때는 `CONSENT_VERSION` 을 반드시 올린다.
+   */
+  portraitConsentVersion?: string
 
   /** 프로그램의 noteLabel 에 대한 답. 요구하지 않은 프로그램이면 없다 */
   note?: string

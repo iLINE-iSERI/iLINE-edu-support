@@ -13,7 +13,12 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { getDb, COL } from './config'
-import type { SupportUser, Consent, ConsentPurpose } from '@/lib/types'
+import type {
+  SupportUser,
+  Consent,
+  ConsentPurpose,
+  MemberType,
+} from '@/lib/types'
 
 /** 현재 약관 버전 — 문구를 바꾸면 반드시 올린다 (동의 이력 추적용) */
 export const CONSENT_VERSION = '2026-09-01'
@@ -26,19 +31,32 @@ export async function getMember(uid: string): Promise<SupportUser | null> {
 }
 
 export interface RegisterInput {
+  /** 회원 유형 (D-43) — 유형에 따라 채워지는 칸이 다르다 */
+  memberType: MemberType
   name: string
-  /** 학번 */
-  studentId: string
-  /** 전공(학과) */
+  /** 소속 — 학생: 대학명 · 교원: 재직 기관 · 일반: 선택 */
+  affiliation: string
+  /** 학과·전공 (교원은 담당 교과) */
   major: string
-  /** 학년 */
+  /** 학번 — 학생만 */
+  studentId: string
+  /** 학년 — 학생만 */
   grade: string
+  /** 직위·직함 — 교원·일반 */
+  position: string
   phone: string
   /**
-   * 동의 결과 — 거부(false)도 그대로 기록한다.
-   * 초상권은 나중에 갤러리 게시 가부 판단에 쓰이므로 특히 중요.
+   * 가입 단계에서 받은 동의 — 거부(false)도 그대로 기록한다.
+   *
+   * ⚠️ **물어본 것만 담는다.** 예전에는 세 항목을 모두 채우도록 되어 있어
+   *    묻지도 않은 초상권·증빙서류에 `false` 가 박혔다. 그러면 나중에
+   *    "거부한 것"과 "물어본 적 없는 것"이 기록상 똑같아진다 — 동의 이력을
+   *    남기는 목적 자체가 무너진다.
+   *
+   *    지금 가입 단계에서 묻는 것은 **개인정보 수집·이용 하나뿐**이다.
+   *    초상권은 프로그램 신청서에서 받는다 (D-44).
    */
-  consents: Record<ConsentPurpose, boolean>
+  consents: Partial<Record<ConsentPurpose, boolean>>
 }
 
 /**
@@ -53,21 +71,29 @@ export async function registerMember(
 ): Promise<void> {
   const now = Timestamp.now()
   const consents: Consent[] = (
-    Object.entries(input.consents) as [ConsentPurpose, boolean][]
-  ).map(([purpose, agreed]) => ({
-    purpose,
-    agreed,
-    version: CONSENT_VERSION,
-    agreedAt: now,
-  }))
+    Object.entries(input.consents) as [ConsentPurpose, boolean | undefined][]
+  )
+    // 값이 없는 항목 = 물어보지 않은 항목. 줄을 만들지 않는다 (위 주석 참고)
+    .filter((e): e is [ConsentPurpose, boolean] => typeof e[1] === 'boolean')
+    .map(([purpose, agreed]) => ({
+      purpose,
+      agreed,
+      version: CONSENT_VERSION,
+      agreedAt: now,
+    }))
 
   await setDoc(doc(getDb(), COL.users, uid), {
     email,
     authProvider,
     name: input.name.trim(),
-    studentId: input.studentId.trim(),
+    memberType: input.memberType,
+    affiliation: input.affiliation.trim(),
     major: input.major.trim(),
+    // 유형에 안 맞는 값은 빈 문자열로 들어온다 (MemberInfoForm 참고).
+    // undefined 를 넣으면 Firestore 가 저장을 거부하므로 빈 문자열을 쓴다.
+    studentId: input.studentId.trim(),
     grade: input.grade,
+    position: input.position.trim(),
     phone: input.phone.replace(/[^0-9]/g, ''),
     role: 'applicant',
     status: 'active',
@@ -80,7 +106,21 @@ export async function registerMember(
 /** 회원정보 수정 */
 export async function updateMember(
   uid: string,
-  patch: Partial<Pick<SupportUser, 'name' | 'studentId' | 'major' | 'grade' | 'phone'>>
+  // D-43: 유형별로 채우는 칸이 다르므로 수정 대상도 그만큼 넓어졌다.
+  // memberType 자체도 고칠 수 있어야 한다 — 학생이 졸업해 교원이 되는 경우가 있다.
+  patch: Partial<
+    Pick<
+      SupportUser,
+      | 'name'
+      | 'memberType'
+      | 'affiliation'
+      | 'major'
+      | 'studentId'
+      | 'grade'
+      | 'position'
+      | 'phone'
+    >
+  >
 ): Promise<void> {
   await updateDoc(doc(getDb(), COL.users, uid), {
     ...patch,

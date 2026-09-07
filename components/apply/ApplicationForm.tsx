@@ -13,9 +13,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { submitApplication, requestSync } from '@/lib/firebase/applications'
 import ApplicationSheet from './ApplicationSheet'
+import PortraitConsent from './PortraitConsent'
 import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
 import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
-import type { Program, SupportUser } from '@/lib/types'
+import { profileRows, type Program, type SupportUser } from '@/lib/types'
 
 /**
  * 첨부 가능한 형식 — **Storage 규칙과 같은 범위**로 맞춘다.
@@ -66,6 +67,12 @@ export default function ApplicationForm({
   const router = useRouter()
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  /**
+   * 초상권 활용 동의 (D-44) — `null` 은 **아직 고르지 않음**이다.
+   * `false`(거부)와 반드시 구분해야 한다. 기본값을 false 로 두면
+   * 화면을 스쳐 지나간 사람이 전부 '거부'로 기록된다.
+   */
+  const [portrait, setPortrait] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState('')
   const [error, setError] = useState('')
@@ -134,6 +141,12 @@ export default function ApplicationForm({
       )
       return
     }
+    // 초상권은 '선택' 항목이지만 **답은 반드시 골라야** 한다 (D-44).
+    // 거부도 기록해야 하므로, 안 고른 채 넘어가면 기록상 거부와 구분되지 않는다.
+    if (portrait === null) {
+      setError('초상권 활용 동의 여부를 선택해 주세요. 동의하지 않으셔도 신청하실 수 있습니다.')
+      return
+    }
 
     setBusy(true)
     try {
@@ -149,7 +162,15 @@ export default function ApplicationForm({
       }
 
       setStep(files.length > 0 ? '파일을 올리는 중…' : '제출하는 중…')
-      const appId = await submitApplication({ program, member, uid, note, files, pdf })
+      const appId = await submitApplication({
+        program,
+        member,
+        uid,
+        portraitConsent: portrait,
+        note,
+        files,
+        pdf,
+      })
 
       // 시트·드라이브 반영. 실패해도 제출은 이미 끝났으므로 기다리지 않는다.
       void requestSync(appId)
@@ -180,6 +201,7 @@ export default function ApplicationForm({
         member={member}
         note={note}
         fileNames={files.map((f) => f.name)}
+        portraitConsent={portrait}
       />
 
       {/* ── 신청자 정보 — 확인만 ────────────────────────────── */}
@@ -198,23 +220,19 @@ export default function ApplicationForm({
           그대로 보관됩니다.
         </p>
 
+        {/* 유형(D-43)에 따라 칸이 다르다. PDF 원본과 **같은 목록**을 쓴다 */}
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-          <Row label="이름" value={member.name} />
-          <Row label="학번" value={member.studentId} />
-          <Row label="전공" value={member.major} />
-          <Row label="학년" value={member.grade} />
-          <Row label="연락처" value={member.phone} />
-          <Row label="이메일" value={member.email} />
+          {profileRows(member).map(([label, value]) => (
+            <Row key={label} label={label} value={value} />
+          ))}
         </dl>
 
+        {/* 가입 때 받은 동의만 여기서 '확인'한다.
+            초상권은 아래에서 **이번 신청건에 대해 다시** 받는다 (D-44). */}
         <dl className="mt-4 grid gap-3 border-t border-line pt-4 text-sm sm:grid-cols-2">
           <Row
             label="개인정보 수집·이용 동의"
             value={consent('personal_info') ? 'O (동의)' : 'X (미동의)'}
-          />
-          <Row
-            label="초상권 활용 동의"
-            value={consent('portrait') ? 'O (동의)' : 'X (미동의)'}
           />
         </dl>
       </section>
@@ -320,6 +338,21 @@ export default function ApplicationForm({
           )}
         </section>
       )}
+
+      {/* ── 초상권 동의 (D-44) ──────────────────────────────
+          가입이 아니라 여기서 받는다. 사진은 **이 프로그램의 활동**에서
+          찍히고, 사람마다 프로그램에 따라 판단이 다를 수 있기 때문이다. */}
+      <section className="rounded-2xl border border-line bg-surface p-5">
+        <h2 className="font-bold">촬영·초상권 동의</h2>
+        <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+          이번에 신청하시는 <strong>{program.title}</strong> 활동 중 촬영되는
+          사진·영상에 대한 동의입니다.
+        </p>
+
+        <div className="mt-4">
+          <PortraitConsent value={portrait} onChange={setPortrait} />
+        </div>
+      </section>
 
       {error && (
         <p

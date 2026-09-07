@@ -1,6 +1,6 @@
 import PageHeader from '@/components/ui/PageHeader'
 import NoticeNav from '@/components/layout/NoticeNav'
-import DraftNotice from '@/components/ui/DraftNotice'
+import { SITE } from '@/lib/config/site'
 
 export const metadata = { title: 'FAQ · 문의' }
 
@@ -42,7 +42,7 @@ const FAQ = [
   },
   {
     q: '탈퇴하면 제출한 서류도 삭제되나요?',
-    a: '아닙니다. 국고 지원사업 서류는 법령이 정한 기간 동안 보존해야 하므로, 탈퇴 시에도 신청·정산 이력은 남습니다. 로그인은 더 이상 되지 않습니다.',
+    a: '아닙니다. 국고 지원사업 서류는 법령이 정한 기간 동안 보존해야 하므로, 탈퇴 시에도 신청·정산 이력은 남습니다.',
   },
 ]
 
@@ -85,30 +85,54 @@ export default function FaqPage() {
 
         <section>
           <h2 className="text-lg font-bold tracking-tight">문의하기</h2>
-          <div className="mt-4 space-y-3">
-            <DraftNotice what="담당자 연락처" />
-            <dl className="grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-ink-subtle">운영 기관</dt>
-                <dd className="mt-0.5 font-medium">
-                  제주대학교 지능소프트웨어교육연구소
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-subtle">문의 이메일</dt>
-                <dd className="mt-0.5 font-medium">(등록 예정)</dd>
-              </div>
-              <div>
-                <dt className="text-ink-subtle">전화</dt>
-                <dd className="mt-0.5 font-medium">(등록 예정)</dd>
-              </div>
-              <div>
-                <dt className="text-ink-subtle">운영 시간</dt>
-                <dd className="mt-0.5 font-medium">평일 09:00 ~ 18:00</dd>
-              </div>
-            </dl>
-          </div>
+          <dl className="mt-4 grid gap-4 rounded-2xl border border-line bg-surface p-5 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-ink-subtle">운영 기관</dt>
+              <dd className="mt-0.5 font-medium">{SITE.operator}</dd>
+            </div>
+            <div>
+              <dt className="text-ink-subtle">운영 시간</dt>
+              <dd className="mt-0.5 font-medium">{SITE.contact.hours}</dd>
+            </div>
+            <div>
+              <dt className="text-ink-subtle">문의 이메일</dt>
+              <dd className="mt-0.5">
+                {/* 누르면 바로 메일이 열린다 — 휴대폰에서 주소를 옮겨 적지 않게 */}
+                <a
+                  href={`mailto:${SITE.contact.email}`}
+                  className="font-medium underline underline-offset-2"
+                >
+                  {SITE.contact.email}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-ink-subtle">전화</dt>
+              <dd className="mt-0.5">
+                <a
+                  href={`tel:${SITE.contact.phone.replace(/-/g, '')}`}
+                  className="font-medium underline underline-offset-2"
+                >
+                  {SITE.contact.phone}
+                </a>
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-ink-subtle">카카오톡 채널</dt>
+              <dd className="mt-0.5">
+                <a
+                  href={SITE.contact.kakaoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="touch-target mt-1 inline-flex items-center rounded-xl bg-[#FEE500] px-5 font-bold text-[#191600] hover:brightness-95"
+                >
+                  카카오톡으로 문의하기
+                </a>
+              </dd>
+            </div>
+          </dl>
         </section>
+
       </div>
     </>
   )

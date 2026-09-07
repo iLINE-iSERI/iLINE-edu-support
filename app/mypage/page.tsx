@@ -14,6 +14,7 @@ import SettlementSection from '@/components/settlement/SettlementSection'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import {
   APPLICATION_STATUS_LABEL,
+  profileRows,
   type Application,
   type Settlement,
 } from '@/lib/types'
@@ -182,14 +183,11 @@ function MypageContent() {
         {member && (
           <section>
             <h2 className="text-lg font-bold tracking-tight">내 정보</h2>
+            {/* 유형(D-43)에 따라 칸이 다르다 — 신청서·PDF와 같은 목록을 쓴다 */}
             <dl className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm sm:grid-cols-2">
-              <Row label="학번" value={member.studentId} />
-              <Row
-                label="전공 · 학년"
-                value={`${member.major} · ${member.grade}`}
-              />
-              <Row label="이메일" value={member.email} />
-              <Row label="연락처" value={member.phone} />
+              {profileRows(member).map(([label, value]) => (
+                <Row key={label} label={label} value={value} />
+              ))}
             </dl>
           </section>
         )}

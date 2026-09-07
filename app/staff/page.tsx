@@ -27,6 +27,7 @@ import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import {
   APPLICATION_STATUS_LABEL,
+  profileRows,
   type Application,
   type ApplicationStatus,
   type Program,
@@ -282,11 +283,10 @@ function ApplicationRow({
       {/* 신청자 — 제출 시점 스냅샷이다. 현재 회원 정보와 다를 수 있다 */}
       {ap && (
         <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-          <Item k="이름" v={ap.name} />
-          <Item k="학번" v={ap.studentId} />
-          <Item k="전공 · 학년" v={`${ap.major} · ${ap.grade}`} />
-          <Item k="연락처" v={ap.phone} />
-          <Item k="이메일" v={ap.email} />
+          {/* 유형(D-43)에 따라 칸이 다르다 — 교원·일반은 학번·학년이 없다 */}
+          {profileRows(ap).map(([k, v]) => (
+            <Item key={k} k={k} v={v} />
+          ))}
           <Item
             k="동의 (개인정보 / 초상권)"
             v={`${ap.personalInfoConsent ? 'O' : 'X'} / ${

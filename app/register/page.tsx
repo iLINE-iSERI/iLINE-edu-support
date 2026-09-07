@@ -55,16 +55,17 @@ function RegisterForm() {
         user.email || '',
         user.providerData[0]?.providerId || 'password',
         {
+          memberType: values.memberType,
           name: values.name,
-          studentId: values.studentId,
+          affiliation: values.affiliation,
           major: values.major,
+          studentId: values.studentId,
           grade: values.grade,
+          position: values.position,
           phone: values.phone,
-          consents: {
-            personal_info: values.personalInfo,
-            portrait: values.portrait,
-            identity_document: false,
-          },
+          // 가입 단계에서 묻는 동의는 이것 하나뿐이다.
+          // 초상권은 프로그램 신청서에서 받는다 (D-44).
+          consents: { personal_info: values.personalInfo },
         }
       )
       await refresh()

@@ -13,7 +13,12 @@ import 'server-only'
 import { Readable } from 'node:stream'
 import { google } from 'googleapis'
 import { getGoogleConfig } from './env'
-import type { Application } from '@/lib/types'
+import {
+  MEMBER_TYPE_LABEL,
+  memberTypeOf,
+  identityLine,
+  type Application,
+} from '@/lib/types'
 
 const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
@@ -25,10 +30,13 @@ const HEADERS = [
   '신청번호',
   '프로그램명',
   '신청 일시',
+  // D-43: 학생만 받던 때는 '학번·전공·학년' 이었는데, 교원·일반이 생기면서
+  // 그 열이 절반쯤 빈칸이 된다. 유형에 맞는 값이 들어가도록 이름을 바꿨다.
+  '회원 유형',
   '이름',
-  '학번',
-  '전공',
-  '학년',
+  '소속',
+  '학과·전공',
+  '신분',
   '연락처',
   '이메일',
   '개인정보 수집·이용 동의',
@@ -121,7 +129,7 @@ async function ensureHeaders(
 ) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
-    range: 'A1:N1',
+    range: 'A1:P1',
   })
   if (res.data.values?.[0]?.length) return
 
@@ -262,10 +270,12 @@ export async function syncApplication(
     app.id,
     app.programTitle || app.programId,
     seoulStamp(app.submittedAt?.toDate?.()),
+    MEMBER_TYPE_LABEL[memberTypeOf(ap?.memberType)],
     ap?.name || '',
-    ap?.studentId || '',
+    ap?.affiliation || '',
     ap?.major || '',
-    ap?.grade || '',
+    // 학생이면 '20260000 · 3학년', 교원·일반이면 직위
+    ap ? identityLine(ap) : '',
     ap?.phone || '',
     ap?.email || '',
     ap?.personalInfoConsent ? 'O' : 'X',

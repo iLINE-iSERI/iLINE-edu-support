@@ -56,7 +56,7 @@
 이 값이 인터넷 주소에 그대로 나옵니다.
 
 ```
-support.iline.or.kr/apply/2026-ai-workshop
+edusupport.iline.or.kr/apply/2026-ai-workshop
                           └─ 주소용 ID
 ```
 
