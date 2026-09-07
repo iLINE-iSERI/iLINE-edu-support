@@ -35,6 +35,18 @@ export default function Header() {
   // 'error'(확인 불가)일 때는 "가입 마저 하기"를 권하지 않는다.
   // 이미 회원인데 조회만 실패했을 수 있기 때문이다.
   const needsRegister = status === 'unregistered'
+  /**
+   * 아직 확인 중 — **로그아웃과 절대 같이 취급하지 않는다** (09-07).
+   *
+   * 예전에는 분기 마지막 칸(그 밖에 전부)으로 떨어져서, 확인 중인데도
+   * `로그인 / 회원가입` 이 떴다. 화면이 **"당신은 로그아웃 상태"라고 단언**해
+   * 버리는 셈이라, 사용자는 로그인이 실패한 줄 안다.
+   *
+   * 09-05 에 `MemberGate` 에서 똑같은 실수를 고쳤는데(조회 중을 비로그인으로
+   * 보고 로그인 화면으로 되돌리던 것) 헤더는 그 구분을 안 쓰고 있었다.
+   * **상태를 늘리면 그 상태를 읽는 곳을 전부 찾아 고쳐야 한다.**
+   */
+  const checking = status === 'loading'
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/')
@@ -75,7 +87,16 @@ export default function Header() {
                 신청 관리
               </Link>
             )}
-            {isLoggedIn ? (
+            {checking ? (
+              // 확인이 끝날 때까지 아무것도 단언하지 않는다.
+              // 자리를 비워두면 버튼이 튀어 보이므로 자리만 지킨다.
+              <span
+                className="rounded-lg px-3 py-2 text-sm text-ink-subtle"
+                aria-live="polite"
+              >
+                확인 중…
+              </span>
+            ) : isLoggedIn ? (
               <>
                 <button
                   onClick={logout}
@@ -227,7 +248,11 @@ export default function Header() {
             >
               iLINE 홈
             </a>
-            {isLoggedIn ? (
+            {checking ? (
+              <p className="px-3 py-3 text-base text-ink-subtle" aria-live="polite">
+                확인 중…
+              </p>
+            ) : isLoggedIn ? (
               <>
                 <Link
                   href="/mypage"
@@ -252,7 +277,29 @@ export default function Header() {
                 >
                   가입 마저 하기
                 </Link>
+                <button
+                  onClick={logout}
+                  className="mt-1 flex w-full items-center rounded-lg px-3 py-3 text-left text-base text-ink-muted"
+                >
+                  로그아웃
+                </button>
               </div>
+            ) : status === 'error' ? (
+              /* 데스크톱에만 있고 여기 없어서, 조회 실패 시 휴대폰에서는
+                 [로그인/회원가입]이 떴다. **이미 회원인 사람이 다시 가입하려
+                 들게** 만드는 화면이다 (09-07 발견). D-24 = 모든 화면이
+                 스마트폰에서 완전 동작. */
+              <>
+                <p className="px-3 py-3 text-base text-ink-subtle">
+                  회원 정보를 확인하지 못했습니다
+                </p>
+                <button
+                  onClick={logout}
+                  className="flex w-full items-center rounded-lg px-3 py-3 text-left text-base text-ink-muted"
+                >
+                  로그아웃
+                </button>
+              </>
             ) : (
               <div className="flex gap-2 px-3 py-3">
                 <Link

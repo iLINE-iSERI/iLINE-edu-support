@@ -28,12 +28,13 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react'
 import type { User } from 'firebase/auth'
 import { onAuthChange, logOut as fbLogOut } from '@/lib/firebase/auth'
 import { getMember } from '@/lib/firebase/members'
-import { isFirebaseConfigured } from '@/lib/firebase/config'
+import { isFirebaseConfigured, getAuthClient } from '@/lib/firebase/config'
 import { firebaseErrorKind, firestoreErrorMessage } from '@/lib/firebase/errors'
 import type { SupportUser } from '@/lib/types'
 
@@ -75,9 +76,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [isSetupIssue, setIsSetupIssue] = useState(false)
 
+  /**
+   * 마지막으로 시작한 조회의 번호.
+   *
+   * 조회가 겹칠 수 있다 — 로그인 직후에는 `onAuthChange` 와 `refresh()` 가
+   * 거의 동시에 돌고, 로그아웃은 진행 중인 조회를 기다려 주지 않는다.
+   * 번호를 안 붙이면 **늦게 끝난 쪽이 이긴다.** 로그아웃했는데 직전 조회가
+   * 뒤늦게 도착해 다시 '회원'으로 돌아가는 식의 사고가 난다.
+   * 자기 번호가 최신이 아니면 결과를 버린다.
+   */
+  const runId = useRef(0)
+
   const load = useCallback(async (u: User | null) => {
+    const id = ++runId.current
+    /** 이 조회가 아직 최신인가 — 아니면 결과를 반영하지 않는다 */
+    const latest = () => id === runId.current
+
     setErrorMessage('')
     setIsSetupIssue(false)
+    setUser(u)
 
     if (!u) {
       setMember(null)
@@ -99,12 +116,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const m = await getMember(u.uid)
+      if (!latest()) return
       setMember(m)
       // 문서가 없다 = 확실히 미등록. 이때만 unregistered.
       if (!m) setStatus('unregistered')
       else if (m.status === 'withdrawn') setStatus('withdrawn')
       else setStatus('member')
     } catch (e) {
+      if (!latest()) return
       // 조회 자체가 실패한 것은 "미등록"이 아니라 "확인 불가"다.
       const kind = firebaseErrorKind(e)
       setMember(null)
@@ -129,19 +148,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('guest')
       return
     }
-    const unsub = onAuthChange(async (u) => {
-      setUser(u)
-      await load(u)
+    // setUser 는 load 안에서 한다 — 두 군데서 하면 갱신 순서가 엇갈린다
+    const unsub = onAuthChange((u) => {
+      void load(u)
     })
     return () => unsub()
   }, [load])
 
+  /**
+   * 회원 등록 직후 등 상태를 다시 읽어야 할 때.
+   *
+   * ⚠️ **`user` 상태 변수를 쓰지 않고 Firebase 에 직접 현재 계정을 묻는다.**
+   *
+   *    예전에는 `load(user)` 였는데, `user` 는 리액트 상태라 **호출한 쪽이
+   *    붙잡고 있는 값이 한 박자 뒤처질 수 있다.** 가입 화면에서 정확히 그게
+   *    터졌다 (09-07):
+   *
+   *      1) 가입 화면이 그려질 때는 아직 로그인 전 → 이 화면이 쥔 refresh 의
+   *         `user` 는 **null**
+   *      2) [가입 완료] → 계정 생성 → onAuthChange 가 돌아 회원 문서를 찾지만
+   *         아직 안 만들어졌으므로 `unregistered`
+   *      3) 회원 문서 저장
+   *      4) `refresh()` → **1)의 낡은 null 로 조회** → `guest` 로 덮어씀
+   *
+   *    onAuthChange 는 이미 다 돌았으니 다시 불릴 일이 없고, 상태는 새로고침
+   *    전까지 `guest` 로 **굳는다.** 가입은 됐는데 헤더는 로그아웃이고
+   *    마이페이지는 막히는, 바로 그 증상이다.
+   *
+   *    `getAuthClient().currentUser` 는 SDK 가 로그인 즉시 갱신하므로
+   *    한 박자 뒤처지지 않는다. 의존성에서 `user` 가 빠져 **refresh 함수
+   *    자체도 안 바뀌게** 되고, 그래서 낡은 참조를 쥘 수가 없다.
+   */
   const refresh = useCallback(async () => {
-    await load(user)
-  }, [load, user])
+    const current = isFirebaseConfigured() ? getAuthClient().currentUser : null
+    await load(current)
+  }, [load])
 
   const logout = useCallback(async () => {
     await fbLogOut()
+    // 진행 중이던 조회가 뒤늦게 도착해 '회원'으로 되돌리지 못하게 번호를 올린다
+    runId.current++
+    setUser(null)
     setMember(null)
     setStatus('guest')
     setErrorMessage('')
