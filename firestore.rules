@@ -113,7 +113,30 @@ service cloud.firestore {
         || (isMember()
             && resource.data.uid == request.auth.uid
             && resource.data.status in ['draft', 'revision']
-            && request.resource.data.uid == resource.data.uid);
+            && request.resource.data.uid == resource.data.uid)
+
+        // ── 본인 취소 (D-48) ─────────────────────────────────────
+        // 신청자가 스스로 신청을 물릴 수 있다. 조건이 셋이다.
+        //   ① 자기 신청서일 것
+        //   ② '제출 완료' · '검토 중' · '보완 요청' 상태일 것
+        //      — '검토 중'은 담당자가 **보고 있다는 표시일 뿐 확정이 아니다.**
+        //        참여 못 하게 된 사람을 붙잡을 이유가 없고, 오히려 일찍
+        //        알수록 헛심사가 준다 (09-08 재검토)
+        //      — 선정·미선정은 결과가 나온 뒤라 문의로 돌린다
+        //   ③ **접수 기간 중일 것** — 마감 뒤에는 재신청이 불가능해서
+        //      "없던 일로 되돌리기"가 성립하지 않는다. 그때의 취소는 참여
+        //      포기이고, 담당자가 알아야 하는 사건이다
+        //
+        // ⚠️ 바꿀 수 있는 칸을 **네 개로 못 박는다.** 이게 없으면 취소를
+        //    빌미로 프로그램명·신청자 정보 같은 제출 당시 기록까지 고칠 수
+        //    있다. 신청서는 제출 시점 원본이어야 한다 (D-28 / D-29).
+        || (isMember()
+            && resource.data.uid == request.auth.uid
+            && resource.data.status in ['submitted', 'reviewing', 'revision']
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'cancelReason', 'cancelledAt', 'updatedAt'])
+            && acceptingNow(resource.data.programId));
 
       allow delete: if false;
     }
@@ -129,15 +152,22 @@ service cloud.firestore {
     // 경로로 통과해 시트에 두 줄·드라이브에 PDF 두 개가 쌓인다.
     //
     // ⚠️ 재신청을 열어주려면 **이 문서만 지워서는 안 된다.** 화면(/apply/[programId])이
-    //    신청서 문서의 상태도 보기 때문이다. 담당자 화면의 **[신청 취소 처리]**가
-    //    두 가지를 한 묶음으로 하므로, 콘솔을 직접 만질 일은 없다.
+    //    신청서 문서의 상태도 보기 때문이다. 담당자 화면의 **[신청 취소 처리]**와
+    //    마이페이지의 **[신청 취소]**가 두 가지를 한 묶음으로 하므로,
+    //    콘솔을 직접 만질 일은 없다.
     match /support_application_keys/{keyId} {
       allow get, list: if isStaff();
       allow create: if isMember()
         && keyId == request.auth.uid + '_' + request.resource.data.programId
         && request.resource.data.uid == request.auth.uid;
       allow update: if false;
-      allow delete: if isStaff();   // 재신청을 허용해 주는 유일한 수단
+
+      // 담당자, 그리고 **본인**(D-48).
+      // 본인 삭제를 열어도 남의 열쇠는 못 지운다 — 문서 안의 uid 로 판정한다.
+      // 열쇠만 지우고 신청서를 안 고치는 것은 화면상 아무 효과가 없으므로
+      // (findMyApplication 이 상태도 본다) 이걸로 잠금을 우회할 수는 없다.
+      allow delete: if isStaff()
+        || (isMember() && resource.data.uid == request.auth.uid);
     }
 
     // ── 정산 ─────────────────────────────────────────────────────────────

@@ -15,6 +15,31 @@ export type FirebaseErrorKind =
   | 'not-found'
   | 'unknown'
 
+/**
+ * **우리가 직접 던진, 화면에 그대로 보여줄 안내문.**
+ *
+ * `firestoreErrorMessage()` 는 Firebase 오류 **코드**를 보고 문구를 고르므로,
+ * 코드가 없는 평범한 `Error` 는 전부 "처리 중 문제가 발생했습니다"로
+ * 뭉개진다. 그러면 **애써 쓴 안내가 사라진다** — 예를 들어 "그 사이 신청자가
+ * 취소했습니다" 처럼 담당자가 다음에 뭘 해야 하는지 알려주는 문장이다.
+ *
+ * 그렇다고 아무 `Error` 의 message 를 그냥 보여주면 `undefined is not a
+ * function` 같은 개발자용 문구가 이용자에게 나간다.
+ * 그래서 **보여줘도 되는 오류에만 이 타입을 쓴다.**
+ */
+export class UserFacingError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UserFacingError'
+  }
+}
+
+/** 화면에 보여줄 문구 — 우리가 쓴 안내가 있으면 그것을 우선한다 */
+export function actionErrorMessage(err: unknown): string {
+  if (err instanceof UserFacingError) return err.message
+  return firestoreErrorMessage(err)
+}
+
 export function firebaseErrorKind(err: unknown): FirebaseErrorKind {
   const code =
     typeof err === 'object' && err !== null && 'code' in err

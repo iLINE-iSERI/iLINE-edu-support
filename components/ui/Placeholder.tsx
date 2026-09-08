@@ -1,46 +1,45 @@
 /**
- * 미구현 화면 표시용 — 어떤 결정/단계를 기다리는지 화면에서 바로 보이게 한다.
- * 구현이 끝나면 이 컴포넌트를 지운다.
+ * 아직 준비 중인 화면 안내.
+ *
+ * ⚠️ **이용자가 보는 문구입니다.** 예전에는 `Phase 4′`, `대기: 갤러리 공개 방침`,
+ *    `산출물 제출 (D-19)` 같은 **내부 계획 용어를 그대로 화면에 띄웠습니다.**
+ *    만드는 사람에게는 편했지만, 신청자에게는 뜻을 알 수 없는 글자입니다.
+ *    국고사업 사이트에서 그런 표시는 "미완성 사이트"로 읽힙니다. (09-08 정리)
+ *
+ *    **무엇을 기다리는지는 코드 주석과 `docs/3-할일/` 에 적습니다.**
+ *    화면에는 이용자가 알아야 할 것만 씁니다.
  */
 export default function Placeholder({
-  phase,
-  blockedBy,
+  title = '준비 중입니다',
+  desc,
   items,
 }: {
-  /** 예: 'Phase 3' */
-  phase: string
-  /** 예: 'H-1 신청서 폼 명세' — 없으면 대기 없이 구현 예정 */
-  blockedBy?: string
-  /** 이 화면에 들어갈 내용 목록 */
-  items: string[]
+  title?: string
+  /** 왜 비어 있는지 · 언제쯤 채워지는지 — 사람 말로 */
+  desc: string
+  /** 여기 들어올 내용 (선택) — 이용자가 이해할 수 있는 말로만 */
+  items?: string[]
 }) {
   return (
     <div className="container-page py-10">
-      <div className="rounded-2xl border border-dashed border-line-strong bg-subtle p-6 sm:p-8">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-bold text-brand-600 dark:text-brand-300">
-            {phase}
-          </span>
-          {blockedBy && (
-            <span className="rounded-full bg-status-revision/10 px-2.5 py-1 text-xs font-bold text-status-revision">
-              대기: {blockedBy}
-            </span>
-          )}
-        </div>
-
-        <p className="mt-4 text-sm font-semibold text-ink-muted">
-          이 화면에 들어갈 내용
+      <div className="rounded-2xl border border-dashed border-line-strong bg-subtle p-6 sm:p-8 text-center">
+        <p className="text-base font-bold">{title}</p>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-muted">
+          {desc}
         </p>
-        <ul className="mt-2 space-y-1.5 text-sm text-ink-muted">
-          {items.map((it) => (
-            <li key={it} className="flex gap-2">
-              <span aria-hidden="true" className="text-ink-subtle">
-                ·
-              </span>
-              <span>{it}</span>
-            </li>
-          ))}
-        </ul>
+
+        {items && items.length > 0 && (
+          <ul className="mx-auto mt-4 max-w-md space-y-1.5 text-left text-sm text-ink-muted">
+            {items.map((it) => (
+              <li key={it} className="flex gap-2">
+                <span aria-hidden="true" className="text-ink-subtle">
+                  ·
+                </span>
+                <span>{it}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )

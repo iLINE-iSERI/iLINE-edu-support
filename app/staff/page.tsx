@@ -24,7 +24,7 @@ import {
 } from '@/lib/firebase/staff'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { fileUrl } from '@/lib/firebase/applications'
-import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { firestoreErrorMessage, actionErrorMessage } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   APPLICATION_STATUS_LABEL,
@@ -34,10 +34,25 @@ import {
   type Program,
 } from '@/lib/types'
 
-/** 상태 변경 버튼으로 고를 수 있는 것 — 취소는 여기 넣지 않는다(아래 참고) */
+/**
+ * 상태 변경 버튼으로 고를 수 있는 것 — 취소는 여기 넣지 않는다(아래 참고).
+ *
+ * ⚠️ **'검토 중'을 뺐다 (09-08 · D-49).**
+ *    상태는 **결과를 적는 칸**이지 진행을 표시하는 칸이 아니다. 그렇게 보면
+ *    '검토 중'만 성격이 다르다 — 결과가 아니라 "지금 보고 있다"는 표시다.
+ *
+ *    게다가 **자동으로 바뀌지 않는다.** 담당자가 100건을 하나씩 눌러 켜줘야
+ *    하는데, 선정 결과를 **공지로 발표**하기로 한 이상(D-46) 그럴 이유가 없다.
+ *    아무도 안 누르면 절반은 '제출 완료', 절반은 '검토 중'인 채로 남아
+ *    **숫자와 필터가 뜻을 잃는다.** 관리 안 되는 상태는 없느니만 못하다.
+ *
+ *    "어디까지 봤는가"는 구글 시트에서 관리한다 — 원래 그러기로 한 분업이다(D-7).
+ *
+ *    타입과 이름표에는 남겨두었다. 옛 문서에 이 값이 있어도 빈칸으로
+ *    보이지 않게 하기 위해서다. 새로 만들 수만 없다.
+ */
 const FLOW: ApplicationStatus[] = [
   'submitted',
-  'reviewing',
   'revision',
   'approved',
   'rejected',
@@ -225,12 +240,14 @@ function ApplicationRow({
     setBusy(true)
     setMsg('')
     try {
-      await updateApplicationStatus(app.id, status, note, reviewerUid)
+      // app.status = 목록을 불러왔을 때의 상태. 그 사이 신청자가 취소했으면 막힌다
+      await updateApplicationStatus(app.id, status, note, reviewerUid, app.status)
       setMsg('저장했습니다.')
       onSaved()
     } catch (e) {
       console.error('[iLINE] 상태 변경 실패:', e)
-      setMsg(firestoreErrorMessage(e))
+      // 덮어쓰기를 막았을 때의 안내가 뭉개지지 않게 actionErrorMessage 를 쓴다
+      setMsg(actionErrorMessage(e))
     } finally {
       setBusy(false)
     }
@@ -315,6 +332,28 @@ function ApplicationRow({
           <FileButton key={f.storagePath} path={f.storagePath} label={f.fileName} />
         ))}
       </div>
+
+      {/* 신청자가 남긴 취소 사유 (D-48).
+          ⚠️ 담당자가 적는 사유(reviewNote)와 **방향이 반대다.**
+             이건 신청자 → 담당자로 오는 말이라 언제나 보여준다.
+             (reviewNote 는 D-46 으로 신청자에게 안 보이게 됐다) */}
+      {app.status === 'cancelled' && (
+        <div className="mt-3 rounded-lg border border-line bg-subtle p-3 text-sm leading-relaxed">
+          <p className="font-semibold">
+            취소됨
+            {app.cancelledAt && (
+              <span className="ml-2 text-xs font-normal text-ink-subtle">
+                {app.cancelledAt.toDate().toLocaleString('ko-KR')}
+              </span>
+            )}
+          </p>
+          <p className="mt-1 whitespace-pre-line text-ink-muted">
+            {app.cancelReason?.trim()
+              ? `신청자가 남긴 사유: ${app.cancelReason}`
+              : '신청자가 사유를 남기지 않았습니다. (사유는 선택 항목입니다)'}
+          </p>
+        </div>
+      )}
 
       {/* 시트 동기화 상태 — 담당자가 "왜 시트에 없지?"를 여기서 알 수 있게 */}
       {app.driveSyncError ? (

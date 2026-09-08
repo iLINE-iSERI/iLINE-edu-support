@@ -319,6 +319,13 @@ export type ApplicationStatus =
   // 지워버리면 "신청한 적 있다"는 사실 자체가 사라져서 나중에 확인할 수 없다.
   | 'cancelled'
 
+/**
+ * 상태 이름표.
+ *
+ * ⚠️ `reviewing`('검토 중')은 **09-08부터 새로 부여하지 않는다** (D-49).
+ *    담당자 화면의 버튼에서 뺐다. 여기 남겨둔 것은 **옛 문서 호환용**이다 —
+ *    지우면 그 값을 가진 문서가 화면에서 빈칸으로 보인다.
+ */
 export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
   draft: '작성 중',
   submitted: '제출 완료',
@@ -364,6 +371,17 @@ export interface Application {
 
   /** 제출 시점의 신청자 정보 사본 (D-29) */
   applicant: ApplicantSnapshot
+
+  /**
+   * 신청자가 스스로 취소하며 남긴 사유 (D-48 · 선택).
+   *
+   * 담당자가 적는 `reviewNote` 와 **방향이 반대다** — 이건 신청자가 담당자에게
+   * 남기는 말이고, 담당자 화면에만 보인다. 취소가 잦아질 때 **왜 그런지 알 수
+   * 있는 유일한 단서**라서 선택으로라도 받아둔다.
+   */
+  cancelReason?: string
+  /** 취소 시각 — 담당자 취소든 본인 취소든 여기 남는다 */
+  cancelledAt?: Timestamp
 
   /**
    * 초상권 동의서의 문구 버전 (D-44).

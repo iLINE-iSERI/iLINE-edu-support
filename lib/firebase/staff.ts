@@ -18,11 +18,18 @@ import {
   where,
   updateDoc,
   writeBatch,
+  runTransaction,
   serverTimestamp,
 } from 'firebase/firestore'
 import { getDb, COL } from './config'
+import { UserFacingError } from './errors'
 import { applicationKeyId } from './applications'
-import type { Application, ApplicationStatus, Program } from '@/lib/types'
+import {
+  APPLICATION_STATUS_LABEL,
+  type Application,
+  type ApplicationStatus,
+  type Program,
+} from '@/lib/types'
 
 /**
  * 전체 신청 목록.
@@ -58,15 +65,47 @@ export async function updateApplicationStatus(
   appId: string,
   status: ApplicationStatus,
   reviewNote: string,
-  reviewerUid: string
+  reviewerUid: string,
+  /**
+   * 담당자 **화면에 떠 있던** 상태 (D-48′).
+   * 넘기면 저장 직전에 실제 문서와 대조한다. 넘기지 않으면 검사하지 않는다.
+   */
+  expectedStatus?: ApplicationStatus
 ): Promise<void> {
-  await updateDoc(doc(getDb(), COL.applications, appId), {
-    status,
-    // 빈 문자열로 덮어써야 이전 사유가 남지 않는다
-    reviewNote: reviewNote.trim(),
-    reviewedBy: reviewerUid,
-    reviewedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const ref = doc(getDb(), COL.applications, appId)
+
+  await runTransaction(getDb(), async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) throw new UserFacingError('신청서를 찾을 수 없습니다.')
+
+    const current = snap.data().status as ApplicationStatus
+
+    // ⚠️ **덮어쓰기 사고 방지** (D-48′).
+    //
+    //    담당자 화면은 목록을 불러온 시점의 상태를 들고 있다. 그 사이
+    //    신청자가 취소하면 화면은 그걸 모른 채 '선정'을 저장해 **취소를
+    //    덮어쓴다.** 그런데 취소하면서 열쇠 문서는 이미 지워졌으므로,
+    //    그 사람은 같은 프로그램에 다시 신청할 수 있다
+    //    → **같은 사람의 신청서가 두 건**(선정 1 + 새 신청 1)이 된다.
+    //
+    //    신청자 본인 취소를 '검토 중'까지 열면서(09-08) 이 창이 넓어졌다.
+    //    담당자가 **실제로 그 건을 보고 있는 동안** 취소가 일어나기 때문이다.
+    //    그래서 저장 직전에 다시 읽어 확인한다.
+    if (expectedStatus && current !== expectedStatus) {
+      throw new UserFacingError(
+        `이 신청은 그 사이에 '${APPLICATION_STATUS_LABEL[current]}' 로 바뀌었습니다. ` +
+          '저장하지 않았습니다 — 새로고침해서 확인한 뒤 다시 처리해 주세요.'
+      )
+    }
+
+    tx.update(ref, {
+      status,
+      // 빈 문자열로 덮어써야 이전 사유가 남지 않는다
+      reviewNote: reviewNote.trim(),
+      reviewedBy: reviewerUid,
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   })
 }
 

@@ -240,6 +240,73 @@ export async function findMyApplication(
   return live[0] ?? null
 }
 
+/**
+ * 신청자가 **직접 취소할 수 있는 상태인가** (D-48).
+ *
+ * 담당자 취소(`cancelApplication`)와 조건이 다르다. 담당자는 언제든 취소할 수
+ * 있지만, 본인 취소는 **접수 기간 중 · 제출 완료/검토 중/보완 요청**일 때만이다.
+ *
+ * '검토 중'을 처음에는 막았다가 **열었다**(09-08). 검토 중은 담당자가 보고
+ * 있다는 표시일 뿐 확정이 아니고, 참여 못 하게 된 사람을 붙잡을 이유가 없다.
+ * 오히려 일찍 알수록 담당자의 헛심사가 준다.
+ *
+ * 마감 뒤를 막는 이유: 그때는 **재신청이 불가능**해서 "없던 일로 되돌리기"가
+ * 성립하지 않는다. 마감 후의 취소는 참여 포기이고, 담당자가 알아야 하는
+ * 사건이라 문의로 돌린다.
+ *
+ * ⚠️ **이 판정은 화면을 정리하기 위한 것이고, 진짜 차단은 보안 규칙이 한다.**
+ *    여기 조건을 고치면 `firestore.rules` 의 본인 취소 규칙도 함께 고칠 것.
+ *    한쪽만 고치면 버튼은 보이는데 눌러도 거부되거나, 그 반대가 된다.
+ */
+export function canCancelMyself(app: Application, program: Program | null): boolean {
+  const CANCELLABLE = ['submitted', 'reviewing', 'revision']
+  if (!CANCELLABLE.includes(app.status)) return false
+  if (!program || !program.published) return false
+
+  const now = Date.now()
+  const opens = program.opensAt?.toMillis()
+  const closes = program.closesAt?.toMillis()
+  if (opens !== undefined && now < opens) return false
+  if (closes !== undefined && now > closes) return false
+  return true
+}
+
+/**
+ * 신청자 본인이 신청을 취소한다 (D-48).
+ *
+ * 담당자 취소와 **똑같이** 두 가지를 한 묶음으로 처리한다.
+ *   · 신청서 상태 → `cancelled`  (화면이 신청 폼을 다시 열어주는 근거)
+ *   · 열쇠 문서 삭제              (보안 규칙이 재제출을 허용하는 근거)
+ *
+ * 둘 중 하나만 하면 어중간해진다 — 09-06에 이걸 빠뜨려 재신청이 막힌 적이
+ * 있다. 그래서 batch 로 묶어 **둘 다 되거나 둘 다 안 되게** 한다.
+ *
+ * 문서를 지우지 않는 이유도 같다. 지우면 "신청했던 사실"까지 사라져서
+ * 나중에 "왜 이 사람 신청이 없느냐"를 확인할 수 없다.
+ */
+export async function cancelMyApplication(
+  app: Application,
+  reason: string
+): Promise<void> {
+  const db = getDb()
+  const batch = writeBatch(db)
+
+  // ⚠️ 규칙이 바꿀 수 있는 칸을 네 개로 제한한다. 여기서 다른 칸을 건드리면
+  //    권한 오류로 통째로 거부된다.
+  batch.update(doc(db, COL.applications, app.id), {
+    status: 'cancelled',
+    cancelReason: reason.trim(),
+    cancelledAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  batch.delete(
+    doc(db, COL.applicationKeys, applicationKeyId(app.uid, app.programId))
+  )
+
+  await batch.commit()
+}
+
 export async function getApplication(id: string): Promise<Application | null> {
   const snap = await getDoc(doc(getDb(), COL.applications, id))
   if (!snap.exists()) return null

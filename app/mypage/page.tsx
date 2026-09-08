@@ -5,18 +5,24 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
-import Placeholder from '@/components/ui/Placeholder'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
-import { listMyApplications, fileUrl } from '@/lib/firebase/applications'
+import {
+  listMyApplications,
+  fileUrl,
+  canCancelMyself,
+  cancelMyApplication,
+} from '@/lib/firebase/applications'
+import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { listMySettlements } from '@/lib/firebase/settlements'
 import SettlementSection from '@/components/settlement/SettlementSection'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
-import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
 import {
   APPLICATION_STATUS_LABEL,
   profileRows,
   type Application,
+  type Program,
   type Settlement,
 } from '@/lib/types'
 
@@ -37,21 +43,33 @@ function MypageContent() {
 
   const [apps, setApps] = useState<Application[] | null>(null)
   const [settlements, setSettlements] = useState<Settlement[]>([])
+  /**
+   * 프로그램 목록 — **취소 버튼을 보일지 판단하는 데만** 쓴다 (D-48).
+   * 신청서 문서에는 접수 기간이 없고 프로그램 쪽에 있기 때문이다.
+   * 조회가 실패해도 신청 현황은 보여야 하므로 실패를 삼킨다 — 그때는
+   * 취소 버튼이 안 보일 뿐이고, 담당자 문의 안내가 대신 나간다.
+   */
+  const [programs, setPrograms] = useState<Program[]>([])
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
     if (!user) return
     try {
-      const [list, mine] = await Promise.all([
+      const [list, mine, progs] = await Promise.all([
         listMyApplications(user.uid),
         // 정산 조회가 실패해도 신청 현황은 보여야 한다 — 정산은 부가 정보다
         listMySettlements(user.uid).catch((e) => {
           console.warn('[iLINE] 정산 조회 실패:', e)
           return []
         }),
+        listPublishedPrograms().catch((e) => {
+          console.warn('[iLINE] 프로그램 조회 실패:', e)
+          return [] as Program[]
+        }),
       ])
       setApps(list)
       setSettlements(mine)
+      setPrograms(progs)
     } catch (e) {
       console.error('[iLINE] 신청 목록 조회 실패:', e)
       setError(firestoreErrorMessage(e))
@@ -175,6 +193,15 @@ function MypageContent() {
                         onDone={load}
                       />
                     )}
+
+                    {/* 본인 취소 (D-48) — 접수 기간 중 · 제출 완료/보완 요청만 */}
+                    <CancelBlock
+                      app={a}
+                      program={
+                        programs.find((p) => p.id === a.programId) ?? null
+                      }
+                      onDone={load}
+                    />
                   </li>
                 ))}
               </ul>
@@ -196,15 +223,148 @@ function MypageContent() {
         )}
       </div>
 
-      <Placeholder
-        phase="Phase 4′ · 6"
-        blockedBy="갤러리 공개 방침"
-        items={[
-          '산출물 제출 (D-19) — 선정 이후 노출',
-          '회원정보 수정',
-        ]}
-      />
+      {/* 예전에는 여기에 "Phase 4′ · 6 / 대기: 갤러리 공개 방침 / 산출물 제출
+          (D-19)" 같은 **내부 계획 표시**가 떠 있었다. 신청자에게는 뜻을 알 수
+          없는 글자이고, 자기 마이페이지에서 **아직 없는 기능 목록**을 보게 할
+          이유도 없다. 통째로 뺐다 (09-08).
+
+          여기 들어올 예정이던 것 — 산출물 제출(D-19), 회원정보 수정.
+          만들 때가 되면 그때 화면을 추가한다. → docs/3-할일/01-남은-일.md */}
     </>
+  )
+}
+
+/**
+ * 신청 취소 (D-48).
+ *
+ * ── 왜 카드 맨 아래에, 그것도 작은 글씨로 두었나 ─────────────────
+ * 취소는 **되돌리기 어려운 처리**다. 접수 기간이 끝난 뒤에는 본인이 다시
+ * 신청할 수 없고, 담당자에게 부탁해야 한다. 그래서 [신청서 열기] 같은
+ * 평범한 버튼과 **같은 무게로 보이면 안 된다.**
+ *
+ * 담당자 화면의 [신청 취소 처리]와 같은 이유로 상태 버튼들과 떼어 놓았다.
+ *
+ * 취소할 수 없는 상태에서는 **버튼 대신 이유를 적는다.** 아무것도 안 보이면
+ * "취소가 원래 안 되는 사이트"로 오해하고 그냥 포기하게 된다.
+ */
+function CancelBlock({
+  app,
+  program,
+  onDone,
+}: {
+  app: Application
+  program: Program | null
+  onDone: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  // 이미 끝난 건에는 아무것도 띄우지 않는다 — 할 수 있는 일이 없다
+  if (app.status === 'cancelled' || app.status === 'rejected') return null
+
+  if (!canCancelMyself(app, program)) {
+    // 선정된 건은 취소가 곧 '참여 포기'라 담당자가 반드시 알아야 한다.
+    // 그 밖(검토 중·마감 후)은 담당자가 이미 손댔거나 재신청이 불가능한 상태다.
+    return (
+      <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-ink-subtle">
+        신청을 취소하시려면 담당자에게 문의해 주세요.{' '}
+        {app.status === 'approved'
+          ? '선정된 프로그램은 참여 포기 처리가 필요합니다.'
+          : // '검토 중' 상태를 없애면서(D-49) 남을 이유는 사실상 마감뿐이다.
+            // 옛 문구는 "검토가 시작된"을 함께 말해서 이제 사실과 다르다.
+            '접수가 마감된 뒤에는 화면에서 취소할 수 없습니다.'}
+      </p>
+    )
+  }
+
+  async function cancel() {
+    setBusy(true)
+    setError('')
+    try {
+      await cancelMyApplication(app, reason)
+      onDone()
+    } catch (e) {
+      console.error('[iLINE] 신청 취소 실패:', e)
+      // 규칙이 막는 경우는 사실상 하나 — 그 사이에 접수가 마감됐거나
+      // 담당자가 상태를 바꾼 것이다. 화면을 새로 읽으면 상황이 보인다.
+      setError(
+        firebaseErrorKind(e) === 'permission-denied'
+          ? '지금은 취소할 수 없습니다. 접수가 마감되었거나 담당자가 검토를 시작했을 수 있습니다. 화면을 새로고침해 확인해 주세요.'
+          : firestoreErrorMessage(e)
+      )
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-sm font-semibold text-ink-muted underline underline-offset-2"
+        >
+          신청 취소
+        </button>
+      ) : (
+        <div className="rounded-xl bg-subtle p-3">
+          <p className="text-sm font-bold">이 신청을 취소하시겠습니까?</p>
+          <ul className="mt-1.5 space-y-1 text-xs leading-relaxed text-ink-muted">
+            <li>· 신청 기록은 &lsquo;취소됨&rsquo;으로 남습니다</li>
+            <li>· 접수 기간 안이라면 이 프로그램에 다시 신청하실 수 있습니다</li>
+            <li>· 제출하신 신청서와 첨부 파일은 그대로 보관됩니다</li>
+          </ul>
+
+          <label
+            htmlFor={`cancel-${app.id}`}
+            className="mt-3 block text-xs font-semibold"
+          >
+            취소 사유 <span className="font-normal text-ink-subtle">(선택)</span>
+          </label>
+          <textarea
+            id={`cancel-${app.id}`}
+            rows={2}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="적어주시면 프로그램 운영에 참고하겠습니다."
+            className="mt-1.5 w-full rounded-lg border border-line-strong bg-surface p-2.5 text-sm leading-relaxed outline-none focus:border-brand-600"
+          />
+
+          {error && (
+            <p
+              role="alert"
+              className="mt-2 rounded-lg bg-status-revision/10 px-3 py-2 text-xs leading-relaxed text-status-revision"
+            >
+              {error}
+            </p>
+          )}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={cancel}
+              disabled={busy}
+              className="touch-target rounded-lg border border-status-revision px-4 text-sm font-bold text-status-revision hover:bg-status-revision/10 disabled:opacity-50"
+            >
+              {busy ? '처리 중…' : '취소하기'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setError('')
+              }}
+              disabled={busy}
+              className="touch-target rounded-lg px-4 text-sm font-semibold text-ink-muted disabled:opacity-50"
+            >
+              그대로 두기
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
