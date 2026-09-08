@@ -15,15 +15,44 @@
 const A4_W = 210
 const A4_H = 297
 
+/** 페이지를 넘길 때 아래쪽에 남겨 두는 여백 (mm) */
+const BOTTOM_GAP = 6
+/** 한 장에 최소한 이만큼은 내용이 들어가야 한다 (mm) — 무한 반복 방지 */
+const MIN_FILL = 40
+
+/**
+ * "여기서 자르면 안 된다"고 표시된 덩어리들의 **아래쪽 경계**를 mm 로 모은다.
+ *
+ * 신청서 원본(`ApplicationSheet`)이 표의 각 줄·목록의 각 항목에
+ * `data-pdf-keep` 을 달아 둔다. 그 경계에서만 페이지를 넘기면
+ * **표 한 줄이 두 장에 걸쳐 잘리는 일이 없다.**
+ */
+function cutPointsOf(el: HTMLElement): number[] {
+  const top = el.getBoundingClientRect().top
+  // 화면 폭(px)을 A4 폭(mm)으로 환산하는 비율.
+  // 캡처 배율(scale)과 무관하다 — 어차피 이미지는 A4_W 에 맞춰 늘어난다.
+  const mmPerPx = A4_W / el.offsetWidth
+
+  const points = Array.from(
+    el.querySelectorAll<HTMLElement>('[data-pdf-keep]')
+  ).map((n) => (n.getBoundingClientRect().bottom - top) * mmPerPx)
+
+  return points.sort((a, b) => a - b)
+}
+
 /**
  * 주어진 DOM 요소를 A4 PDF로 만들어 Blob 으로 돌려준다.
- * 내용이 한 장을 넘으면 페이지를 나눈다.
+ * 내용이 한 장을 넘으면 **표 줄을 자르지 않는 위치**에서 페이지를 나눈다.
  */
 export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import('html2canvas'),
     import('jspdf'),
   ])
+
+  // ⚠️ 자를 위치는 **캡처 전에** 재야 한다.
+  //    html2canvas 가 복제본을 만드는 동안 원본이 그대로 있어야 좌표가 맞는다.
+  const cuts = cutPointsOf(el)
 
   const canvas = await html2canvas(el, {
     scale: 2, // 인쇄해도 글자가 뭉개지지 않을 정도
@@ -38,16 +67,38 @@ export async function elementToPdfBlob(el: HTMLElement): Promise<Blob> {
 
   if (imgH <= A4_H) {
     pdf.addImage(image, 'JPEG', 0, 0, A4_W, imgH)
-  } else {
-    // 여러 장 — 같은 이미지를 위로 밀어 올리며 잘라 넣는다
-    let remaining = imgH
-    let offset = 0
-    while (remaining > 0) {
-      pdf.addImage(image, 'JPEG', 0, -offset, A4_W, imgH)
-      remaining -= A4_H
-      offset += A4_H
-      if (remaining > 0) pdf.addPage()
+    return pdf.output('blob')
+  }
+
+  // 여러 장 — 같은 이미지를 위로 밀어 올리며 잘라 넣는다.
+  let top = 0
+  while (top < imgH - 0.5) {
+    let bottom = top + A4_H
+
+    if (bottom < imgH) {
+      // 이 장에 다 들어가는 덩어리 중 **가장 아래 것**에서 끊는다.
+      const safe = cuts.filter(
+        (c) => c > top + MIN_FILL && c <= bottom - BOTTOM_GAP
+      )
+      // 쓸 만한 경계가 없으면(표 한 줄이 한 장보다 긴 경우 등)
+      // 예전처럼 그냥 잘라야 한다 — 안 자르면 영영 못 끝낸다.
+      if (safe.length > 0) bottom = safe[safe.length - 1] + BOTTOM_GAP / 2
+    } else {
+      bottom = imgH
     }
+
+    pdf.addImage(image, 'JPEG', 0, -top, A4_W, imgH)
+
+    // ⚠️ 이미지는 페이지 끝까지 계속 그려진다. 끊기로 한 지점 **아래를
+    //    흰색으로 덮지 않으면** 다음 장에 나올 내용이 여기에도 겹쳐 보인다.
+    const used = bottom - top
+    if (used < A4_H) {
+      pdf.setFillColor(255, 255, 255)
+      pdf.rect(0, used, A4_W, A4_H - used + 1, 'F')
+    }
+
+    top = bottom
+    if (top < imgH - 0.5) pdf.addPage()
   }
 
   return pdf.output('blob')

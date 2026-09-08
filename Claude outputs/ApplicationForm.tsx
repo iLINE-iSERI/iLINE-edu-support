@@ -212,15 +212,7 @@ export default function ApplicationForm({
   }
 
   return (
-    /* noValidate — 브라우저의 기본 검사를 끈다.
-       ⚠️ 이게 없으면 브라우저가 `required` 가 붙은 **입력칸**만 보고
-          "화면 순서와 무관하게" 먼저 지적한다. 실제로 전용 양식에서
-          체크박스(자격 확인)를 비워 둔 채 제출했을 때, 브라우저가 그 아래의
-          '팀명'을 먼저 잡아 **위에 있는 문제를 나중에 알게 되는** 일이 있었다.
-          체크박스·라디오·첨부는 `required` 로 표현되지 않으므로,
-          검사 순서를 우리가 쥐고 있어야 화면 순서와 일치한다.
-       필수 표시(*)와 스크린리더 안내는 `required` 속성이 그대로 맡는다. */
-    <form onSubmit={handleSubmit} noValidate className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* PDF 원본 — 화면에는 보이지 않는다 */}
       <ApplicationSheet
         ref={sheetRef}

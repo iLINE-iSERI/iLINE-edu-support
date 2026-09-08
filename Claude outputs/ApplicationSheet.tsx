@@ -133,52 +133,43 @@ const ApplicationSheet = forwardRef<
           </div>
         </Section>
       )}
-      {/* ↑ 자유 기재란은 길어질 수 있어 통째로 묶지 않는다.
-          중간에서 잘려도 글줄 사이라 읽는 데 지장이 없다. */}
 
       {fileNames.length > 0 && (
         <Section title="첨부 서류">
           <ol style={{ paddingLeft: '20px', margin: 0 }}>
             {fileNames.map((n, i) => (
-              <li key={i} data-pdf-keep>
-                {n}
-              </li>
+              <li key={i}>{n}</li>
             ))}
           </ol>
         </Section>
       )}
 
-      {/* 맺음말·서명·꼬리말은 **한 덩어리**로 묶는다.
-          "위와 같이 신청합니다"와 서명이 서로 다른 장에 떨어지면
-          서명 없는 신청서처럼 보인다. */}
-      <div data-pdf-keep>
-        <p style={{ marginTop: '36px', textAlign: 'center' }}>
-          위와 같이 <strong>{program.title}</strong> 참가를 신청합니다.
-        </p>
+      <p style={{ marginTop: '36px', textAlign: 'center' }}>
+        위와 같이 <strong>{program.title}</strong> 참가를 신청합니다.
+      </p>
 
-        <p
-          style={{
-            marginTop: '20px',
-            textAlign: 'right',
-            fontSize: '15px',
-          }}
-        >
-          {today} · 신청인 <strong>{member.name}</strong>
-        </p>
+      <p
+        style={{
+          marginTop: '20px',
+          textAlign: 'right',
+          fontSize: '15px',
+        }}
+      >
+        {today} · 신청인 <strong>{member.name}</strong>
+      </p>
 
-        <footer
-          style={{
-            marginTop: '40px',
-            paddingTop: '14px',
-            borderTop: '1px solid #ddd',
-            fontSize: '11px',
-            color: '#777',
-            textAlign: 'center',
-          }}
-        >
-          {SITE.operator} · 본 문서는 온라인 제출 시점에 자동 생성된 원본입니다.
-        </footer>
-      </div>
+      <footer
+        style={{
+          marginTop: '40px',
+          paddingTop: '14px',
+          borderTop: '1px solid #ddd',
+          fontSize: '11px',
+          color: '#777',
+          textAlign: 'center',
+        }}
+      >
+        {SITE.operator} · 본 문서는 온라인 제출 시점에 자동 생성된 원본입니다.
+      </footer>
     </div>
   )
 })
@@ -215,9 +206,7 @@ function Table({ rows }: { rows: [string, string][] }) {
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <tbody>
         {rows.map(([k, v]) => (
-          // data-pdf-keep — 페이지를 넘길 때 **이 줄 안에서는 자르지 않는다.**
-          // 표 한 줄이 두 장에 걸치면 글자가 반으로 잘려 보인다 (lib/pdf 참고).
-          <tr key={k} data-pdf-keep>
+          <tr key={k}>
             <th
               style={{
                 width: '170px',
