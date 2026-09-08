@@ -23,6 +23,7 @@ import {
 } from '@/lib/firebase/settlements'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   SETTLEMENT_STATUS_LABEL,
   type Settlement,
@@ -176,7 +177,9 @@ function SettlementRow({
 
   async function review(status: 'approved' | 'rejected') {
     if (status === 'rejected' && !note.trim()) {
-      setMsg('반려 사유를 적어 주세요. 신청자에게 그대로 보입니다.')
+      // 사유는 신청자에게 안 보이지만(D-46) **여전히 필수**로 받는다.
+      // 왜 반려했는지가 안 남으면 나중에 담당자 본인도 설명하지 못한다.
+      setMsg('반려 사유를 적어 주세요. (담당자 기록용 — 신청자에게는 따로 알려주셔야 합니다)')
       return
     }
     setBusy(true)
@@ -258,11 +261,23 @@ function SettlementRow({
           htmlFor={`snote-${row.id}`}
           className="block text-sm font-semibold"
         >
-          안내 문구 · 반려 사유
+          반려 사유 · 처리 메모
         </label>
         <p className="text-xs text-ink-subtle">
-          여기 쓰신 내용이 <strong>신청자에게 그대로 보입니다.</strong> 반려라면
-          무엇을 고쳐야 하는지 적어 주세요.
+          {SHOW_REVIEW_NOTE_TO_APPLICANT ? (
+            <>
+              여기 쓰신 내용이 <strong>신청자에게 그대로 보입니다.</strong>{' '}
+              반려라면 무엇을 고쳐야 하는지 적어 주세요.
+            </>
+          ) : (
+            <>
+              <strong>담당자만 보는 기록입니다 (D-46).</strong> 반려하시면
+              신청자 화면에는 <strong>&lsquo;반려&rsquo; 상태만</strong> 보이고
+              이유는 나오지 않으므로, <strong>무엇을 고쳐야 하는지 메일·전화로
+              반드시 따로 알려주세요.</strong> 안 알리면 같은 내용으로 다시
+              제출합니다.
+            </>
+          )}
         </p>
         <textarea
           id={`snote-${row.id}`}

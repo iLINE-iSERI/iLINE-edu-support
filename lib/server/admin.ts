@@ -19,7 +19,7 @@ function adminApp(): App {
   if (cached) return cached
 
   const cfg = getGoogleConfig()
-  if (!cfg) throw new Error('서버 설정이 없습니다 (docs/11-sheet-drive-setup.md)')
+  if (!cfg) throw new Error('서버 설정이 없습니다 (docs/2-학습/04-구글-시트-드라이브-연동.md)')
 
   cached =
     getApps().find((a) => a.name === 'support-admin') ??

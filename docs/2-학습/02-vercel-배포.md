@@ -1,6 +1,6 @@
 # 배포하기 (Vercel + 가비아)
 
-> 목표: `edusupport.iline.or.kr` 로 접속되게 만듭니다.
+> 목표: `aiedu.iline.or.kr` 로 접속되게 만듭니다.
 > 20~30분. 도메인 연결은 반영에 시간이 더 걸릴 수 있습니다.
 
 **iLINE 사이트는 이 과정에서 건드리지 않습니다.** 별도의 Vercel 프로젝트를 새로 만듭니다(D-20).
@@ -68,7 +68,7 @@
 | 항목 | 값 |
 |---|---|
 | 타입 | **CNAME** |
-| 호스트 | **`edusupport`** ← `edusupport.iline.or.kr` 이 아니라 `edusupport` 만 |
+| 호스트 | **`aiedu`** ← `aiedu.iline.or.kr` 이 아니라 `aiedu` 만 |
 | 값/위치 | **Vercel 화면에 나온 주소** (보통 `cname.vercel-dns.com.`) |
 | TTL | 기본값 (600 등) |
 
@@ -89,7 +89,7 @@
 ## 3. Vercel 에 도메인 연결
 
 1. Vercel → 방금 만든 프로젝트 → **Settings → Domains**
-2. `edusupport.iline.or.kr` 입력 → **Add**
+2. `aiedu.iline.or.kr` 입력 → **Add**
 3. Vercel 이 필요한 DNS 레코드를 보여줍니다. 2번에서 넣은 값과 다르면 **화면 값으로 고치세요**
 4. 연결되면 `Valid Configuration` 으로 바뀝니다
 
@@ -103,7 +103,7 @@ DNS 반영은 보통 **몇 분**, 길면 몇 시간 걸립니다. 바로 안 된
 
 두 개를 넣습니다.
 
-- `edusupport.iline.or.kr` *(이미 넣으셨으면 통과)*
+- `aiedu.iline.or.kr` *(이미 넣으셨으면 통과)*
 - **Vercel 임시 주소** — `iline-edu-support.vercel.app` 처럼 실제 발급된 정확한 이름
 
 > **와일드카드(`*.vercel.app`)는 받지 않습니다.** 정확한 이름을 적으세요.
@@ -140,5 +140,24 @@ DNS 반영은 보통 **몇 분**, 길면 몇 시간 걸립니다. 바로 안 된
 | 화면은 뜨는데 로그인이 안 됨 | **승인된 도메인** 누락 (4번) |
 | 콘솔에 `환경변수가 없습니다` | Vercel 환경변수 누락 또는 오타 |
 | 빌드 실패 | 로컬에서 `npm run build` 를 돌려 같은 오류가 나는지 확인 |
-| 도메인이 계속 `Invalid Configuration` | DNS 반영 대기 중이거나 호스트를 `edusupport.iline.or.kr` 로 적음 (→ `edusupport` 만) |
+| 도메인이 계속 `Invalid Configuration` | DNS 반영 대기 중이거나 호스트를 `aiedu.iline.or.kr` 로 적음 (→ `aiedu` 만) |
 | iLINE 사이트가 멈춤 | **가비아에서 기존 레코드를 건드림.** 즉시 되돌리세요 |
+
+---
+
+## 📌 지금 DNS 가 어떻게 잡혀 있나 — **건드리기 전에 반드시**
+
+`iline.or.kr` 주소록은 **iLINE 사이트와 함께 씁니다.** iLINE 줄을 고치거나
+지우면 **운영 중인 iLINE 이 멈춥니다.**
+
+현재 레코드 표, 실제 DNS 조회 결과, Proxy 켜짐/꺼짐을 IP로 판별하는 법,
+주소 변경 이력은 **`docs/4-기록/05-완료-이력.md`** 의 「도메인 연결」 절에
+정리해 두었습니다. **Cloudflare 를 열기 전에 그것부터 보세요.**
+
+핵심만 옮기면:
+
+- CNAME 은 **반드시 Proxy 회색(DNS only)** — 오렌지면 인증서 발급이 실패합니다
+- `_vercel` TXT 는 **한 이름에 여러 줄이 공존**합니다. 지울 때 값을 보고
+  지원사업 것만 고르세요
+- **Firebase 승인된 도메인**에 새 주소를 넣는 것을 옛 주소 삭제 **전에** 하세요.
+  빠뜨리면 다른 건 멀쩡한데 **로그인만 실패**합니다

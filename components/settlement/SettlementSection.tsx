@@ -15,6 +15,7 @@ import {
 } from '@/lib/firebase/settlements'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   SETTLEMENT_STATUS_LABEL,
   type Application,
@@ -154,8 +155,10 @@ export default function SettlementSection({
         )}
       </div>
 
-      {/* 담당자 안내 — 반려 사유가 여기 온다 */}
-      {settlement?.reviewNote && (
+      {/* 담당자 안내 — 반려 사유가 여기 온다.
+          **지금은 표시하지 않는다** (D-46). 그래서 반려됐을 때 신청자는
+          이유를 화면에서 알 수 없다 — 담당자가 메일·전화로 알려야 한다. */}
+      {SHOW_REVIEW_NOTE_TO_APPLICANT && settlement?.reviewNote && (
         <div className="mt-3 rounded-lg bg-surface p-3 text-sm leading-relaxed">
           <p className="font-semibold">담당자 안내</p>
           <p className="mt-1 whitespace-pre-line text-ink-muted">

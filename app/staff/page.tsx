@@ -25,6 +25,7 @@ import {
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   APPLICATION_STATUS_LABEL,
   profileRows,
@@ -239,7 +240,8 @@ function ApplicationRow({
 
   /**
    * 신청 취소 — 상태를 'cancelled' 로 바꾸고 **중복 신청 잠금(열쇠 문서)을 푼다.**
-   * 사유는 위 입력칸의 내용을 그대로 쓴다. 신청자에게 보이는 문구다.
+   * 사유는 위 입력칸의 내용을 그대로 쓴다. **담당자 기록용이다**(D-46) —
+   * 취소 사실을 신청자에게 알리려면 따로 연락해야 한다.
    */
   async function cancel() {
     if (
@@ -304,7 +306,7 @@ function ApplicationRow({
       )}
 
       {/* 파일 — Storage 규칙은 Custom Claims 로 담당자를 판별한다.
-          Claims 가 없으면 여기서 열기를 눌러도 실패한다 (docs/08-staff-setup.md) */}
+          Claims 가 없으면 여기서 열기를 눌러도 실패한다 (docs/1-운영/03-담당자-권한-부여.md) */}
       <div className="mt-3 flex flex-wrap gap-2">
         {app.generatedPdfPath && (
           <FileButton path={app.generatedPdfPath} label="신청서 PDF" />
@@ -321,7 +323,7 @@ function ApplicationRow({
             <strong>구글 시트 반영 실패</strong> — {app.driveSyncError}
           </p>
           <p className="mt-1">
-            신청 자체는 정상 접수되었습니다. 설정은 docs/11-sheet-drive-setup.md 참고.
+            신청 자체는 정상 접수되었습니다. 설정은 docs/2-학습/04-구글-시트-드라이브-연동.md 참고.
           </p>
           <SyncRetry id={app.id} onDone={onSaved} />
         </div>
@@ -365,17 +367,31 @@ function ApplicationRow({
         </div>
 
         <label htmlFor={`note-${app.id}`} className="mt-3 block text-sm font-semibold">
-          사유 · 안내 문구
+          사유 · 처리 메모
         </label>
+        {/* 문구가 실제 동작을 따라가야 한다. 예전에는 "신청자에게 보입니다"가
+            고정 문장이었는데, D-46으로 안 보이게 된 뒤에도 그대로 두면
+            담당자가 **전달됐다고 믿고** 넘어간다. */}
         <p className="text-xs text-ink-subtle">
-          여기 쓰신 내용이 <strong>신청자 마이페이지에 그대로 보입니다.</strong>
+          {SHOW_REVIEW_NOTE_TO_APPLICANT ? (
+            <>
+              여기 쓰신 내용이 <strong>신청자 마이페이지에 그대로 보입니다.</strong>
+            </>
+          ) : (
+            <>
+              <strong>담당자만 보는 기록입니다 — 신청자에게 전달되지 않습니다.</strong>{' '}
+              선정 결과는 <strong>공지사항에 선정자 목록</strong>을 올려 알리고,
+              보완 요청처럼 신청자가 조치해야 하는 건은 메일·전화로 안내해
+              주세요.
+            </>
+          )}
         </p>
         <textarea
           id={`note-${app.id}`}
           rows={3}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="보완 요청 사유나 안내 사항을 적어 주세요. 비워두면 표시되지 않습니다."
+          placeholder="처리 사유를 남겨두시면 나중에 왜 그렇게 판단했는지 확인할 수 있습니다."
           className="mt-2 w-full rounded-xl border border-line-strong bg-surface p-3 text-base leading-relaxed outline-none focus:border-brand-600"
         />
 
@@ -468,7 +484,7 @@ function FileButton({ path, label }: { path: string; label: string }) {
     } catch (e) {
       console.error('[iLINE] 파일 열기 실패:', e)
       alert(
-        '파일을 열 수 없습니다. 담당자 계정에 Storage 권한(Custom Claims)이 부여되었는지 확인해 주세요. docs/08-staff-setup.md 참고.'
+        '파일을 열 수 없습니다. 담당자 계정에 Storage 권한(Custom Claims)이 부여되었는지 확인해 주세요. docs/1-운영/03-담당자-권한-부여.md 참고.'
       )
     } finally {
       setBusy(false)

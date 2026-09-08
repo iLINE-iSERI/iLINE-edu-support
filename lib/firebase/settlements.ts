@@ -161,8 +161,11 @@ export async function listAllSettlements(): Promise<Settlement[]> {
 /**
  * 승인 / 반려.
  *
- * `reviewNote` 는 신청자에게 그대로 보인다. 반려라면 **무엇을 고쳐야 하는지**
- * 적어야 한다 — 그게 없으면 신청자는 전화로 물어보게 된다.
+ * ⚠️ `reviewNote` 는 **09-08(D-46)부터 신청자에게 보이지 않는다.**
+ *    그래서 반려하면 신청자 화면에는 **'반려' 상태만** 뜨고 이유가 없다.
+ *    무엇을 고쳐야 하는지는 **담당자가 메일·전화로 알려야** 하고,
+ *    안 알리면 같은 내용으로 다시 제출한다. 저장은 계속 하므로
+ *    `SHOW_REVIEW_NOTE_TO_APPLICANT` 를 켜면 즉시 다시 보인다.
  */
 export async function reviewSettlement(
   id: string,

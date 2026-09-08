@@ -46,7 +46,7 @@ apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
 
 ⚠️ **2026-09-04 변경 (D-25)** — 지원사업은 **전용 Firebase 프로젝트**를 씁니다.
 예전 안내대로 **iLINE 값을 복사해 쓰면 안 됩니다.** 먼저
-`docs/06-new-firebase-project.md` 를 따라 새 프로젝트를 만드신 뒤,
+`docs/2-학습/01-firebase-데이터베이스.md` 를 따라 새 프로젝트를 만드신 뒤,
 **그 프로젝트의 값**을 아래 방법으로 가져오세요.
 
 ### Firebase 콘솔에서 가져오기
@@ -163,7 +163,7 @@ npm run dev  (다시 시작)
 Firebase 웹 설정값(`NEXT_PUBLIC_FIREBASE_*`)이 공개돼도 괜찮은 이유는,
 그 값들이 **원래 브라우저에 노출되도록 설계**되었기 때문입니다.
 Firebase 보안은 이 값이 아니라 **Security Rules** 가 담당합니다.
-그래서 규칙 작업(TODO-later.md A항목)이 중요한 것입니다.
+그래서 규칙 작업(docs/3-할일/01-남은-일.md A항목)이 중요한 것입니다.
 
 ---
 
@@ -176,4 +176,4 @@ Firebase 보안은 이 값이 아니라 **Security Rules** 가 담당합니다.
 `Vercel 프로젝트 > Settings > Environment Variables` 에서 변수명과 값을 하나씩 등록하고,
 `Production` / `Preview` / `Development` 를 체크합니다.
 
-→ 배포 단계 체크리스트는 `docs/TODO-later.md` C항목 참고
+→ 배포 단계 체크리스트는 `docs/3-할일/01-남은-일.md` C항목 참고

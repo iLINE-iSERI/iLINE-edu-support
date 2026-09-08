@@ -138,7 +138,7 @@ Blaze 는 "무료 할당량을 넘긴 만큼만 청구"입니다. 무료 할당�
 1. ⚙️ **프로젝트 설정** → **일반** 탭 → 맨 아래 **내 앱**
 2. **웹(`</>`)** 아이콘 클릭
 3. 앱 닉네임: `iline-edu-support-web` → **Firebase 호스팅은 체크하지 않습니다** (Vercel을 씁니다)
-4. 나오는 `firebaseConfig` 값을 `.env.local` 에 옮겨 적습니다 → **`docs/03-env-local.md`** 참고
+4. 나오는 `firebaseConfig` 값을 `.env.local` 에 옮겨 적습니다 → **`docs/2-학습/03-환경변수-env-local.md`** 참고
 
 ---
 
@@ -148,7 +148,7 @@ Blaze 는 "무료 할당량을 넘긴 만큼만 청구"입니다. 무료 할당�
 
 **Authentication → 설정 → 승인된 도메인**
 
-**지금 추가할 것: `edusupport.iline.or.kr` 하나입니다.** (09-06 확정)
+**지금 추가할 것: `aiedu.iline.or.kr` 하나입니다.** (09-06 확정)
 
 - `localhost` — 이미 들어 있습니다. 로컬 개발은 그대로 됩니다
 - `...firebaseapp.com` / `...web.app` — Firebase 호스팅 기본값. 건드리지 않습니다
@@ -167,7 +167,7 @@ Blaze 는 "무료 할당량을 넘긴 만큼만 청구"입니다. 무료 할당�
 1. 개발 서버 재시작 (`Ctrl+C` 후 `npm run dev`)
 2. 브라우저 콘솔(F12)에 **`[iLINE] Firebase 환경변수가 없습니다`** 경고가 없어야 합니다
 3. **회원가입 → 2단계까지 완료** → Firestore 콘솔 `support_users` 에 문서가 생겼는지 확인
-4. `docs/04-program-setup.md` 의 **샘플 프로그램 3벌**을 넣고 `/apply` 확인
+4. `docs/1-운영/05-firebase에서-직접-공고-등록하는-법.md` 의 **샘플 프로그램 3벌**을 넣고 `/apply` 확인
 
 ---
 

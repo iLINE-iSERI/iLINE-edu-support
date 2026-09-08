@@ -6,7 +6,7 @@
 // ⚠️ 담당자 판별은 Firestore 의 support_users/{uid}.role === 'staff' 이다.
 //    Storage 규칙은 Firestore 를 읽을 수 없어서 Custom Claims 를 쓴다.
 //    둘은 별개이므로, 신청자의 첨부 파일까지 열어보려면 Claims 도 부여해야 한다.
-//    (docs/08-staff-setup.md 참고)
+//    (docs/1-운영/03-담당자-권한-부여.md 참고)
 
 import {
   collection,
@@ -48,8 +48,11 @@ export async function listAllApplications(
 /**
  * 상태 변경 (D-10).
  *
- * `reviewNote` 는 신청자에게 그대로 보인다(마이페이지). 보완 요청 사유나
- * 미선정 사유가 여기 들어가므로, 담당자가 쓴 문장이 곧 통지문이다.
+ * ⚠️ `reviewNote` 는 **09-08(D-46)부터 신청자에게 보이지 않는다.**
+ *    선정 결과는 공지사항의 선정자 목록으로 알리기로 했다. 여기 저장되는
+ *    값은 **담당자 내부 기록**이고, 신청자에게 알릴 것은 사이트 밖(메일·전화)
+ *    으로 전달한다. 표시 여부는 `SHOW_REVIEW_NOTE_TO_APPLICANT` 하나로
+ *    바뀌므로 **저장은 그대로 두고 화면만 껐다.**
  */
 export async function updateApplicationStatus(
   appId: string,

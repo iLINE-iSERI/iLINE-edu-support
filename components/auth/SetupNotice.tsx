@@ -20,7 +20,7 @@ export default function SetupNotice({ message }: { message?: string }) {
       </p>
       <p className="mt-2 text-xs text-ink-subtle">
         담당 개발자에게: <code>firebase-deploy/</code> 의 병합본을 Firebase
-        콘솔에 게시하세요. 절차는 <code>docs/TODO-later.md</code> A항목 참고.
+        콘솔에 게시하세요. 절차는 <code>docs/3-할일/01-남은-일.md</code> A항목 참고.
       </p>
     </div>
   )

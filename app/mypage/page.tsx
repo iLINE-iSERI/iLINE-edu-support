@@ -11,6 +11,7 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import { listMyApplications, fileUrl } from '@/lib/firebase/applications'
 import { listMySettlements } from '@/lib/firebase/settlements'
 import SettlementSection from '@/components/settlement/SettlementSection'
+import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import {
   APPLICATION_STATUS_LABEL,
@@ -150,8 +151,10 @@ function MypageContent() {
                       ))}
                     </div>
 
-                    {/* 보완 요청·미선정 사유 (D-10) */}
-                    {a.reviewNote && (
+                    {/* 담당자 사유 (D-10) — **지금은 표시하지 않는다** (D-46).
+                        선정 결과는 공지사항의 선정자 목록으로 알린다.
+                        되돌리려면 lib/config/site.ts 의 상수만 true 로. */}
+                    {SHOW_REVIEW_NOTE_TO_APPLICANT && a.reviewNote && (
                       <div className="mt-3 rounded-lg bg-subtle p-3 text-sm leading-relaxed">
                         <p className="font-semibold">담당자 안내</p>
                         <p className="mt-1 text-ink-muted">{a.reviewNote}</p>
