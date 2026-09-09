@@ -4,7 +4,7 @@
  *   node scripts/grant-staff.mjs <서비스계정.json> <이메일> [--revoke]
  *
  * Firestore 의 role 필드와는 **별개**입니다. 자세한 배경은
- * docs/08-staff-setup.md 를 보세요.
+ * docs/1-운영/03-담당자-권한-부여.md 를 보세요.
  *
  * 🔒 서비스 계정 키는 프로젝트 전체 권한을 가진 마스터키입니다.
  *    Git 에 커밋하지 마시고, 이 폴더 밖에 보관하세요.

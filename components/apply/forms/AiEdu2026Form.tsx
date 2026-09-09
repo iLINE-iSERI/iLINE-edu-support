@@ -54,34 +54,71 @@ const SUBJECTS = [
   '예술(음악·미술)',
 ] as const
 
-/** 융합 수업 유형 안내 — 원본 폼의 그림표를 글자표로 옮긴 것 */
-const TYPE_GUIDE: [string, string, string][] = [
+/**
+ * 융합 수업 유형 안내 — 원본 그림표를 글자표로 옮긴 것.
+ *
+ * ✅ 2026-09-09 **원본 이미지와 대조 완료.** 고친 곳 세 군데:
+ *    ① '데이터 과학' 핵심 개념이 틀렸었다
+ *       ("데이터 수집·분석·시각화로 문제 해결" → 지역 특화 공공데이터)
+ *    ② '생성형 AI' 전공 조합에서 **'사회'가 빠져** 있었다
+ *    ③ **「예시 활동」 열이 통째로 빠져** 있었다
+ *
+ * ⚠️ 원본에 `대양광 모듈` 로 적혀 있으나 **`태양광`의 오타로 보고** 고쳐
+ *    적었다(조도센서와 함께 전력 수요를 분석하는 맥락). 원본을 그대로
+ *    두어야 한다면 되돌린다.
+ *
+ * 📌 **교과를 나열했으면 「… 등」으로 끝낸다** (iSERI 지시, 09-09).
+ *    적어 둔 교과는 **예시일 뿐 닫힌 목록이 아니다.** '등'이 없으면
+ *    그 교과가 아닌 사람은 "우리는 해당 없구나" 하고 지나칩니다.
+ *
+ *    ⚠️ **`전 교과` · `자율` 처럼 이미 전체를 뜻하는 말에는 붙이지 않는다.**
+ *    '등'은 *"여기 없는 것도 된다"* 는 뜻인데, 전체를 뜻하는 말 뒤에서는
+ *    가리킬 나머지가 없어 군더더기가 된다.
+ *    → 줄을 더하거나 고칠 때 **나열한 경우에만** 끝을 '등'으로 맞추세요.
+ *
+ * [유형, 핵심 개념, 예시 활동(줄 단위), 전공 조합]
+ */
+const TYPE_GUIDE: [string, string, string[], string][] = [
   [
     '생성형 AI',
-    '텍스트·이미지·음성 생성 AI로 창작 · 대화형 학습 콘텐츠',
-    '국어 · 미술 · 음악 · 정보 등',
+    '텍스트·이미지·음성 생성 AI로 창작 / 대화형 학습 콘텐츠',
+    [
+      '대화형 생성 AI를 활용한 작문·토론 등의 탐구 수업',
+      '이미지·음성 생성 AI를 활용한 예술 창작 수업 등',
+    ],
+    '사회, 국어, 미술, 음악, 정보 등',
   ],
   [
     '데이터 과학',
-    '데이터 수집·분석·시각화로 문제 해결',
-    '영어 · 사회 · 수학 · 지리 · 정보 등',
+    '지역 특화 공공데이터를 AI로 분석해 문제 해결',
+    ['외국인 관광객 리뷰 감성 분석', '대중교통 최적 배차 분석'],
+    '영어, 사회, 수학, 지리, 정보 등',
   ],
   [
     '피지컬 AI 융합',
-    '센서로 정보를 수집하고 AI로 분석·시각화',
-    '정보 · 과학 · 수학 · 체육 · 기술·가정 등',
+    '센서로 정보 수집 후 AI로 분석·시각화',
+    [
+      '조도센서, 태양광 모듈 등으로 데이터를 수집하고, AI로 전력 수요 분석',
+      '운동 자세 실시간 교정',
+    ],
+    '정보, 과학, 수학, 체육, 기술·가정 등',
   ],
   [
     'AI 윤리',
-    'AI의 편향성 · 저작권 · 신뢰성 판단 등 비판적 사고 훈련',
-    '윤리 · 사회 · 국어 · 정보 등',
+    'AI의 편향성, 저작권, 신뢰성 판단 등 비판적 사고 훈련',
+    ['생성형 AI 결과물의 편향 사례 분석, 팩트 체크 및 저작권 토론 수업'],
+    '윤리, 사회, 국어, 정보 등',
   ],
   [
     '맞춤형 학습·피드백',
-    'AI 기반 개인화 학습 및 자동 피드백 · 평가',
+    'AI 기반 개인화 학습 및 자동 피드백/평가',
+    [
+      'AI 튜터를 활용한 수준별 문제풀이',
+      'AI 자동 첨삭·피드백 시스템 체험 수업',
+    ],
     '전 교과',
   ],
-  ['기타', '자율', '자율'],
+  ['기타', '자율', ['자율'], '자율'],
 ]
 
 /** 운영 일정 — 원본 폼의 그림 띠를 글자표로 옮긴 것 */
@@ -300,15 +337,16 @@ export default function AiEdu2026Form({
             방향만 적어 주세요.
           </p>
 
-          {/* 유형 안내표 — 원본 폼의 그림을 글자표로 옮긴 것.
-              나중에 원본 이미지를 받으면 이 표 아래에 그대로 끼우면 된다. */}
+          {/* 유형 안내표 — 원본 그림표를 글자표로 옮긴 것 (09-09 대조 완료).
+              ⚠️ 열을 넷으로 늘리지 않았다. 「예시 활동」은 핵심 개념 아래에
+                 작은 글씨로 붙인다 — 휴대폰에서 4열은 글자가 뭉개진다(D-24). */}
           <div className="mt-4 overflow-x-auto">
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="bg-subtle text-left">
                   <th className="border border-line p-2 font-semibold">유형</th>
                   <th className="border border-line p-2 font-semibold">
-                    핵심 개념
+                    핵심 개념 · 예시 활동
                   </th>
                   <th className="border border-line p-2 font-semibold">
                     전공 조합 예시
@@ -316,11 +354,24 @@ export default function AiEdu2026Form({
                 </tr>
               </thead>
               <tbody>
-                {TYPE_GUIDE.map(([a, b, c]) => (
-                  <tr key={a}>
-                    <td className="border border-line p-2 font-semibold">{a}</td>
-                    <td className="border border-line p-2 text-ink-muted">{b}</td>
-                    <td className="border border-line p-2 text-ink-muted">{c}</td>
+                {TYPE_GUIDE.map(([name, concept, examples, majors]) => (
+                  <tr key={name}>
+                    <td className="border border-line p-2 align-top font-semibold">
+                      {name}
+                    </td>
+                    <td className="border border-line p-2 align-top text-ink-muted">
+                      {concept}
+                      {name !== '기타' && (
+                        <ul className="mt-1.5 space-y-0.5 text-ink-subtle">
+                          {examples.map((ex) => (
+                            <li key={ex}>· {ex}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="border border-line p-2 align-top text-ink-muted">
+                      {majors}
+                    </td>
                   </tr>
                 ))}
               </tbody>
