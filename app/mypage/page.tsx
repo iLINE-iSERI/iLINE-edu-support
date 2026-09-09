@@ -40,6 +40,7 @@ function MypageContent() {
   const { member, user } = useAuth()
   const params = useSearchParams()
   const justSubmitted = params.get('submitted') === '1'
+  const justSavedProfile = params.get('profile') === 'saved'
 
   const [apps, setApps] = useState<Application[] | null>(null)
   const [settlements, setSettlements] = useState<Settlement[]>([])
@@ -103,6 +104,21 @@ function MypageContent() {
             </p>
             <p className="mt-1 text-ink-muted">
               검토 결과는 아래 신청 현황에서 확인하실 수 있습니다.
+            </p>
+          </div>
+        )}
+
+        {justSavedProfile && (
+          <div
+            role="status"
+            className="rounded-xl border border-status-approved/40 bg-status-approved/10 p-4 text-sm leading-relaxed"
+          >
+            <p className="font-bold text-status-approved">
+              회원정보를 저장했습니다
+            </p>
+            <p className="mt-1 text-ink-muted">
+              이미 제출한 신청서에는 반영되지 않습니다 — 신청서는 제출 시점
+              그대로 보관됩니다.
             </p>
           </div>
         )}
@@ -212,13 +228,25 @@ function MypageContent() {
         {/* ── 내 정보 ──────────────────────────────────────── */}
         {member && (
           <section>
-            <h2 className="text-lg font-bold tracking-tight">내 정보</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-lg font-bold tracking-tight">내 정보</h2>
+              <Link
+                href="/mypage/profile"
+                className="text-sm text-brand-600 underline underline-offset-2"
+              >
+                수정하기
+              </Link>
+            </div>
             {/* 유형(D-43)에 따라 칸이 다르다 — 신청서·PDF와 같은 목록을 쓴다 */}
             <dl className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm sm:grid-cols-2">
               {profileRows(member).map(([label, value]) => (
                 <Row key={label} label={label} value={value} />
               ))}
             </dl>
+            <p className="mt-2 text-xs leading-relaxed text-ink-subtle">
+              여기서 고친 내용은 <strong>앞으로 하시는 신청</strong>부터
+              반영됩니다. 이미 제출한 신청서는 제출 시점 그대로 보관됩니다.
+            </p>
           </section>
         )}
       </div>

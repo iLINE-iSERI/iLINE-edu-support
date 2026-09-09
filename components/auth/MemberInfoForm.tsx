@@ -69,20 +69,35 @@ export default function MemberInfoForm({
   busy,
   error,
   submitLabel = '가입 완료',
+  initial,
+  askConsent = true,
 }: {
   onSubmit: (values: MemberInfoValues) => void
   busy: boolean
   error?: string
   submitLabel?: string
+  /** 회원정보 수정에서 지금 값을 채워 넣을 때 (가입에서는 넘기지 않는다) */
+  initial?: Partial<MemberInfoValues>
+  /**
+   * 동의서를 물을지 (기본 true = 가입).
+   *
+   * ⚠️ **수정 화면에서는 반드시 false.** 이미 받은 동의를 다시 받아
+   *    덮어쓰면 **동의 일시와 약관 버전이 오늘 것으로 바뀐다.**
+   *    "언제 무슨 문구에 동의했는가"가 동의 이력의 전부인데, 그게
+   *    수정할 때마다 지워지면 기록을 남기는 의미가 없어진다.
+   */
+  askConsent?: boolean
 }) {
-  const [memberType, setMemberType] = useState<MemberType>('student')
-  const [name, setName] = useState('')
-  const [affiliation, setAffiliation] = useState('')
-  const [major, setMajor] = useState('')
-  const [studentId, setStudentId] = useState('')
-  const [grade, setGrade] = useState('')
-  const [position, setPosition] = useState('')
-  const [phone, setPhone] = useState('')
+  const [memberType, setMemberType] = useState<MemberType>(
+    initial?.memberType ?? 'student'
+  )
+  const [name, setName] = useState(initial?.name ?? '')
+  const [affiliation, setAffiliation] = useState(initial?.affiliation ?? '')
+  const [major, setMajor] = useState(initial?.major ?? '')
+  const [studentId, setStudentId] = useState(initial?.studentId ?? '')
+  const [grade, setGrade] = useState(initial?.grade ?? '')
+  const [position, setPosition] = useState(initial?.position ?? '')
+  const [phone, setPhone] = useState(initial?.phone ?? '')
   const [personalInfo, setPersonalInfo] = useState<boolean | null>(null)
   const [localError, setLocalError] = useState('')
 
@@ -109,7 +124,7 @@ export default function MemberInfoForm({
     if (phone.replace(/[^0-9]/g, '').length < 9) {
       return setLocalError('연락처를 정확히 입력해 주세요.')
     }
-    if (personalInfo !== true) {
+    if (askConsent && personalInfo !== true) {
       return setLocalError('개인정보 수집·이용에 동의하셔야 가입할 수 있습니다.')
     }
 
@@ -274,7 +289,9 @@ export default function MemberInfoForm({
       />
 
       {/* ── 동의서 ───────────────────────────────────────────
-          초상권 동의서는 여기 없다. 프로그램 신청 화면에서 받는다 (D-44). */}
+          초상권 동의서는 여기 없다. 프로그램 신청 화면에서 받는다 (D-44).
+          수정 화면에서는 통째로 나오지 않는다 — 위 askConsent 주석 참고. */}
+      {askConsent && (
       <div className="space-y-3 pt-2">
         <ConsentBlock
           id="consent-personal"
@@ -301,6 +318,7 @@ export default function MemberInfoForm({
           </p>
         </ConsentBlock>
       </div>
+      )}
 
       {shown && (
         <p

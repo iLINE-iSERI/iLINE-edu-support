@@ -237,7 +237,7 @@ export default function ApplicationForm({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-bold">신청자 정보</h2>
           <Link
-            href="/mypage"
+            href="/mypage/profile"
             className="text-xs text-ink-muted underline underline-offset-2"
           >
             내용이 다르면 회원정보 수정
