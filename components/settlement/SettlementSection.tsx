@@ -134,13 +134,37 @@ export default function SettlementSection({
 
   return (
     <div className="mt-4 rounded-xl border border-line bg-subtle p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-bold">정산</h3>
-          {settlement && (
-            <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-bold">
-              {SETTLEMENT_STATUS_LABEL[settlement.status]}
-            </span>
+      {/* 제목·안내와 버튼을 **한 줄로 묶는다** (09-10).
+          예전에는 제목 줄에만 버튼이 있고 안내 문구가 그 아래에 따로 있어서,
+          상자는 두 줄 높이인데 **버튼만 위쪽에 붙어** 보였다.
+          안내를 왼쪽 칸 안으로 들여 `items-center` 로 묶으면
+          버튼이 **상자 가운데 높이**에 온다. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-bold">정산</h3>
+            {settlement && (
+              <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-bold">
+                {SETTLEMENT_STATUS_LABEL[settlement.status]}
+              </span>
+            )}
+          </div>
+
+          {/* 한 줄짜리 상태 안내 — 버튼과 같은 높이에서 균형을 잡는다 */}
+          {!settlement && !open && (
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+              활동비 지급을 위해 <strong>지급 계좌</strong>를 입력해 주세요.
+              지출 증빙이 있으면 <strong>영수증</strong>도 함께 첨부하실 수
+              있습니다.
+            </p>
+          )}
+          {settlement?.status === 'submitted' && (
+            <p className="mt-2 text-sm text-ink-muted">
+              제출이 완료되었습니다. 담당자 확인 후 지급됩니다.
+            </p>
+          )}
+          {settlement?.status === 'approved' && (
+            <p className="mt-2 text-sm text-ink-muted">정산이 승인되었습니다.</p>
           )}
         </div>
 
@@ -148,7 +172,7 @@ export default function SettlementSection({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700"
+            className="touch-target inline-flex shrink-0 items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700"
           >
             {settlement ? '정산 다시 제출' : '정산 제출하기'}
           </button>
@@ -185,24 +209,6 @@ export default function SettlementSection({
         </div>
       )}
 
-      {!settlement && !open && (
-        <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-          활동비 지급을 위해 <strong>지급 계좌</strong>를 입력해 주세요.
-          지출 증빙이 있으면 <strong>영수증</strong>도 함께 첨부하실 수
-          있습니다.
-        </p>
-      )}
-
-      {settlement?.status === 'submitted' && (
-        <p className="mt-2 text-sm text-ink-muted">
-          제출이 완료되었습니다. 담당자 확인 후 지급됩니다.
-        </p>
-      )}
-      {settlement?.status === 'approved' && (
-        <p className="mt-2 text-sm text-ink-muted">
-          정산이 승인되었습니다.
-        </p>
-      )}
 
       {/* ── 입력 폼 ────────────────────────────────────── */}
       {open && (

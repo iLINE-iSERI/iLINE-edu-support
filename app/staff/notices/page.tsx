@@ -27,6 +27,7 @@ import {
 } from '@/lib/firebase/notices'
 import { formatDate } from '@/lib/firebase/programs'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { useRevealForm } from '@/lib/hooks/useRevealForm'
 import type { Notice } from '@/lib/types'
 
 const EMPTY: NoticeInput = { title: '', content: '', pinned: false }
@@ -46,6 +47,8 @@ function StaffNoticesContent() {
 
   /** 편집 중인 대상 — null: 안 열림, '': 새 글, 그 외: 수정할 공지 ID */
   const [editingId, setEditingId] = useState<string | null>(null)
+  /** 폼이 열리면 그리로 화면을 옮긴다 (프로그램 관리와 같은 구조) */
+  const formRef = useRevealForm(editingId)
   const [form, setForm] = useState<NoticeInput>(EMPTY)
   const [busy, setBusy] = useState(false)
   /** 잘못된 칸 → 칸 이름 옆에 붙일 사유. 폼이 길어서 맨 위 안내는 눈에 안 띈다 */
@@ -178,11 +181,12 @@ function StaffNoticesContent() {
         {/* ── 작성 · 수정 폼 ─────────────────────────────── */}
         {editingId !== null && (
           <form
+            ref={formRef}
             onSubmit={save}
             noValidate
             className="space-y-4 rounded-2xl border border-line bg-surface p-5"
           >
-            <h2 className="font-bold">
+            <h2 className="font-bold" data-reveal-title tabIndex={-1}>
               {editingId ? '공지 수정' : '새 공지 작성'}
             </h2>
 

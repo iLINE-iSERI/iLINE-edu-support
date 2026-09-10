@@ -31,6 +31,7 @@ import {
   formatPeriod,
 } from '@/lib/firebase/programs'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { useRevealForm } from '@/lib/hooks/useRevealForm'
 import { FORM_OPTIONS } from '@/lib/forms'
 import { Timestamp } from 'firebase/firestore'
 import type { Program } from '@/lib/types'
@@ -147,6 +148,8 @@ function StaffProgramsContent() {
 
   /** null: 폼 닫힘 · '': 새 공고 · 그 외: 수정 중인 프로그램 ID */
   const [editingId, setEditingId] = useState<string | null>(null)
+  /** 폼이 열리면 그리로 화면을 옮긴다 — 안 그러면 열린 줄 모른다 */
+  const formRef = useRevealForm(editingId)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<FieldErrors>({})
   /** 저장 버튼 옆에 뜨는 한 줄 — 어느 칸이 문제인지 또는 저장 실패 사유 */
@@ -372,11 +375,12 @@ function StaffProgramsContent() {
         {/* ── 등록 · 수정 폼 ─────────────────────────────── */}
         {editingId !== null && (
           <form
+            ref={formRef}
             onSubmit={save}
             noValidate
             className="space-y-5 rounded-2xl border border-line bg-surface p-5"
           >
-            <h2 className="font-bold">
+            <h2 className="font-bold" data-reveal-title tabIndex={-1}>
               {editingId ? `프로그램 수정 · ${editingId}` : '새 프로그램 등록'}
             </h2>
 
