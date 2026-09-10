@@ -10,7 +10,8 @@ export const metadata: Metadata = {
     default: `${SITE.programName} | iLINE`,
     template: `%s | ${SITE.programName}`,
   },
-  description: `${SITE.funder} ${SITE.programName} — 사업 안내, 프로그램 신청, 정산, 산출물 갤러리`,
+  // 검색 결과에 그대로 나오는 문장이다. 없는 기능(갤러리)을 넣지 않는다.
+  description: `${SITE.funder} ${SITE.programName} — 사업 안내, 프로그램 신청, 활동비 정산`,
   robots: {
     // 신청자가 직접 유입되는 사이트라 색인 우선순위는 낮지만 차단하지는 않는다
     index: true,
