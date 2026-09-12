@@ -253,5 +253,106 @@ service cloud.firestore {
       allow read: if true;              // 공개 (공고문·서식 배포)
       allow write: if isStaff();
     }
+
+    // =====================================================================
+    // 시설 예약 (D-52 · D-53 · D-55) — docs/4-기록/06-시설예약-설계.md §5
+    //
+    // 예약 1건 = 예약 문서 + 슬롯 문서(시간당 1개) + 하루 열쇠 문서를
+    // 한 묶음(batch)으로 쓴다. 슬롯·열쇠는 **문서 ID 자체가 잠금**이고
+    // 생성만 허용하므로, 같은 자리·시간이나 같은 날 두 번째 예약은
+    // 묶음이 통째로 거부된다 — 신청서의 열쇠 문서와 같은 방식.
+    // =====================================================================
+
+    // 예약 문서
+    match /support_reservations/{id} {
+      allow get: if isMember() && (resource.data.uid == request.auth.uid || isStaff());
+      allow list: if isStaff()
+        || (isMember() && resource.data.uid == request.auth.uid);
+
+      // 회원 예약 — 접수됨으로만 만들 수 있다. 확정은 담당자 전달 뒤.
+      // 시간 규칙(정시·최대 2시간·운영 시간 안)은 여기서도 막는다.
+      // 날짜 범위(4주·마감 요일)는 설정 문서를 읽어 요일 계산까지 해야 해서
+      // 규칙이 너무 복잡해진다 — 화면과 lib 가 맡고, 규칙은 형식만 본다.
+      allow create: if isMember()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'received'
+        && request.resource.data.source == 'member'
+        && request.resource.data.venue in ['ML', 'ST', 'GR']
+        && request.resource.data.date is string
+        && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.startHour is int
+        && request.resource.data.hours is int
+        && request.resource.data.hours >= 1 && request.resource.data.hours <= 2
+        && request.resource.data.startHour >= 9
+        && request.resource.data.startHour + request.resource.data.hours <= 18;
+
+      // 본인 취소 — 바꿀 수 있는 칸 세 개로 못 박는다 (D-48 방식).
+      // 확정된 것도 취소할 수 있다(D-55). 이용일 당일·지난 뒤는 화면이 막고,
+      // 규칙은 날짜 계산을 하지 않는다.
+      allow update: if isStaff()
+        || (isMember()
+            && resource.data.uid == request.auth.uid
+            && resource.data.status in ['received', 'confirmed']
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'cancelledAt', 'updatedAt']));
+
+      allow delete: if false;
+    }
+
+    // 자리·시간 잠금 — ID = {공간}_{자리}_{YYYYMMDD}_{HH}
+    //
+    // 회원이 격자를 그리려면 남의 슬롯도 읽어야 한다. 그래서 슬롯 문서에는
+    // **개인정보를 넣지 않는다** — 예약 ID·공간·자리·날짜·시각뿐이다.
+    // 누구 것인지는 예약 문서를 열어야 알 수 있고, 그건 본인·담당자만 읽는다.
+    match /support_reservation_slots/{slotId} {
+      allow read: if isMember();
+
+      // ID 가 내용과 맞아야 한다 — 맞지 않으면 다른 자리를 잠그는 데 쓰인다.
+      // 그리고 같은 묶음 안의 예약 문서가 **본인 것**이어야 한다(getAfter).
+      // 이게 없으면 예약 없이 슬롯만 만들어 자리를 막아둘 수 있다.
+      allow create: if isMember()
+        && slotId == request.resource.data.venue + '_' + request.resource.data.seat
+             + '_' + request.resource.data.date.replace('-', '')
+             + '_' + (request.resource.data.hour < 10
+                        ? '0' + string(request.resource.data.hour)
+                        : string(request.resource.data.hour))
+        && getAfter(/databases/$(database)/documents/support_reservations/$(request.resource.data.reservationId)).data.uid
+             == request.auth.uid;
+
+      allow update: if false;
+
+      // 담당자, 그리고 그 슬롯이 가리키는 예약의 **본인**
+      allow delete: if isStaff()
+        || (isMember()
+            && get(/databases/$(database)/documents/support_reservations/$(resource.data.reservationId)).data.uid
+                 == request.auth.uid);
+    }
+
+    // 공간마다 하루 1건 잠금 — ID = {uid}_{공간}_{YYYYMMDD}  (09-12 개정)
+    match /support_reservation_days/{dayId} {
+      // 본인 것만 — 문서가 없을 때도 조회가 되어야 하므로 ID 로 판정한다
+      allow get: if isStaff()
+        || (isMember() && dayId.split('_')[0] == request.auth.uid);
+      allow list: if isStaff();
+      allow create: if isMember()
+        && dayId == request.auth.uid + '_' + request.resource.data.venue
+             + '_' + request.resource.data.date.replace('-', '')
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isStaff()
+        || (isMember() && resource.data.uid == request.auth.uid);
+    }
+
+    // 운영 설정 — 회원 화면이 날짜 범위를 계산하려면 읽어야 한다
+    match /support_reservation_settings/{id} {
+      allow read: if isMember();
+      allow write: if isStaff();
+    }
+
+    // 행정실 전달 기록 (2단계)
+    match /support_reservation_deliveries/{id} {
+      allow read, write: if isStaff();
+    }
   }
 }

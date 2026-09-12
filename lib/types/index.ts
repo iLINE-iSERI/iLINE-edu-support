@@ -591,3 +591,101 @@ export interface Resource {
   authorUid: string
   createdAt: Timestamp
 }
+
+/* ─────────────────────────────────────────────────────────────
+   시설 예약 — support_reservations/{id}   (D-52 · D-53 · D-55)
+
+   지원사업 회원에게 사범대 공부실을 예약해 주는 기능.
+   우리 시스템은 **진실의 원천이 아니다** — 시설은 사범대 것이고 최종
+   권한은 행정실에 있다. 그래서 상태가 두 단계다:
+     received(접수됨) → (목요일 행정실 전달) → confirmed(확정됨)
+   정책·근거는 docs/4-기록/06-시설예약-설계.md.
+   ───────────────────────────────────────────────────────────── */
+
+/** 공간 코드 — 예약번호 접두어이기도 하다 (설계 §3) */
+export type VenueCode = 'ML' | 'ST' | 'GR'
+
+export type ReservationStatus =
+  /** 신청 접수됨 — 아직 행정실에 보내지 않음 */
+  | 'received'
+  /** 행정실 전달 완료 — 확정 */
+  | 'confirmed'
+  | 'cancelled'
+
+export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
+  received: '접수됨',
+  confirmed: '확정됨',
+  cancelled: '취소됨',
+}
+
+/**
+ * 예약 한 건.
+ *
+ * 신청자 정보는 회원 문서에서 **복사**해 넣는다 (D-28 스냅샷 원칙).
+ * 예약 뒤 회원이 연락처를 바꿔도 이 예약에는 예약 당시 값이 남는다 —
+ * 행정실에 보낸 명단과 어긋나지 않게 하기 위해서다.
+ */
+export interface Reservation {
+  id: string
+  /** 말로 전하는 이름표 — `ST-260922-K3QD` (설계 §3). 조회 열쇠가 아니다 */
+  code: string
+  uid: string
+  applicant: ApplicantSnapshot
+
+  venue: VenueCode
+  /** 자리 번호 — 랩실 '1'~'3' · 좌석 '01'~'12' · 테이블 '1'~'4' */
+  seat: string
+  /** 이용일 `YYYY-MM-DD` (로컬 날짜, 시간대 없음) */
+  date: string
+  /** 시작 시각 (정시, 24시간제) */
+  startHour: number
+  /** 길이 — 1 또는 2 (설계 §2-3: 최대 2시간) */
+  hours: number
+
+  status: ReservationStatus
+  /** member — 회원이 직접 · staff — 담당자 직접 추가(D-53 ⑥, 2단계) */
+  source: 'member' | 'staff'
+  /** 담당자 직접 추가일 때 이름을 직접 적을 수 있다 (단체명 등) */
+  displayName?: string
+  staffNote?: string
+
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  /** 행정실 전달 시각 — 있으면 확정됨 */
+  deliveredAt?: Timestamp
+  deliveryId?: string
+  cancelledAt?: Timestamp
+  /** 확정 뒤 취소된 것을 행정실에 알린 시각 (2단계 명단의 「취소」 묶음) */
+  cancelDeliveredAt?: Timestamp
+}
+
+/**
+ * 예약 운영 설정 — support_reservation_settings/main  (D-53 · D-55)
+ *
+ * 요일·범위를 코드에 박지 않는 이유: 관리자가 학생이라 시간표에 따라
+ * 편한 요일이 달라진다. 문서가 없으면 코드의 기본값을 쓴다.
+ *
+ * 🔴 아래 기본값은 **교수님 답을 기다리지 않으려고 임의로 정한 가정값**이다.
+ *    접수 개시 전에 실제 값으로 확인해야 한다 — docs/3-할일/02 J 표.
+ */
+export interface ReservationSettings {
+  /** 마감 요일 — 0=일 … 3=수 … 6=토 */
+  closeWeekday: number
+  /** 마감 시각 (정시) */
+  closeHour: number
+  /** 전달 요일 */
+  deliverWeekday: number
+  /** 앞으로 몇 주까지 받나 */
+  rangeWeeks: number
+  /** 휴관일 `YYYY-MM-DD` 목록 — 시험 기간 등 */
+  closedDates: string[]
+  updatedAt?: Timestamp
+}
+
+export const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
+  closeWeekday: 3,
+  closeHour: 18,
+  deliverWeekday: 4,
+  rangeWeeks: 4,
+  closedDates: [],
+}

@@ -84,6 +84,21 @@ export const COL = {
   outputs: 'support_outputs',
   notices: 'support_notices',
   resources: 'support_resources',
+
+  /* ── 시설 예약 (D-52~55) ── */
+  reservations: 'support_reservations',
+  /**
+   * 자리·시간 잠금 — `{공간}_{자리}_{YYYYMMDD}_{HH}` 하나당 한 개.
+   * applicationKeys 와 같은 방식: **존재 자체가 잠금**이고 규칙이 생성만
+   * 허용한다. 2시간 예약이면 슬롯 2개 + 예약 1개를 한 묶음으로 쓴다.
+   */
+  reservationSlots: 'support_reservation_slots',
+  /** 하루 1건 잠금 — `{uid}_{YYYYMMDD}` (설계 §5-3) */
+  reservationDays: 'support_reservation_days',
+  /** 운영 설정 — 문서 하나(`main`). 없으면 코드 기본값 */
+  reservationSettings: 'support_reservation_settings',
+  /** 행정실 전달 한 번 = 문서 하나 (설계 §5-5, 2단계) */
+  reservationDeliveries: 'support_reservation_deliveries',
 } as const
 
 /** Storage 경로 접두어 */
