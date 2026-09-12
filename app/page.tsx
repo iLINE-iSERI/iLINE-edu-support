@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { SITE } from '@/lib/config/site'
+import CurrentProgramCard from '@/components/home/CurrentProgramCard'
 
 /**
- * 사업 홈 (support.iline.or.kr/)
+ * 사업 홈 (aiedu.iline.or.kr/)
  *
  * 한국장학재단 참고 — 공고·신청 동선을 위로, 안내는 그 아래.
- * ⏸ 공고 배너·일정은 Firestore 연동 전이라 예시 값이다.
+ * 공고 배너는 09-12부터 실제 프로그램 목록을 읽는다 (CurrentProgramCard).
  */
 
 const STEPS = [
@@ -23,6 +24,12 @@ const SHORTCUTS = [
     href: '/about',
     title: '사업 소개',
     desc: '추진 체계와 지원 내용을 확인하세요',
+  },
+  // 시설 예약 (09-12, D-56) — 회원 혜택이라 이용 단계가 아니라 바로가기에 둔다
+  {
+    href: '/reserve',
+    title: '시설 예약',
+    desc: '사범대학 공부실을 회원 누구나 예약할 수 있습니다',
   },
   {
     href: '/notice',
@@ -52,40 +59,20 @@ export default function SupportHomePage() {
             {SITE.programName}
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-muted">
-            과제 신청부터 정산, 산출물 공유까지 온라인으로 처리합니다.
+            프로그램 신청부터 정산, 공부실 예약까지 온라인으로 처리합니다.
           </p>
 
-          {/* 접수 현황 — ⏸ Firestore 연동 예정 */}
-          <div className="mt-8 rounded-2xl border border-line bg-surface p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-status-approved/10 px-2.5 py-1 text-xs font-bold text-status-approved">
-                    접수중
-                  </span>
-                  <span className="text-xs text-ink-subtle">D-14</span>
-                </div>
-                <p className="mt-2 text-lg font-bold">
-                  2026년 {SITE.programName} 프로그램 공모
-                </p>
-                <p className="mt-1 text-sm text-ink-muted">
-                  접수기간 2026. 9. 1. ~ 9. 18. 18:00
-                </p>
-              </div>
-              <Link
-                href="/apply"
-                className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 text-base font-bold text-white hover:bg-brand-700 sm:shrink-0"
-              >
-                신청하기
-              </Link>
-            </div>
-          </div>
+          {/* 지금 신청할 수 있는 공고 — 프로그램 목록에서 읽는다 */}
+          <CurrentProgramCard />
         </div>
       </section>
 
-      {/* 신청 절차 */}
+      {/* 참여 절차 — 회원가입부터 정산까지 사업 전체 흐름.
+          '신청 절차'였는데 신청 뒤 단계(심사·활동·정산)까지 담고 있어 이름을
+          바꿨다 (09-12 iSERI). */}
       <section className="container-page py-12 sm:py-14">
-        <h2 className="text-xl font-bold tracking-tight">신청 절차</h2>
+        <h2 className="text-xl font-bold tracking-tight">참여 절차</h2>
+        <p className="mt-1 text-sm text-ink-muted">회원가입부터 활동비 정산까지, 지원사업이 진행되는 순서입니다.</p>
         <ol className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (
             <li
@@ -102,9 +89,11 @@ export default function SupportHomePage() {
         </ol>
       </section>
 
-      {/* 바로가기 */}
-      <section className="container-page pb-14">
-        <div className="grid gap-3 sm:grid-cols-3">
+      {/* 바로가기 — 위 절차와 구분되게 배경을 깔고 제목을 같은 크기로 (09-12 iSERI) */}
+      <section className="border-t border-line bg-subtle">
+        <div className="container-page py-12 sm:py-14">
+          <h2 className="text-xl font-bold tracking-tight">바로가기</h2>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {SHORTCUTS.map((c) => (
             <Link
               key={c.href}
@@ -123,6 +112,7 @@ export default function SupportHomePage() {
               <p className="mt-1 text-sm text-ink-muted">{c.desc}</p>
             </Link>
           ))}
+          </div>
         </div>
       </section>
     </>

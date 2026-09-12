@@ -255,7 +255,7 @@ function VenueBlock({
             {showDelivered && deliveredLabel(r) && (
               <span className="text-xs text-ink-subtle">({deliveredLabel(r)})</span>
             )}
-            <span className="ml-auto font-mono text-xs text-ink-subtle">{r.code}</span>
+            <span className="font-mono text-xs text-ink-subtle sm:ml-auto">{r.code}</span>
           </li>
         ))}
       </ul>

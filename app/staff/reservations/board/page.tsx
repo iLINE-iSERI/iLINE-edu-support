@@ -20,7 +20,7 @@ import {
 } from '@/lib/firebase/reservationsStaff'
 import { actionErrorMessage, firestoreErrorMessage } from '@/lib/firebase/errors'
 import { VENUES, venueLabel, seatLabel, hourLabel } from '@/lib/config/venues'
-import { toYmd, addDays, mondayOf, shortDate, longDate } from '@/lib/reservations/window'
+import { toYmd, addDays, mondayOf, fromYmd, weekdayKo, shortDate, longDate } from '@/lib/reservations/window'
 import { RESERVATION_STATUS_LABEL, type Reservation } from '@/lib/types'
 
 export default function BoardPage() {
@@ -117,7 +117,12 @@ function Content() {
                   (on ? 'bg-brand-600 text-white' : d === todayYmd ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-200' : 'bg-subtle text-ink-muted')
                 }
               >
-                {shortDate(d)}
+                {/* 휴대폰(D-24): 7칸이라 '9/22(월)'이 안 들어간다 — 날짜와 요일을 두 줄로 */}
+                <span className="hidden sm:inline">{shortDate(d)}</span>
+                <span className="sm:hidden">
+                  {fromYmd(d).getDate()}
+                  <span className="block text-[10px] font-normal">{weekdayKo(fromYmd(d).getDay())}</span>
+                </span>
                 <span className="block text-[10px] font-semibold opacity-80">{n > 0 ? `${n}건` : '—'}</span>
               </button>
             )
