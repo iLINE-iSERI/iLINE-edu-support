@@ -20,7 +20,11 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import {
   listAllSettlements,
   reviewSettlement,
+  markSettlementPaid,
+  requestSettlementSync,
+  retrySettlementSync,
 } from '@/lib/firebase/settlements'
+import { toYmd } from '@/lib/reservations/window'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
@@ -33,6 +37,7 @@ import {
 const FILTERS: SettlementStatus[] = [
   'submitted',
   'approved',
+  'paid',
   'rejected',
   'draft',
 ]
@@ -74,7 +79,7 @@ function StaffSettlementsContent() {
     <>
       <PageHeader
         title="정산 관리"
-        description="제출된 지급 계좌와 영수증을 확인하고 승인합니다."
+        description="제출된 지급 계좌와 영수증을 확인해 승인하고, 이체한 뒤 지급 완료로 표시합니다."
       />
 
       <div className="container-page space-y-6 py-8">
@@ -122,8 +127,8 @@ function StaffSettlementsContent() {
           </button>
           {rows && (
             <span className="text-sm text-ink-subtle">
-              제출 {count('submitted')} · 승인 {count('approved')} · 반려{' '}
-              {count('rejected')}
+              제출 {count('submitted')} · 승인(지급 대기) {count('approved')} · 지급 완료{' '}
+              {count('paid')} · 반려 {count('rejected')}
             </span>
           )}
         </div>
@@ -174,6 +179,31 @@ function SettlementRow({
   const [showBank, setShowBank] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  // 지급 완료 (09-12) — 이체한 날짜를 고른다. 기본은 오늘
+  const [paidDate, setPaidDate] = useState(toYmd(new Date()))
+  const [paidNote, setPaidNote] = useState('')
+
+  async function markPaid() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paidDate)) {
+      setMsg('지급일을 골라 주세요.')
+      return
+    }
+    setBusy(true)
+    setMsg('')
+    try {
+      const [y, m, d] = paidDate.split('-').map(Number)
+      await markSettlementPaid(row.id, new Date(y, m - 1, d), paidNote, reviewerUid)
+      setMsg('지급 완료로 표시했습니다.')
+      // 시트 「정산」 탭의 상태·지급일 칸을 따라 고친다 (D-65)
+      await requestSettlementSync(row.id)
+      onSaved()
+    } catch (e) {
+      console.error('[iLINE] 지급 완료 표시 실패:', e)
+      setMsg(firestoreErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function review(status: 'approved' | 'rejected') {
     if (status === 'rejected' && !note.trim()) {
@@ -187,6 +217,7 @@ function SettlementRow({
     try {
       await reviewSettlement(row.id, status, note, reviewerUid)
       setMsg(status === 'approved' ? '승인했습니다.' : '반려했습니다.')
+      await requestSettlementSync(row.id)
       onSaved()
     } catch (e) {
       console.error('[iLINE] 정산 처리 실패:', e)
@@ -255,6 +286,40 @@ function SettlementRow({
         </div>
       </div>
 
+      {/* ── 드라이브·시트 반영 상태 (D-65) — "왜 드라이브에 없지?"를 여기서 */}
+      {row.driveSyncError ? (
+        <div className="mt-3 rounded-lg bg-status-revision/10 px-3 py-2 text-xs leading-relaxed text-status-revision">
+          <p>
+            <strong>드라이브·시트 반영 실패</strong> — {row.driveSyncError}
+          </p>
+          <p className="mt-1">
+            정산 자체는 정상 접수되었습니다. 설정은 docs/2-학습/04-구글-시트-드라이브-연동.md 참고.
+          </p>
+          <SyncRetry id={row.id} onDone={onSaved} />
+        </div>
+      ) : row.sheetSyncedAt ? (
+        <p className="mt-3 text-xs text-ink-subtle">
+          드라이브·시트 반영 완료
+          {row.driveFolderUrl && (
+            <>
+              {' · '}
+              <a
+                href={row.driveFolderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >
+                드라이브 폴더 열기
+              </a>
+            </>
+          )}
+        </p>
+      ) : row.status !== 'draft' ? (
+        <p className="mt-3 text-xs text-ink-subtle">
+          드라이브·시트에 아직 반영되지 않았습니다. <SyncRetry id={row.id} onDone={onSaved} inline />
+        </p>
+      ) : null}
+
       {/* ── 처리 ───────────────────────────────────────────── */}
       <div className="mt-4 border-t border-line pt-4">
         <label
@@ -288,25 +353,70 @@ function SettlementRow({
         />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => review('approved')}
-            disabled={busy}
-            className="touch-target rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            승인
-          </button>
-          <button
-            type="button"
-            onClick={() => review('rejected')}
-            disabled={busy}
-            className="touch-target rounded-xl border border-status-revision px-5 text-sm font-bold text-status-revision hover:bg-status-revision/10 disabled:opacity-50"
-          >
-            반려
-          </button>
+          {row.status !== 'paid' && (
+            <>
+              <button
+                type="button"
+                onClick={() => review('approved')}
+                disabled={busy}
+                className="touch-target rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                승인
+              </button>
+              <button
+                type="button"
+                onClick={() => review('rejected')}
+                disabled={busy}
+                className="touch-target rounded-xl border border-status-revision px-5 text-sm font-bold text-status-revision hover:bg-status-revision/10 disabled:opacity-50"
+              >
+                반려
+              </button>
+            </>
+          )}
           {msg && <span className="text-sm text-ink-muted">{msg}</span>}
         </div>
       </div>
+
+      {/* ── 지급 완료 (09-12) — 승인된 건에만. 이체는 사이트 밖에서 하므로
+          "했다"는 사실만 날짜와 함께 남긴다. 되돌리기는 두지 않는다 —
+          잘못 눌렀으면 메모로 남기고 담당자끼리 정리한다 ── */}
+      {row.status === 'approved' && (
+        <div className="mt-3 rounded-lg border border-status-approved/40 bg-status-approved/10 p-3 text-sm">
+          <p className="font-semibold">이체를 마쳤으면 지급 완료로 표시하세요</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5">
+              <span className="text-ink-muted">지급일</span>
+              <input
+                type="date"
+                value={paidDate}
+                onChange={(e) => setPaidDate(e.target.value)}
+                className="touch-target rounded-lg border border-line-strong bg-surface px-2 text-sm"
+              />
+            </label>
+            <input
+              value={paidNote}
+              onChange={(e) => setPaidNote(e.target.value)}
+              placeholder="메모 (선택 · 담당자만 봄)"
+              className="touch-target min-w-[12rem] flex-1 rounded-lg border border-line-strong bg-surface px-3 text-sm"
+            />
+            <button
+              type="button"
+              onClick={markPaid}
+              disabled={busy}
+              className="touch-target rounded-xl bg-status-approved px-5 text-sm font-bold text-white disabled:opacity-50"
+            >
+              지급 완료
+            </button>
+          </div>
+        </div>
+      )}
+      {row.status === 'paid' && (
+        <p className="mt-3 rounded-lg bg-subtle p-3 text-sm text-ink-muted">
+          <strong className="text-ink">지급 완료</strong> ·{' '}
+          {row.paidAt?.toDate().toLocaleDateString('ko-KR')}
+          {row.paidNote && <> · 메모: {row.paidNote}</>}
+        </p>
+      )}
     </li>
   )
 }
@@ -333,5 +443,42 @@ function FileButton({ path, label }: { path: string; label: string }) {
     >
       <span className="truncate">{busy ? '여는 중…' : label}</span>
     </button>
+  )
+}
+
+/** 드라이브·시트 반영 재시도 (D-65) — 설정을 고친 뒤 이미 들어온 건을 다시 올린다 */
+function SyncRetry({ id, onDone, inline = false }: { id: string; onDone: () => void; inline?: boolean }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function run() {
+    setBusy(true)
+    setErr('')
+    try {
+      await retrySettlementSync(id)
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <span className={inline ? 'inline' : 'mt-2 block'}>
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy}
+        className={
+          inline
+            ? 'font-semibold underline underline-offset-2 disabled:opacity-50'
+            : 'touch-target rounded-lg border border-current px-3 text-xs font-semibold disabled:opacity-50'
+        }
+      >
+        {busy ? '반영 중…' : '지금 반영'}
+      </button>
+      {err && <span className="ml-2 text-status-revision">{err}</span>}
+    </span>
   )
 }

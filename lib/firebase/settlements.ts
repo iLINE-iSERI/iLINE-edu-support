@@ -20,8 +20,8 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore'
-import { ref, uploadBytes } from 'firebase/storage'
-import { getDb, getStorageClient, COL, STORAGE_ROOT } from './config'
+import { ref, uploadBytes, deleteObject } from 'firebase/storage'
+import { getDb, getStorageClient, getAuthClient, COL, STORAGE_ROOT } from './config'
 import type { AttachedFile, Settlement, Application } from '@/lib/types'
 
 /**
@@ -64,6 +64,11 @@ export interface SettlementInput {
   accountNumber: string
   accountHolder: string
   files: File[]
+  /**
+   * 재제출 때 **남길** 기존 영수증 (09-12). 없으면 전부 남긴다.
+   * 여기서 빠진 파일은 Storage 에서 지우고, 드라이브 사본도 동기화 때 휴지통으로.
+   */
+  keepReceipts?: AttachedFile[]
 }
 
 /**
@@ -105,7 +110,14 @@ export async function submitSettlement(
   return id
 }
 
-/** 반려된 정산을 고쳐서 다시 내는 경우 — 영수증은 덧붙인다 */
+/**
+ * 반려된 정산을 고쳐서 다시 내는 경우.
+ *
+ * 기존 영수증은 **기본으로 남고**, 신청자가 뺀 것(`keepReceipts` 에 없는 것)만
+ * Storage 에서 지운다 (09-12 iSERI: "기존 파일이 뭔지 알고 고칠 수 있어야").
+ * 삭제 실패는 무시한다 — 목록에서 빠지면 담당자 화면에도 안 보이고,
+ * 드라이브 사본은 동기화가 휴지통으로 보낸다.
+ */
 export async function resubmitSettlement(
   input: SettlementInput
 ): Promise<void> {
@@ -113,9 +125,20 @@ export async function resubmitSettlement(
   const id = settlementIdOf(application.id)
 
   const before = await getSettlement(id)
+  const prev = before?.receipts ?? []
+  const keep = input.keepReceipts ?? prev
+  const keepPaths = new Set(keep.map((r) => r.storagePath))
+  const removed = prev.filter((r) => !keepPaths.has(r.storagePath))
+
   const added: AttachedFile[] = []
   for (const f of files) {
     added.push(await uploadReceipt(uid, id, f))
+  }
+
+  for (const r of removed) {
+    await deleteObject(ref(getStorageClient(), r.storagePath)).catch((e) =>
+      console.warn('[iLINE] 뺀 영수증 삭제 실패(목록에서는 빠짐):', e)
+    )
   }
 
   await updateDoc(doc(getDb(), COL.settlements, id), {
@@ -125,7 +148,7 @@ export async function resubmitSettlement(
       accountNumber: input.accountNumber.replace(/\s/g, ''),
       accountHolder: input.accountHolder.trim(),
     },
-    receipts: [...(before?.receipts ?? []), ...added],
+    receipts: [...keep, ...added],
     // 반려 사유는 지운다 — 다시 낸 뒤에도 남아 있으면 아직 반려 상태로 보인다
     reviewNote: '',
     submittedAt: serverTimestamp(),
@@ -180,4 +203,64 @@ export async function reviewSettlement(
     reviewedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+}
+
+/**
+ * 지급 완료 표시 (09-12).
+ *
+ * 승인된 건만. `paidAt` 은 **실제 이체일**이라 담당자가 고른다 —
+ * 버튼 누른 시각으로 박으면 며칠 뒤에 몰아서 표시할 때 날짜가 틀어진다.
+ */
+export async function markSettlementPaid(
+  id: string,
+  paidAt: Date,
+  paidNote: string,
+  staffUid: string
+): Promise<void> {
+  await updateDoc(doc(getDb(), COL.settlements, id), {
+    status: 'paid',
+    paidAt: Timestamp.fromDate(paidAt),
+    paidBy: staffUid,
+    paidNote: paidNote.trim(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/* ── 드라이브·시트 반영 (09-12 · D-65) ───────────────────────────
+   영수증은 드라이브 02_정산 폴더로, 정산 한 줄은 시트 「정산」 탭으로.
+   ⚠️ 계좌는 나가지 않는다 — 서버 쪽 googleSync.ts 가 읽지 않는다 (D-38). */
+
+async function callSettlementSync(settlementId: string) {
+  const token = await getAuthClient().currentUser?.getIdToken()
+  if (!token) throw new Error('로그인 정보를 확인할 수 없습니다.')
+
+  const res = await fetch('/api/sync/settlement', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ settlementId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || '동기화에 실패했습니다.')
+  return data as { ok?: boolean; skipped?: string; uploaded?: number }
+}
+
+/**
+ * 제출·상태 변경 직후 부른다. **실패해도 정산 자체는 이미 끝난 것**이라
+ * 오류를 던지지 않고 기록만 한다 (신청서의 requestSync 와 같은 원칙).
+ * 실패 사유는 정산 문서 `driveSyncError` 에 남아 담당자 화면에 보인다.
+ */
+export async function requestSettlementSync(settlementId: string): Promise<void> {
+  try {
+    await callSettlementSync(settlementId)
+  } catch (e) {
+    console.warn('[iLINE] 정산 드라이브·시트 반영 실패(정산은 정상 처리됨):', e)
+  }
+}
+
+/** 담당자용 재시도 — 설정을 고친 뒤 이미 들어온 건을 다시 올릴 때 */
+export async function retrySettlementSync(settlementId: string): Promise<void> {
+  const data = await callSettlementSync(settlementId)
+  if (data.skipped === 'not-configured') {
+    throw new Error('서버에 구글 연동 설정이 없습니다. 환경변수를 확인해 주세요.')
+  }
 }

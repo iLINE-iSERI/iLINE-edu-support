@@ -110,19 +110,36 @@ NEXT_PUBLIC_FIREBASE_APP_ID=1:123:web:abc
 # 선택 — 헤더의 "iLINE 홈" 링크. 비워두면 https://iline.or.kr 로 갑니다
 NEXT_PUBLIC_INTRO_URL=https://iline.or.kr
 
-# ⏸ 나중에 (Phase 5 시트·드라이브 연동) — 지금은 비워두세요
-FIREBASE_ADMIN_PROJECT_ID=
-FIREBASE_ADMIN_CLIENT_EMAIL=
-FIREBASE_ADMIN_PRIVATE_KEY=""
-GOOGLE_SHEETS_ID=
-GOOGLE_DRIVE_ID=
-GOOGLE_DRIVE_FOLDER_APPLICATIONS=
-GOOGLE_DRIVE_FOLDER_SETTLEMENTS=
+# 🔒 서버 전용 — 시트·드라이브 연동 + 정리 스크립트 --env (Vercel 에 넣은 것과 같은 5개)
+#    서비스 계정 JSON 의 project_id / client_email / private_key
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+SHEET_ID=
+DRIVE_FOLDER_ID=
 ```
+
+> ⚠️ 이름은 **정확히 이대로** 써야 합니다. `FIREBASE_ADMIN_…`, `GOOGLE_SHEETS_ID`
+> 같은 옛 이름은 코드가 읽지 않습니다 (09-12 이전 예시 파일에 남아 있던 오류).
+
+### 아래 5개를 채우는 법 (09-12 추가)
+
+Vercel 에 넣은 값과 **같은 값**입니다. 서비스 계정 키 JSON 파일을 메모장으로 열어
+세 값을 옮기고, 시트·드라이브 ID 는 주소창에서 복사합니다.
+
+1. `.env.local` 을 VS Code 나 메모장으로 엽니다 (저장소 폴더 맨 위, 숨김 파일이라
+   탐색기에서 안 보이면 "숨긴 항목 표시"를 켜세요)
+2. 맨 아래에 위 5줄을 붙이고 `=` 뒤에 값을 넣습니다
+3. `FIREBASE_PRIVATE_KEY` 는 JSON 의 `"private_key": "…"` 에서 **바깥 큰따옴표만 빼고**
+   `-----BEGIN PRIVATE KEY-----\n…\n-----END PRIVATE KEY-----\n` 을 **한 줄 그대로** 붙입니다.
+   `\n` 을 지우거나 실제 줄바꿈으로 바꾸지 마세요 — 코드가 되돌립니다
+4. 저장한 뒤 **`npm run dev` 를 껐다 다시 켭니다** — 환경변수는 시작할 때만 읽습니다
+5. 확인: `node scripts/reset-test-data.mjs --env` 가 `🔑 .env.local 의 서비스 계정을
+   씁니다: …@…iam.gserviceaccount.com` 을 찍으면 성공
 
 **작성 규칙**
 - `=` 앞뒤에 **공백을 넣지 마세요** (`KEY=값`, `KEY = 값` ❌)
-- 값에 **따옴표를 두르지 마세요** (여러 줄인 `FIREBASE_ADMIN_PRIVATE_KEY` 만 예외)
+- 값에 **따옴표를 두르지 마세요** (`FIREBASE_PRIVATE_KEY` 도 한 줄이면 따옴표 없이 됩니다)
 - 줄 끝에 세미콜론·쉼표를 붙이지 마세요
 - `#` 으로 시작하는 줄은 주석입니다
 

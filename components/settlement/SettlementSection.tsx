@@ -12,6 +12,7 @@ import { useState } from 'react'
 import {
   submitSettlement,
   resubmitSettlement,
+  requestSettlementSync,
 } from '@/lib/firebase/settlements'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
@@ -19,6 +20,7 @@ import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   SETTLEMENT_STATUS_LABEL,
   type Application,
+  type AttachedFile,
   type Settlement,
 } from '@/lib/types'
 
@@ -69,6 +71,10 @@ export default function SettlementSection({
   )
   const [files, setFiles] = useState<File[]>([])
   const [rejected, setRejected] = useState<{ name: string; why: string }[]>([])
+  // 재제출 때 **빼기로 한** 기존 영수증 (09-12). 기본은 전부 남긴다
+  const [dropped, setDropped] = useState<Set<string>>(() => new Set())
+  const prevReceipts: AttachedFile[] = settlement?.receipts ?? []
+  const kept = prevReceipts.filter((r) => !dropped.has(r.storagePath))
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -79,7 +85,8 @@ export default function SettlementSection({
     const bad: { name: string; why: string }[] = []
 
     for (const f of Array.from(list)) {
-      const why = rejectReason(f, accepted.length)
+      // 남기는 기존 영수증도 장수에 포함
+      const why = rejectReason(f, kept.length + accepted.length)
       if (why) bad.push({ name: f.name, why })
       else accepted.push(f)
     }
@@ -117,11 +124,21 @@ export default function SettlementSection({
         accountNumber,
         accountHolder,
         files,
+        keepReceipts: kept,
       }
-      if (settlement) await resubmitSettlement(input)
-      else await submitSettlement(input)
+      let id: string
+      if (settlement) {
+        await resubmitSettlement(input)
+        id = settlement.id
+      } else {
+        id = await submitSettlement(input)
+      }
+
+      // 영수증 → 드라이브, 한 줄 → 시트. 실패해도 제출은 끝난 것이므로 기다리지 않는다 (D-65)
+      void requestSettlementSync(id)
 
       setFiles([])
+      setDropped(new Set())
       setOpen(false)
       onDone()
     } catch (err) {
@@ -164,7 +181,15 @@ export default function SettlementSection({
             </p>
           )}
           {settlement?.status === 'approved' && (
-            <p className="mt-2 text-sm text-ink-muted">정산이 승인되었습니다.</p>
+            <p className="mt-2 text-sm text-ink-muted">
+              정산이 승인되었습니다. 입력하신 계좌로 지급될 예정입니다.
+            </p>
+          )}
+          {settlement?.status === 'paid' && (
+            <p className="mt-2 text-sm text-ink-muted">
+              {settlement.paidAt?.toDate().toLocaleDateString('ko-KR')} 지급되었습니다.
+              입금이 확인되지 않으면 담당자에게 문의해 주세요.
+            </p>
           )}
         </div>
 
@@ -191,8 +216,8 @@ export default function SettlementSection({
         </div>
       )}
 
-      {/* 이미 낸 영수증 */}
-      {settlement && settlement.receipts?.length > 0 && (
+      {/* 이미 낸 영수증 — 폼이 열리면 폼 안에서 남기기/빼기로 다룬다 */}
+      {settlement && settlement.receipts?.length > 0 && !open && (
         <div className="mt-3">
           <p className="text-xs font-semibold text-ink-subtle">
             제출한 영수증 {settlement.receipts.length}장
@@ -266,6 +291,45 @@ export default function SettlementSection({
               <strong>영수증 없이도 제출할 수 있습니다.</strong> 무엇을 내야
               하는지는 프로그램 공고를 확인해 주세요.
             </p>
+
+            {/* 재제출: 기존 영수증을 보여주고 뺄 수 있게 (09-12) */}
+            {prevReceipts.length > 0 && (
+              <div className="mt-3 rounded-lg bg-subtle p-3">
+                <p className="text-xs font-semibold text-ink-subtle">
+                  이미 낸 영수증 {prevReceipts.length}장 — <strong>그대로 유지됩니다.</strong>{' '}
+                  잘못 낸 것은 [삭제]를 누르세요
+                </p>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {prevReceipts.map((r) => {
+                    const off = dropped.has(r.storagePath)
+                    return (
+                      <li key={r.storagePath} className="flex items-center justify-between gap-3">
+                        <span className={'flex min-w-0 items-center gap-2 ' + (off ? 'line-through opacity-50' : '')}>
+                          <ReceiptButton path={r.storagePath} label={r.fileName} />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = new Set(dropped)
+                            if (off) next.delete(r.storagePath)
+                            else next.add(r.storagePath)
+                            setDropped(next)
+                          }}
+                          className="shrink-0 text-xs font-semibold text-ink-muted underline"
+                        >
+                          {off ? '되살리기' : '삭제'}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {dropped.size > 0 && (
+                  <p className="mt-2 text-xs text-status-revision">
+                    삭제 표시한 {dropped.size}장은 제출할 때 지워집니다.
+                  </p>
+                )}
+              </div>
+            )}
 
             <input
               type="file"

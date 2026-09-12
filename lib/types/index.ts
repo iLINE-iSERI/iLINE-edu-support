@@ -454,12 +454,21 @@ export interface Application {
    팀 공동 경비는 다루지 않는다 (D-18).
    ───────────────────────────────────────────────────────────── */
 
-export type SettlementStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
+/**
+ * 정산 상태.
+ *
+ * `paid`(지급 완료)는 09-12에 추가했다 — 승인은 "서류가 맞다"이고 지급은
+ * "돈이 나갔다"라 다른 사건인데, 승인에서 끝나면 담당자가 바뀌었을 때
+ * **누구에게 보냈고 누구에게 안 보냈는지** 사이트에서 알 수 없다.
+ * 승인 → 지급 완료 순서만 있고, 지급 완료에서 되돌리는 화면은 두지 않는다.
+ */
+export type SettlementStatus = 'draft' | 'submitted' | 'approved' | 'paid' | 'rejected'
 
 export const SETTLEMENT_STATUS_LABEL: Record<SettlementStatus, string> = {
   draft: '작성 중',
   submitted: '제출 완료',
   approved: '승인',
+  paid: '지급 완료',
   rejected: '반려',
 }
 
@@ -510,11 +519,20 @@ export interface Settlement {
   reviewedBy?: string
   reviewedAt?: Timestamp
 
-  /* 시트·드라이브 반영 상태 (신청서와 같은 방식) */
+  /** 지급 완료 (09-12) — 실제로 이체한 날. 담당자가 적는다 */
+  paidAt?: Timestamp
+  paidBy?: string
+  /** 지급 메모 — 담당자만 본다 (예: 계좌 오류로 재이체) */
+  paidNote?: string
+
+  /* 시트·드라이브 반영 상태 (09-12 · D-65) — 영수증은 드라이브 02_정산,
+     시트는 「정산」 탭 한 줄. 계좌는 나가지 않는다. sheetRowId 가 있으면
+     다음 반영 때 그 줄을 고친다 (재제출·승인·지급 완료가 같은 줄에). */
   driveFolderUrl?: string
   driveSyncError?: string
-  sheetRowId?: number
+  sheetRowId?: number | null
   sheetSyncedAt?: Timestamp
+  driveSyncedAt?: Timestamp
 
   submittedAt?: Timestamp
   createdAt: Timestamp

@@ -70,6 +70,9 @@ const COL = {
   reservations: 'support_reservations',
   reservationSlots: 'support_reservation_slots',
   reservationDays: 'support_reservation_days',
+  // 행정실 전달 기록 — 전체 청소 때만 지운다 (`--only` 때는 남김: 여러 사람 건이 섞여 있다).
+  // 예약 **운영 설정**(support_reservation_settings)은 시험 기록이 아니라 설정이므로 건드리지 않는다.
+  reservationDeliveries: 'support_reservation_deliveries',
 }
 
 /** Storage 에서 통째로 비울 자리 (lib 의 STORAGE_ROOT = 'support') */
@@ -282,6 +285,8 @@ const [appIds, keyIds, settleIds, outputIds, reservationIds, dayKeyIds] = await 
   dayKeyIdsOf(),
 ])
 const slotIds = await slotIdsOf(reservationIds)
+/** 전달 기록 — 전체 청소일 때만. 남겨두면 「지난 전달: 새 요청 N건」이 유령처럼 남는다 */
+const deliveryIds = onlyUids ? [] : (await db.collection(COL.reservationDeliveries).select().get()).docs.map((d) => d.id)
 
 /** Storage 에서 비울 자리 — `--only` 면 그 사람 폴더만 */
 const storageTargets = onlyUids
@@ -345,6 +350,7 @@ line('정산', settleIds.length)
 line('산출물', outputIds.length)
 line('시설 예약 (취소 기록 포함)', reservationIds.length)
 line('예약 자리 잠금 + 하루 열쇠', slotIds.length + dayKeyIds.length)
+if (!onlyUids) line('행정실 전달 기록', deliveryIds.length)
 line('회원 문서', usersToDelete.length)
 line('로그인 계정', accountsToDelete.length)
 if (alsoPrograms && !onlyUids) line('시험용 공고 (test-)', testPrograms.length)
@@ -455,6 +461,10 @@ console.log("②‴ 시설 예약 · 자리 잠금 · 하루 열쇠… (잠금�
 await deleteDocs(COL.reservations, reservationIds)
 await deleteDocs(COL.reservationSlots, slotIds)
 await deleteDocs(COL.reservationDays, dayKeyIds)
+if (deliveryIds.length > 0) {
+  console.log('② 행정실 전달 기록… (예약 운영 설정은 남깁니다)')
+  await deleteDocs(COL.reservationDeliveries, deliveryIds)
+}
 
 console.log('③ 회원 문서…')
 await deleteDocs(COL.users, usersToDelete.map((u) => u.uid))

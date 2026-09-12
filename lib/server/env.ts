@@ -18,6 +18,12 @@ export interface GoogleConfig {
   privateKey: string
   sheetId: string
   driveFolderId: string
+  /**
+   * 영수증이 올라가는 `02_정산` 폴더 (09-12). **선택** — 없으면 정산 연동만
+   * "설정 없음"으로 실패하고 신청서 연동은 그대로 돈다. 폴더 ID 하나를
+   * 못 넣었다고 이미 돌던 연동까지 멈추면 안 되기 때문이다.
+   */
+  settlementFolderId: string | null
 }
 
 export function getGoogleConfig(): GoogleConfig | null {
@@ -26,6 +32,7 @@ export function getGoogleConfig(): GoogleConfig | null {
   const rawKey = process.env.FIREBASE_PRIVATE_KEY
   const sheetId = process.env.SHEET_ID
   const driveFolderId = process.env.DRIVE_FOLDER_ID
+  const settlementFolderId = process.env.DRIVE_SETTLEMENT_FOLDER_ID || null
 
   if (!projectId || !clientEmail || !rawKey || !sheetId || !driveFolderId) {
     return null
@@ -38,5 +45,6 @@ export function getGoogleConfig(): GoogleConfig | null {
     privateKey: rawKey.replace(/\\n/g, '\n'),
     sheetId,
     driveFolderId,
+    settlementFolderId,
   }
 }

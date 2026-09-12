@@ -11,13 +11,16 @@
 
 import 'server-only'
 import { Readable } from 'node:stream'
+import { createHash } from 'node:crypto'
 import { google } from 'googleapis'
 import { getGoogleConfig } from './env'
 import {
   MEMBER_TYPE_LABEL,
+  SETTLEMENT_STATUS_LABEL,
   memberTypeOf,
   identityLine,
   type Application,
+  type Settlement,
 } from '@/lib/types'
 
 const SCOPES = [
@@ -309,4 +312,334 @@ export async function syncApplication(
   const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
 
   return { sheetRow: rowNo, driveUrl: driveUrl || undefined }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   정산 — 영수증 → 드라이브 `02_정산`, 시트 「정산」 탭 한 줄 (09-12 · D-65)
+
+   ⚠️ **계좌(bankInfo)는 여기서 절대 읽지 않는다** (D-38). 아래 열 목록에
+      은행·계좌번호·예금주가 없는 것은 실수가 아니라 결정이다.
+      열을 늘리기 전에 docs/4-기록/02-시트-드라이브-반출-범위.md 를 먼저 고칠 것.
+
+   신청서 연동과 다른 점 둘:
+   ① **다시 돌려도 안전하다.** 정산은 반려 → 수정 → 재제출이 있고, 승인·지급
+      완료로 상태가 바뀐다. 그래서 "한 번 올렸으면 건너뜀"이 아니라, 파일은
+      appProperties(경로 해시) 로 알아보고 건너뛰고, 시트 줄은 **있으면 그 줄을 고친다.**
+   ② 파일이 여러 장이라 **사람마다 폴더**를 만든다:
+        02_정산 / 프로그램명 / 이름 / 01_영수증.jpg …
+      동명이인이 같은 프로그램에 있을 수 있으므로 사람 폴더는 이름이 아니라
+      appProperties 의 정산번호로 찾고, 이름이 겹치면 `이름 (2)` 로 짓는다.
+   ═══════════════════════════════════════════════════════════════ */
+
+const SETTLEMENT_SHEET = '정산'
+
+/** 「정산」 탭 머리글 — 반출 범위 문서 §1′ 과 일치해야 한다 */
+const SETTLEMENT_HEADERS = [
+  '정산번호',
+  '프로그램명',
+  '이름',
+  '제출 일시',
+  '영수증 건수',
+  '드라이브 폴더',
+  '상태(사본)',
+  '지급일',
+]
+
+/** 드라이브 검색문(q)에 넣을 문자열 — 작은따옴표·역슬래시를 이스케이프 */
+function q(v: string): string {
+  return v.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+/** 드라이브·윈도우에서 문제되는 문자 제거 */
+function cleanName(v: string, max = 40): string {
+  return (
+    (v || '')
+      .replace(/[\\/:*?"<>|]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max) || '이름없음'
+  )
+}
+
+type Drive = ReturnType<typeof google.drive>
+
+/** 이름으로 하위 폴더를 찾고 없으면 만든다 (프로그램 폴더용) */
+async function folderByName(drive: Drive, parentId: string, name: string): Promise<string> {
+  const found = await drive.files.list({
+    q:
+      `name = '${q(name)}' and '${parentId}' in parents ` +
+      `and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const hit = found.data.files?.[0]?.id
+  if (hit) return hit
+
+  const res = await drive.files.create({
+    supportsAllDrives: true,
+    requestBody: { name, parents: [parentId], mimeType: 'application/vnd.google-apps.folder' },
+    fields: 'id',
+  })
+  return res.data.id!
+}
+
+/**
+ * 사람(정산 1건) 폴더 — **정산번호로** 찾는다. 동명이인 대비.
+ * 없으면 이름으로 만들되, 같은 이름 폴더가 이미 있으면 `이름 (2)`.
+ */
+async function settlementFolder(
+  drive: Drive,
+  programFolderId: string,
+  st: Settlement
+): Promise<{ id: string; url: string }> {
+  const byId = await drive.files.list({
+    q:
+      `appProperties has { key='settlementId' and value='${q(st.id)}' } ` +
+      `and '${programFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id, webViewLink)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const hit = byId.data.files?.[0]
+  if (hit?.id) return { id: hit.id, url: hit.webViewLink || `https://drive.google.com/drive/folders/${hit.id}` }
+
+  const base = cleanName(st.applicantName || '')
+  const siblings = await drive.files.list({
+    q:
+      `'${programFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' ` +
+      `and name contains '${q(base)}' and trashed = false`,
+    fields: 'files(name)',
+    pageSize: 50,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const taken = new Set((siblings.data.files ?? []).map((f) => f.name || ''))
+  let name = base
+  for (let n = 2; taken.has(name); n++) name = `${base} (${n})`
+
+  const res = await drive.files.create({
+    supportsAllDrives: true,
+    requestBody: {
+      name,
+      parents: [programFolderId],
+      mimeType: 'application/vnd.google-apps.folder',
+      appProperties: { settlementId: st.id },
+    },
+    fields: 'id, webViewLink',
+  })
+  return { id: res.data.id!, url: res.data.webViewLink || `https://drive.google.com/drive/folders/${res.data.id}` }
+}
+
+export interface ReceiptBlob {
+  /** Storage 경로 — 드라이브에서 같은 파일을 알아보는 열쇠 */
+  storagePath: string
+  fileName: string
+  contentType: string
+  data: Buffer
+}
+
+/**
+ * 파일을 알아보는 열쇠 — Storage 경로의 **해시**(40자).
+ *
+ * 경로를 그대로 넣었다가 실패했다(09-12): 구글은 appProperties 를 **키+값 합쳐
+ * 124바이트**로 제한하는데, `support/settlements/{uid}/{정산번호}/{시각}_{한글파일명}`
+ * 은 한글 한 글자가 3바이트라 쉽게 넘는다. 첫 장은 통과하고 둘째 장에서 걸려
+ * "반은 올라간" 상태가 됐다. 해시는 길이가 고정이라 이 문제가 없다.
+ */
+function receiptKey(storagePath: string): string {
+  return createHash('sha1').update(storagePath).digest('hex')
+}
+
+/** 영수증 한 장 — 이미 올라가 있으면 건너뛴다 (경로 해시로 판단) */
+async function uploadReceipt(
+  drive: Drive,
+  folderId: string,
+  index: number,
+  r: ReceiptBlob
+): Promise<'uploaded' | 'exists'> {
+  const key = receiptKey(r.storagePath)
+  const found = await drive.files.list({
+    q:
+      `(appProperties has { key='rk' and value='${key}' } ` +
+      // 09-12 오전에 올라간 파일은 옛 방식(경로 그대로)이라 그것도 알아본다
+      `or appProperties has { key='storagePath' and value='${q(r.storagePath)}' }) ` +
+      `and '${folderId}' in parents and trashed = false`,
+    fields: 'files(id)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  if (found.data.files?.[0]) return 'exists'
+
+  await drive.files.create({
+    supportsAllDrives: true,
+    requestBody: {
+      // 01_영수증.jpg — 제출 순서대로 번호를 붙여 폴더에서 순서가 보이게
+      name: `${String(index + 1).padStart(2, '0')}_${cleanName(r.fileName, 80)}`,
+      parents: [folderId],
+      mimeType: r.contentType,
+      appProperties: { rk: key },
+    },
+    media: { mimeType: r.contentType, body: Readable.from(r.data) },
+    fields: 'id',
+  })
+  return 'uploaded'
+}
+
+/** 사람 폴더 안에서 현재 목록에 없는 영수증(이 앱이 올린 것만)을 휴지통으로 */
+async function trashStaleReceipts(drive: Drive, folderId: string, current: ReceiptBlob[]) {
+  const keys = new Set(current.map((r) => receiptKey(r.storagePath)))
+  const paths = new Set(current.map((r) => r.storagePath))
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
+    fields: 'files(id, appProperties)',
+    pageSize: 100,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  for (const f of res.data.files ?? []) {
+    const ap = f.appProperties ?? {}
+    // 이 앱이 올린 표시(rk 또는 옛 storagePath)가 없는 파일은 사람이 넣은 것 — 건드리지 않는다
+    if (!ap.rk && !ap.storagePath) continue
+    if ((ap.rk && keys.has(ap.rk)) || (ap.storagePath && paths.has(ap.storagePath))) continue
+    await drive.files.update({
+      fileId: f.id!,
+      supportsAllDrives: true,
+      requestBody: { trashed: true },
+    })
+  }
+}
+
+/** 「정산」 탭이 없으면 만들고, 머리글이 비어 있으면 넣는다 */
+async function ensureSettlementSheet(
+  sheets: ReturnType<typeof google.sheets>,
+  sheetId: string
+) {
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: sheetId,
+    fields: 'sheets.properties.title',
+  })
+  const exists = (meta.data.sheets ?? []).some((s) => s.properties?.title === SETTLEMENT_SHEET)
+  if (!exists) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { requests: [{ addSheet: { properties: { title: SETTLEMENT_SHEET } } }] },
+    })
+  }
+
+  const head = await sheets.spreadsheets.values.get({
+    spreadsheetId: sheetId,
+    range: `'${SETTLEMENT_SHEET}'!A1:H1`,
+  })
+  if (head.data.values?.[0]?.length) return
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: sheetId,
+    range: `'${SETTLEMENT_SHEET}'!A1`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [SETTLEMENT_HEADERS] },
+  })
+}
+
+/** 지급일 — `2026-09-12` (한국 날짜). 시각은 의미 없어 뺀다 */
+function seoulDate(d: Date | undefined): string {
+  if (!d) return ''
+  const p = seoulParts(d)
+  return `${p.year}-${p.month}-${p.day}`
+}
+
+export interface SettlementSyncResult {
+  skipped?: true
+  sheetRow?: number
+  driveUrl?: string
+  uploaded: number
+}
+
+/**
+ * 정산 1건을 드라이브·시트에 반영한다. **몇 번 돌려도 결과가 같다.**
+ *
+ * `DRIVE_SETTLEMENT_FOLDER_ID` 가 없으면 오류로 알린다 — 조용히 건너뛰면
+ * 담당자는 "영수증이 왜 드라이브에 없지?"를 알 길이 없다. (연동 자체가
+ * 설정되지 않은 경우만 신청서와 같이 건너뛴다.)
+ */
+export async function syncSettlement(
+  st: Settlement,
+  receipts: ReceiptBlob[]
+): Promise<SettlementSyncResult> {
+  const c = clients()
+  if (!c) return { skipped: true, uploaded: 0 }
+  const { cfg, sheets, drive } = c
+
+  if (!cfg.settlementFolderId) {
+    throw new Error(
+      '[설정 없음] 영수증 폴더 DRIVE_SETTLEMENT_FOLDER_ID 가 없습니다. ' +
+        '공유 드라이브 02_정산 폴더 ID 를 Vercel 환경변수에 넣어 주세요.'
+    )
+  }
+
+  // ── 드라이브: 02_정산 / 프로그램 / 사람 / 파일 ─────────────────
+  const program = cleanName(st.programTitle || st.programId)
+  const programFolder = await step('드라이브 폴더 · DRIVE_SETTLEMENT_FOLDER_ID 확인', () =>
+    folderByName(drive, cfg.settlementFolderId!, program)
+  )
+  const person = await step('드라이브 사람 폴더', () =>
+    settlementFolder(drive, programFolder, st)
+  )
+  let uploaded = 0
+  for (let i = 0; i < receipts.length; i++) {
+    const r = await step(`영수증 업로드 ${i + 1}/${receipts.length}`, () =>
+      uploadReceipt(drive, person.id, i, receipts[i])
+    )
+    if (r === 'uploaded') uploaded++
+  }
+  // 재제출 때 신청자가 뺀 영수증 — 드라이브 사본을 휴지통으로 (09-12).
+  // 원본 목록에 없는 파일이 드라이브에만 남으면 담당자가 낸 적 없는 영수증을 본다.
+  await step('뺀 영수증 정리', () => trashStaleReceipts(drive, person.id, receipts))
+
+  // ── 시트: 「정산」 탭 ────────────────────────────────────────
+  await step('시트 「정산」 탭 · SHEET_ID 확인', () =>
+    ensureSettlementSheet(sheets, cfg.sheetId)
+  )
+
+  const row = [
+    st.id,
+    st.programTitle || st.programId,
+    st.applicantName || '',
+    seoulStamp(st.submittedAt?.toDate?.()),
+    String(st.receipts?.length ?? 0),
+    person.url,
+    SETTLEMENT_STATUS_LABEL[st.status] ?? st.status,
+    seoulDate(st.paidAt?.toDate?.()),
+  ]
+
+  // 이미 줄이 있으면 **그 줄을 고친다** — 재제출·승인·지급 완료가 같은 줄에 반영되게
+  const existing = Number(st.sheetRowId) || 0
+  if (existing > 1) {
+    await step('시트 줄 갱신', () =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId: cfg.sheetId,
+        range: `'${SETTLEMENT_SHEET}'!A${existing}:H${existing}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      })
+    )
+    return { sheetRow: existing, driveUrl: person.url, uploaded }
+  }
+
+  const appended = await step('시트에 줄 추가', () =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId: cfg.sheetId,
+      range: `'${SETTLEMENT_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    })
+  )
+  const updated = appended.data.updates?.updatedRange || ''
+  const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
+
+  return { sheetRow: rowNo, driveUrl: person.url, uploaded }
 }
