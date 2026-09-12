@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "rules": "firebase deploy --only firestore:rules,storage",
+    "rules:check": "firebase deploy --only firestore:rules,storage --dry-run"
   },
   "dependencies": {
     "clsx": "^2.1.1",
