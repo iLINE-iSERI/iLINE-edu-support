@@ -22,7 +22,7 @@ import StatusBanner from './StatusBanner'
 import WeekGrid, { type GridSelection } from './WeekGrid'
 import SeatPicker from './SeatPicker'
 import ReservationCard, { timeRange } from './ReservationCard'
-import { VENUES, venueOf, maxHoursFrom, hourLabel, seatLabel } from '@/lib/config/venues'
+import { VENUES, venueOf, venueLabel, maxHoursFrom, hourLabel, seatLabel } from '@/lib/config/venues'
 import { computeWindow, longDate, type ReservationWindow } from '@/lib/reservations/window'
 import {
   getReservationSettings,
@@ -256,7 +256,7 @@ export default function ReserveFlow() {
         <dl className="grid grid-cols-[6rem_1fr] gap-y-2 rounded-2xl border border-line bg-surface p-5 text-sm">
           <dt className="text-ink-muted">공간</dt>
           <dd className="font-semibold">
-            {venue.name} · {seatLabel(venueCode, seat)}
+            {venueLabel(venueCode)} · {seatLabel(venueCode, seat)}
           </dd>
           <dt className="text-ink-muted">일시</dt>
           <dd className="font-semibold">
@@ -350,6 +350,7 @@ export default function ReserveFlow() {
                 }
               >
                 <p className="font-bold">{v.name}</p>
+                {v.room && <p className="text-xs text-ink-muted">{v.room}</p>}
                 <p className="mt-0.5 text-xs text-ink-muted">{v.summary}</p>
                 <p className="mt-1 text-xs text-ink-subtle">{v.description}</p>
               </button>

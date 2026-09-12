@@ -19,7 +19,7 @@ import {
   staffCancelReservation,
 } from '@/lib/firebase/reservationsStaff'
 import { actionErrorMessage, firestoreErrorMessage } from '@/lib/firebase/errors'
-import { VENUES, seatLabel, hourLabel } from '@/lib/config/venues'
+import { VENUES, venueLabel, seatLabel, hourLabel } from '@/lib/config/venues'
 import { toYmd, addDays, mondayOf, shortDate, longDate } from '@/lib/reservations/window'
 import { RESERVATION_STATUS_LABEL, type Reservation } from '@/lib/types'
 
@@ -152,7 +152,7 @@ function Content() {
                   if (items.length === 0) return null
                   return (
                     <div key={v.code} className="rounded-2xl border border-line bg-surface p-5">
-                      <p className="font-bold">{v.name} <span className="ml-1 text-sm font-normal text-ink-muted">{items.length}건</span></p>
+                      <p className="font-bold">{venueLabel(v.code)} <span className="ml-1 text-sm font-normal text-ink-muted">{items.length}건</span></p>
                       <ul className="mt-2 divide-y divide-line text-sm">
                         {items.map((r) => (
                           <li key={r.id} className="py-2">

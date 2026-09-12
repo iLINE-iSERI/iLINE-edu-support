@@ -342,7 +342,7 @@ function StaffProgramsContent() {
               href="/staff"
               className="font-semibold text-ink-muted underline underline-offset-2"
             >
-              ← 신청 관리
+              ← 관리
             </Link>
             <Link
               href="/staff/notices"

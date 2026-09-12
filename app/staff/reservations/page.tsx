@@ -6,10 +6,12 @@
  * 목요일에 담당자가 여는 화면. 손으로 정리하지 않아도 되게 만드는 것이 전부다.
  *   ■ 새 사용 요청 — 아직 안 보낸 접수 건 전부 (다음 주 것도, 3주 뒤 것도)
  *   ■ 취소        — 지난번에 보낸 것 중 회원이 취소한 것
- * [복사]는 메일에 그대로 붙일 글자. [전달 완료]는 **화면에 떠 있던 건만** 확정.
+ * 행정실에 어떻게 전달할지(메일·구두·인쇄)는 운영진이 정한다(09-12 iSERI) —
+ * 그래서 이 화면은 **정돈된 목록과 [인쇄]만** 두고, 메일용 복사 같은 기능은 두지 않는다.
+ * [전달 완료]는 **화면에 떠 있던 건만** 확정.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import MemberGate from '@/components/auth/MemberGate'
 import EmptyState from '@/components/ui/EmptyState'
 import { useAuth } from '@/components/auth/AuthProvider'
@@ -20,7 +22,7 @@ import {
   type DeliveryList,
 } from '@/lib/firebase/reservationsStaff'
 import { actionErrorMessage, firestoreErrorMessage } from '@/lib/firebase/errors'
-import { VENUES, seatLabel, hourLabel } from '@/lib/config/venues'
+import { VENUES, venueLabel, seatLabel, hourLabel } from '@/lib/config/venues'
 import { shortDate } from '@/lib/reservations/window'
 import type { Reservation, ReservationDelivery } from '@/lib/types'
 
@@ -30,22 +32,6 @@ export default function DeliveryPage() {
       <Content />
     </MemberGate>
   )
-}
-
-/** 명단 한 줄 — 화면과 복사 글자가 같은 함수를 쓴다 */
-function lineOf(r: Reservation): string {
-  const a = r.applicant
-  const who = r.source === 'staff' ? `${r.displayName ?? a.name} (담당자 추가)` : a.name
-  const org = [a.affiliation, a.major].filter(Boolean).join(' ')
-  return [
-    `${shortDate(r.date)} ${hourLabel(r.startHour)}~${hourLabel(r.startHour + r.hours)}`,
-    seatLabel(r.venue, r.seat),
-    who,
-    org,
-    a.phone,
-  ]
-    .filter(Boolean)
-    .join('  ')
 }
 
 function groupByVenue(list: Reservation[]) {
@@ -66,7 +52,6 @@ function Content() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
-  const [copied, setCopied] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -82,42 +67,6 @@ function Content() {
   useEffect(() => {
     void load()
   }, [load])
-
-  const text = useMemo(() => {
-    if (!data) return ''
-    const today = new Date()
-    const lines: string[] = [
-      `사범대학 공부실 사용 요청 — ${today.getMonth() + 1}/${today.getDate()} 전달`,
-      '',
-    ]
-    if (data.fresh.length > 0) {
-      lines.push(`■ 새 사용 요청 (${data.fresh.length}건)`)
-      groupByVenue(data.fresh).forEach((g) => {
-        lines.push('', `[${g.venue.name}]`)
-        g.items.forEach((r) => lines.push('  ' + lineOf(r)))
-      })
-    }
-    if (data.cancelled.length > 0) {
-      lines.push('', `■ 취소 (${data.cancelled.length}건) — 지난번에 보낸 것 중 취소됨`)
-      groupByVenue(data.cancelled).forEach((g) => {
-        lines.push('', `[${g.venue.name}]`)
-        g.items.forEach((r) =>
-          lines.push('  ' + lineOf(r) + (deliveredLabel(r) ? `  (${deliveredLabel(r)})` : ''))
-        )
-      })
-    }
-    return lines.join('\n')
-  }, [data])
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setActionError('복사하지 못했습니다. 아래 글자를 직접 드래그해 복사해 주세요.')
-    }
-  }
 
   const deliver = async () => {
     if (!data || !user) return
@@ -210,7 +159,7 @@ function Content() {
         ) : total === 0 ? (
           <EmptyState
             title="지난 전달 이후 새 요청·취소가 없습니다"
-            desc="보낼 것이 없습니다. 빈 메일을 보내지 않아도 됩니다."
+            desc="보낼 것이 없습니다."
           />
         ) : (
           <>
@@ -219,13 +168,6 @@ function Content() {
                 이번 전달 — 새 요청 {data.fresh.length} · 취소 {data.cancelled.length}
               </h2>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={copy}
-                  className="touch-target rounded-xl border border-line-strong px-4 text-sm font-semibold hover:bg-subtle"
-                >
-                  {copied ? '복사됨 ✓' : '메일용 글자 복사'}
-                </button>
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -239,7 +181,7 @@ function Content() {
             {data.fresh.length > 0 && (
               <Section title={`■ 새 사용 요청 (${data.fresh.length}건)`}>
                 {groupByVenue(data.fresh).map((g) => (
-                  <VenueBlock key={g.venue.code} name={g.venue.name} items={g.items} />
+                  <VenueBlock key={g.venue.code} name={venueLabel(g.venue.code)} items={g.items} />
                 ))}
               </Section>
             )}
@@ -247,7 +189,7 @@ function Content() {
             {data.cancelled.length > 0 && (
               <Section title={`■ 취소 (${data.cancelled.length}건) — 지난번에 보낸 것 중 취소됨`}>
                 {groupByVenue(data.cancelled).map((g) => (
-                  <VenueBlock key={g.venue.code} name={g.venue.name} items={g.items} showDelivered />
+                  <VenueBlock key={g.venue.code} name={venueLabel(g.venue.code)} items={g.items} showDelivered />
                 ))}
               </Section>
             )}
@@ -268,11 +210,6 @@ function Content() {
               </button>
             </div>
 
-            {/* 복사 실패 시 대비 — 같은 글자를 화면에도 둔다 */}
-            <details className="print:hidden">
-              <summary className="cursor-pointer text-sm text-ink-subtle">메일용 글자 미리보기</summary>
-              <pre className="mt-2 overflow-x-auto rounded-xl bg-subtle p-4 text-xs leading-relaxed">{text}</pre>
-            </details>
           </>
         )}
       </div>

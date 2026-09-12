@@ -110,8 +110,8 @@ function StaffContent() {
   return (
     <>
       <PageHeader
-        title="신청 관리"
-        description="상태를 바꾸고 사유를 남깁니다. 목록 정리와 집계는 구글 스프레드시트에서 하세요."
+        title="관리"
+        description="신청 목록입니다 — 상태를 바꾸고 사유를 남깁니다. 프로그램·공지·정산·예약 관리는 아래 버튼으로. 목록 정리와 집계는 구글 스프레드시트에서 하세요."
       />
 
       <div className="container-page space-y-6 py-8">

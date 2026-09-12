@@ -94,7 +94,7 @@ export default function Header() {
                 href="/staff"
                 className="rounded-lg px-3 py-2 text-sm font-semibold text-ink-muted hover:bg-subtle"
               >
-                신청 관리
+                관리
               </Link>
             )}
             {checking ? (
@@ -230,7 +230,7 @@ export default function Header() {
                 onClick={() => setOpen(false)}
                 className="flex items-center rounded-lg px-3 py-3 text-base font-bold text-brand-600 dark:text-brand-300"
               >
-                신청 관리
+                관리
               </Link>
             )}
             {NAV.map((item) => (

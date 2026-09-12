@@ -16,6 +16,11 @@ export interface Venue {
   name: string
   /** 자리를 부르는 말 — '랩실' · '좌석' · '테이블' */
   unit: string
+  /**
+   * 사범대학 몇 호실인지 — 🔴 **아직 모름** (iSERI 가 추후 알려주기로, 09-12).
+   * 값이 들어오면 화면·명단에 자동으로 붙는다 (`venueLabel`).
+   */
+  room?: string
   /** 자리 번호 목록 — 예약 문서의 `seat` 값 그대로 */
   seats: string[]
   /** 한 자리당 인원 (안내용) */
@@ -69,6 +74,12 @@ export const VENUES: Venue[] = [
     description: '팀 프로젝트, 토론, 발표 연습',
   },
 ]
+
+/** 공간 이름 + 호실 — '개인·협업 학습실 (사범대 2호관 305호)'. 호실이 없으면 이름만 */
+export function venueLabel(code: VenueCode): string {
+  const v = venueOf(code)
+  return v.room ? `${v.name} (${v.room})` : v.name
+}
 
 export function venueOf(code: VenueCode): Venue {
   const v = VENUES.find((x) => x.code === code)

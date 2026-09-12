@@ -8,7 +8,7 @@
  * 함께 적어 준다.
  */
 
-import { seatLabel, venueOf, hourLabel } from '@/lib/config/venues'
+import { seatLabel, venueLabel, hourLabel } from '@/lib/config/venues'
 import { longDate, shortDate } from '@/lib/reservations/window'
 import { RESERVATION_STATUS_LABEL, type Reservation } from '@/lib/types'
 
@@ -32,7 +32,6 @@ export default function ReservationCard({
   deliverDate?: string
   action?: React.ReactNode
 }) {
-  const venue = venueOf(r.venue)
   const dim = r.status === 'cancelled'
 
   return (
@@ -55,7 +54,7 @@ export default function ReservationCard({
       </div>
 
       <p className="mt-2 font-bold">
-        {venue.name} · {seatLabel(r.venue, r.seat)}
+        {venueLabel(r.venue)} · {seatLabel(r.venue, r.seat)}
       </p>
       <p className="mt-0.5 text-sm text-ink-muted">
         {longDate(r.date)} {timeRange(r)}

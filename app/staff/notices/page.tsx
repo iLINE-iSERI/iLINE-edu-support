@@ -154,7 +154,7 @@ function StaffNoticesContent() {
             href="/staff"
             className="text-sm font-semibold text-ink-muted underline underline-offset-2"
           >
-            ← 신청 관리
+            ← 관리
           </Link>
           {editingId === null && (
             <button
