@@ -655,8 +655,31 @@ export interface Reservation {
   deliveredAt?: Timestamp
   deliveryId?: string
   cancelledAt?: Timestamp
-  /** 확정 뒤 취소된 것을 행정실에 알린 시각 (2단계 명단의 「취소」 묶음) */
+  /**
+   * **확정된 뒤** 취소되어 행정실에 아직 알리지 않은 것 — 명단의 「취소」 묶음이
+   * 이 값으로 조회된다(설계 §5-5). 취소 시 `이전 상태 == confirmed` 로 정해지며
+   * 규칙이 그 값을 검사한다. 전달 완료 뒤 false 로 바뀐다.
+   */
+  cancelNoticePending?: boolean
+  /** 확정 뒤 취소된 것을 행정실에 알린 시각 */
   cancelDeliveredAt?: Timestamp
+  cancelDeliveryId?: string
+}
+
+/**
+ * 행정실 전달 한 번 = 문서 하나 — support_reservation_deliveries/{id}
+ * (설계 §5-5). "지난 전달: 9/10(목)" 표시와 **되돌리기**가 이 문서 하나로 된다.
+ */
+export interface ReservationDelivery {
+  id: string
+  deliveredAt: Timestamp
+  byUid: string
+  /** 새 요청으로 보낸 예약 ID */
+  newIds: string[]
+  /** 취소로 알린 예약 ID */
+  cancelIds: string[]
+  /** 되돌린 시각 — 있으면 이 전달은 무효 */
+  undoneAt?: Timestamp
 }
 
 /**

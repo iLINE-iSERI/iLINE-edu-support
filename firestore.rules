@@ -273,7 +273,9 @@ service cloud.firestore {
       // 시간 규칙(정시·최대 2시간·운영 시간 안)은 여기서도 막는다.
       // 날짜 범위(4주·마감 요일)는 설정 문서를 읽어 요일 계산까지 해야 해서
       // 규칙이 너무 복잡해진다 — 화면과 lib 가 맡고, 규칙은 형식만 본다.
-      allow create: if isMember()
+      // 담당자 직접 추가(D-53 ⑥)는 마감·1건·2시간·주말을 **무시**하므로 조건 없음.
+      allow create: if isStaff()
+        || (isMember()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'received'
         && request.resource.data.source == 'member'
@@ -284,7 +286,7 @@ service cloud.firestore {
         && request.resource.data.hours is int
         && request.resource.data.hours >= 1 && request.resource.data.hours <= 2
         && request.resource.data.startHour >= 9
-        && request.resource.data.startHour + request.resource.data.hours <= 18;
+        && request.resource.data.startHour + request.resource.data.hours <= 18);
 
       // 본인 취소 — 바꿀 수 있는 칸 세 개로 못 박는다 (D-48 방식).
       // 확정된 것도 취소할 수 있다(D-55). 이용일 당일·지난 뒤는 화면이 막고,
@@ -294,8 +296,12 @@ service cloud.firestore {
             && resource.data.uid == request.auth.uid
             && resource.data.status in ['received', 'confirmed']
             && request.resource.data.status == 'cancelled'
+            // 확정된 것을 취소하면 행정실에 알려야 한다 — 그 표시를 본인이
+            // 거짓으로 못 넣게 이전 상태와 맞는지 본다 (설계 §5-5)
+            && request.resource.data.cancelNoticePending
+                 == (resource.data.status == 'confirmed')
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'cancelledAt', 'updatedAt']));
+                 .hasOnly(['status', 'cancelledAt', 'cancelNoticePending', 'updatedAt']));
 
       allow delete: if false;
     }
@@ -311,14 +317,15 @@ service cloud.firestore {
       // ID 가 내용과 맞아야 한다 — 맞지 않으면 다른 자리를 잠그는 데 쓰인다.
       // 그리고 같은 묶음 안의 예약 문서가 **본인 것**이어야 한다(getAfter).
       // 이게 없으면 예약 없이 슬롯만 만들어 자리를 막아둘 수 있다.
-      allow create: if isMember()
+      allow create: if isStaff()
+        || (isMember()
         && slotId == request.resource.data.venue + '_' + request.resource.data.seat
              + '_' + request.resource.data.date.replace('-', '')
              + '_' + (request.resource.data.hour < 10
                         ? '0' + string(request.resource.data.hour)
                         : string(request.resource.data.hour))
         && getAfter(/databases/$(database)/documents/support_reservations/$(request.resource.data.reservationId)).data.uid
-             == request.auth.uid;
+             == request.auth.uid);
 
       allow update: if false;
 

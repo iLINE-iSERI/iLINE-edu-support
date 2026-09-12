@@ -28,8 +28,9 @@ export default function StatusBanner({ win }: { win: ReservationWindow }) {
         사범대학 행정실로 전달되어 확정됩니다.
       </p>
       <p className="mt-3 border-t border-brand-200/60 pt-3 text-ink-muted dark:border-brand-800">
-        그 전에 쓰셔야 하거나 주말·18시 이후에 쓰시려면 사이트에서는 신청할
-        수 없지만, 문의하시면 가능한 경우가 있습니다 —{' '}
+        그 전에 쓰셔야 하거나, 주말·18시 이후에 쓰시거나, <strong className="text-ink">이용 당일에
+        시간을 더</strong> 쓰고 싶으실 때는 사이트에서 신청할 수 없지만, 문의하시면
+        가능한 경우가 있습니다 —{' '}
         <ContactLine />
       </p>
     </div>

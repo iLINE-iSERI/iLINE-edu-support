@@ -311,10 +311,13 @@ export async function cancelMyReservation(r: Reservation): Promise<void> {
 
   const db = getDb()
   const batch = writeBatch(db)
-  // ⚠️ 규칙이 바꿀 수 있는 칸을 세 개로 제한한다
+  // ⚠️ 규칙이 바꿀 수 있는 칸을 네 개로 제한한다.
+  //    cancelNoticePending — 확정된 것을 취소하면 행정실에 알려야 하므로 true.
+  //    규칙이 "이전 상태가 confirmed 였는가"와 같은지 검사한다.
   batch.update(doc(db, COL.reservations, r.id), {
     status: 'cancelled',
     cancelledAt: serverTimestamp(),
+    cancelNoticePending: r.status === 'confirmed',
     updatedAt: serverTimestamp(),
   })
   for (let h = r.startHour; h < r.startHour + r.hours; h++) {

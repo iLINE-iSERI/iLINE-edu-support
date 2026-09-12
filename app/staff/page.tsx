@@ -136,6 +136,12 @@ function StaffContent() {
           >
             정산 관리 →
           </Link>
+          <Link
+            href="/staff/reservations"
+            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+          >
+            예약 관리 →
+          </Link>
         </div>
 
         {/* 필터 */}
