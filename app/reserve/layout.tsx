@@ -21,7 +21,7 @@ export default function ReserveLayout({ children }: { children: React.ReactNode 
     <>
       <PageHeader
         title="시설 예약"
-        description="지원사업 회원은 사범대학 공부실(미디어랩 · 개인 좌석 · 그룹 스터디룸)을 예약할 수 있습니다. 평일 09:00~18:00, 공간마다 하루 한 건, 한 번에 최대 2시간."
+        description="지원사업 회원은 사범대학 2호관 공부실 세 곳(개인학습실 2316 · 미디어·블렌디드 2317 · 그룹 스터디룸 2319)을 예약할 수 있습니다. 평일 09:00~18:00, 공간마다 하루 한 건, 한 번에 최대 2시간."
       />
       <SubNav items={ITEMS} />
       {children}

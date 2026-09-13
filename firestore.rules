@@ -279,6 +279,7 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'received'
         && request.resource.data.source == 'member'
+        // 회원이 잡을 수 있는 세 곳만 — 단체대관용 HY(2334)는 담당자 직접 추가로만 (D-66)
         && request.resource.data.venue in ['ML', 'ST', 'GR']
         && request.resource.data.date is string
         && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')

@@ -22,7 +22,8 @@ import StatusBanner from './StatusBanner'
 import WeekGrid, { type GridSelection } from './WeekGrid'
 import SeatPicker from './SeatPicker'
 import ReservationCard, { timeRange } from './ReservationCard'
-import { VENUES, venueOf, venueLabel, maxHoursFrom, hourLabel, seatLabel } from '@/lib/config/venues'
+import { VENUES, MEMBER_VENUES, BUILDING, venueOf, venueLabel, maxHoursFrom, hourLabel, seatLabel } from '@/lib/config/venues'
+import { SITE } from '@/lib/config/site'
 import { computeWindow, longDate, type ReservationWindow } from '@/lib/reservations/window'
 import {
   getReservationSettings,
@@ -43,7 +44,7 @@ export default function ReserveFlow() {
   const [win, setWin] = useState<ReservationWindow | null>(null)
   const [loadError, setLoadError] = useState('')
 
-  const [venueCode, setVenueCode] = useState<VenueCode>(VENUES[0].code)
+  const [venueCode, setVenueCode] = useState<VenueCode>(MEMBER_VENUES[0].code)
   const [weekIdx, setWeekIdx] = useState(0)
   const [occupancy, setOccupancy] = useState<Map<string, Set<string>>>(new Map())
   const [occLoading, setOccLoading] = useState(false)
@@ -329,10 +330,11 @@ export default function ReserveFlow() {
         </p>
       )}
 
-      {/* ② 공간 */}
+      {/* ② 공간 — 카드는 가볍게(분류 + 한 줄), 위치·용도는 고른 뒤 아래에 (09-13 iSERI).
+          단체대관용(2334)도 카드로 보여 준다 — 고르면 예약 대신 문의 안내 (D-66) */}
       <section>
         <h2 className="text-base font-bold">1. 공간</h2>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3" role="tablist" aria-label="공간">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist" aria-label="공간">
           {VENUES.map((v) => {
             const on = v.code === venueCode
             return (
@@ -349,17 +351,36 @@ export default function ReserveFlow() {
                     : 'border-line bg-surface hover:bg-subtle')
                 }
               >
-                <p className="font-bold">{v.name}</p>
-                {v.room && <p className="text-xs text-ink-muted">{v.room}</p>}
+                <p className="font-bold">{v.category}</p>
                 <p className="mt-0.5 text-xs text-ink-muted">{v.summary}</p>
-                <p className="mt-1 text-xs text-ink-subtle">{v.description}</p>
               </button>
             )
           })}
         </div>
+        {/* 고른 공간의 위치와 용도 — 카드 안에 넣으면 꽉 차서, 한 줄로 아래에 */}
+        <p className="mt-3 rounded-lg bg-subtle px-3 py-2 text-sm">
+          <span aria-hidden>📍</span> <strong>{BUILDING} {venue.room} {venue.name}</strong>
+          <span className="text-ink-muted"> · {venue.description}</span>
+        </p>
       </section>
 
+      {/* 단체대관용은 사이트에서 예약받지 않는다 — 문의 안내로 끝 (D-53 · D-66) */}
+      {venue.staffOnly && (
+        <section className="rounded-2xl border border-brand-200 bg-brand-50 p-5 text-sm leading-relaxed dark:border-brand-800 dark:bg-brand-900/30">
+          <p className="font-bold">단체 이용은 문의로 받습니다</p>
+          <p className="mt-1 text-ink-muted">
+            날짜와 시간, 예상 인원, 이용 목적, 대표자 연락처를 적어 아래로 보내 주시면
+            담당자가 확인 뒤 회신합니다.
+          </p>
+          <p className="mt-2 font-semibold">
+            ☎ {SITE.contact.phone} ·{' '}
+            <a className="underline" href={`mailto:${SITE.contact.email}`}>{SITE.contact.email}</a>
+          </p>
+        </section>
+      )}
+
       {/* ③ 날짜·시각 */}
+      {!venue.staffOnly && (
       <section>
         <h2 className="text-base font-bold">
           2. 날짜와 시작 시각
@@ -384,9 +405,10 @@ export default function ReserveFlow() {
           />
         </div>
       </section>
+      )}
 
       {/* ④ 길이 · ⑤ 자리 */}
-      {sel && (
+      {!venue.staffOnly && sel && (
         <section className="space-y-6 rounded-2xl border border-line bg-surface p-5">
           <div>
             <h2 className="text-base font-bold">

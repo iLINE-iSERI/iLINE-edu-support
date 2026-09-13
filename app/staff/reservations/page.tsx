@@ -22,7 +22,7 @@ import {
   type DeliveryList,
 } from '@/lib/firebase/reservationsStaff'
 import { actionErrorMessage, firestoreErrorMessage } from '@/lib/firebase/errors'
-import { VENUES, venueLabel, seatLabel, hourLabel } from '@/lib/config/venues'
+import { VENUES, venueFullLabel, seatLabel, hourLabel } from '@/lib/config/venues'
 import { shortDate } from '@/lib/reservations/window'
 import type { Reservation, ReservationDelivery } from '@/lib/types'
 
@@ -181,7 +181,7 @@ function Content() {
             {data.fresh.length > 0 && (
               <Section title={`■ 새 사용 요청 (${data.fresh.length}건)`}>
                 {groupByVenue(data.fresh).map((g) => (
-                  <VenueBlock key={g.venue.code} name={venueLabel(g.venue.code)} items={g.items} />
+                  <VenueBlock key={g.venue.code} name={venueFullLabel(g.venue.code)} items={g.items} />
                 ))}
               </Section>
             )}
@@ -189,7 +189,7 @@ function Content() {
             {data.cancelled.length > 0 && (
               <Section title={`■ 취소 (${data.cancelled.length}건) — 지난번에 보낸 것 중 취소됨`}>
                 {groupByVenue(data.cancelled).map((g) => (
-                  <VenueBlock key={g.venue.code} name={venueLabel(g.venue.code)} items={g.items} showDelivered />
+                  <VenueBlock key={g.venue.code} name={venueFullLabel(g.venue.code)} items={g.items} showDelivered />
                 ))}
               </Section>
             )}

@@ -20,7 +20,7 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import { staffAddReservations } from '@/lib/firebase/reservationsStaff'
 import { loadOccupancy } from '@/lib/firebase/reservations'
 import { actionErrorMessage } from '@/lib/firebase/errors'
-import { VENUES, venueOf, seatLabel, hourLabel } from '@/lib/config/venues'
+import { VENUES, venueOf, venueLabel, seatLabel, hourLabel } from '@/lib/config/venues'
 import { toYmd, longDate } from '@/lib/reservations/window'
 import type { VenueCode } from '@/lib/types'
 
@@ -90,7 +90,7 @@ function Content() {
         { venue: venueCode, seats, date, startHour, endHour, displayName, phone, note, confirmed },
         user.uid
       )
-      setDone(`${longDate(date)} ${hourLabel(startHour)}~${hourLabel(endHour)} · ${venue.name} ${n}자리를 넣었습니다.`)
+      setDone(`${longDate(date)} ${hourLabel(startHour)}~${hourLabel(endHour)} · ${venueLabel(venueCode)} ${n}자리를 넣었습니다.`)
       setSeats([])
     } catch (err) {
       console.error('[iLINE] 직접 추가 실패:', err)
@@ -125,11 +125,13 @@ function Content() {
         {/* 공간 */}
         <fieldset>
           <legend className="text-sm font-bold">공간</legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {/* 담당자는 단체대관용(2334)까지 네 곳 전부 — 회원 화면에는 셋만 (D-66) */}
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {VENUES.map((v) => (
               <label key={v.code} className={'cursor-pointer rounded-xl border p-3 text-sm ' + (venueCode === v.code ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'border-line bg-surface')}>
                 <input type="radio" name="venue" className="sr-only" checked={venueCode === v.code} onChange={() => { setVenueCode(v.code); setSeats([]) }} />
-                <span className="font-bold">{v.name}</span>
+                <span className="block text-xs text-ink-subtle">{v.category}{v.staffOnly ? ' · 담당자만' : ''}</span>
+                <span className="font-bold">{v.room} {v.name}</span>
                 <span className="block text-xs text-ink-muted">{v.summary}</span>
               </label>
             ))}
