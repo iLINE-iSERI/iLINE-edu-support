@@ -7,18 +7,25 @@ export const metadata = { title: '사업소개' }
  * 사업소개 (D-13 · 대메뉴 1 · D-70 문안 확정)
  *
  * 09-14 iSERI 가 준 「AI 기본교육 비전 및 추진 체계」(사업계획서 1-1-3 가.)를
- * 바탕으로 문안을 짰다. 기준(iSERI 검수):
+ * 바탕으로 문안을 짰다. 기준(iSERI 검수, 같은 날 2차 수정까지):
  *   · 계획서는 **방향성**이다. 수행과제 칸의 AI-TCA·AI-Insight 같은 이름은
  *     프로그램이 아니라 **카테고리**라, 여기 적지 않는다. 실제 프로그램은
  *     그 안에서 해마다 만들어지고 **공고**가 안내한다.
  *   · 그래서 "어떤 활동을 하나요" · 지원 내용(활동비 등) · 추진 일정은 **두지
  *     않는다** — 프로그램마다 다른 것을 전반적 소개에 담지 않는다.
- *   · 소제목은 계획서 용어(비전 · 인재상 · 추진 방향 · 협력체계)를 그대로 쓴다 —
+ *   · 소제목은 계획서 용어(비전 · 인재상 · 목표 · 협력체계)를 그대로 쓴다 —
  *     사범대학 문서·공고와 같은 말이어야 같은 사업으로 읽힌다.
- *   · 인재상 문장은 계획서 그대로. 손대지 않는다.
+ *     계획서의 「추진방향」 대신 「목표」를 싣는다 — 인재상(포용·도전·소통)과
+ *     짝이 맞아 화면이 한 줄기로 읽힌다 (iSERI 09-14).
+ *   · 인재상·목표 문장은 계획서 그대로. 손대지 않는다.
  *   · 성과지표 · 위원회 · 산업체 · 교과목 개발 세부는 내부·평가용이라 뺀다.
- *   · 사업의 **지원 대상은 예비교원**이다. 프로그램별 신청 자격은 필요에 따라
- *     일반 회원 등으로 넓힐 수 있어 각 공고가 정한다 (iSERI 09-14).
+ *     'AI 기본교육' 표기도 뺀다.
+ *   · 페이지를 설명하는 부제("~를 안내합니다")는 두지 않는다 — 비전 아래
+ *     문단과 겹친다. 그 문단에서 "~의 하나로"(다른 사업이 있나 싶게 함) ·
+ *     주관/운영 구분(계획서에 없음, 협력체계가 대신함)은 뺐다.
+ *   · 사업의 **지원 대상은 예비교원** — 별도 줄이 아니라 문단 안에 녹인다.
+ *     프로그램별 신청 자격은 필요에 따라 일반 회원 등으로 넓힐 수 있어 각
+ *     공고가 정하지만, 여기서는 언급하지 않는다 (iSERI 09-14).
  *   · 협력체계는 역할 구분 없이 기관 5곳만. 🔶 로고 원본 파일을 받으면
  *     PARTNERS 의 텍스트 타일을 로고로 바꾼다 — 그때까지는 기관명 텍스트.
  */
@@ -44,21 +51,19 @@ const IDEALS = [
   },
 ]
 
-const DIRECTIONS = [
+/** 목표 — 계획서 문장 그대로. 순서가 인재상(포용·도전·소통)과 같다 */
+const GOALS = [
   {
-    n: '01',
-    title: '단계적 역량 성장 기반 교육',
-    desc: 'AI 이해 · 활용 · 실천으로 이어지는 모듈형 교육체계',
+    lead: '기초 AI · 중등 AI 교육과정 기반의',
+    title: 'AI 기술 포용형 예비교원 양성',
   },
   {
-    n: '02',
-    title: '실제 교육 맥락 중심 운영',
-    desc: '프로젝트 기반 경험을 통한 현장 적용 역량 강화',
+    lead: '실천적 AI 중심의 역량 강화를 통한',
+    title: 'AI 융합 도전형 예비교원 양성',
   },
   {
-    n: '03',
-    title: '지속가능한 협력 기반 확산',
-    desc: '대학 · 학교 · 지역사회 연계를 통한 AI 교육 생태계 조성',
+    lead: '우수 사례 발굴 · 성과 확산을 통한',
+    title: 'AI 가치 소통형 예비교원 양성',
   },
 ]
 
@@ -74,10 +79,7 @@ const PARTNERS = [
 export default function AboutPage() {
   return (
     <>
-      <PageHeader
-        title="사업소개"
-        description={`${SITE.funder} ${SITE.programName}의 비전과 인재상, 협력체계를 안내합니다.`}
-      />
+      <PageHeader title="사업소개" />
 
       <div className="container-page space-y-14 py-10 sm:py-14">
         {/* 비전 */}
@@ -94,26 +96,12 @@ export default function AboutPage() {
             </p>
           </div>
 
-          <div className="mx-auto mt-8 max-w-3xl space-y-4 leading-relaxed text-ink-muted">
-            <p className="break-keep">
-              {SITE.funder} {SITE.programName}의 하나로,{' '}
-              <strong className="font-semibold text-ink">
-                {SITE.university} 사범대학
-              </strong>
-              이 주관하고{' '}
-              <strong className="font-semibold text-ink">
-                지능소프트웨어교육연구소
-              </strong>
-              가 운영합니다. 예비교원이 AI 시대의 교실을 준비할 수 있도록
-              교육과정을 마련하고, 역량을 키우는 프로그램을 운영하며, 그 성과를
-              학교와 지역에 확산합니다.
-            </p>
-            <p className="break-keep">
-              사업의 지원 대상은{' '}
-              <strong className="font-semibold text-ink">예비교원</strong>
-              입니다. 프로그램별 신청 자격은 각 공고에서 안내합니다.
-            </p>
-          </div>
+          <p className="mx-auto mt-8 max-w-3xl break-keep leading-relaxed text-ink-muted">
+            {SITE.funder} {SITE.programName}은{' '}
+            <strong className="font-semibold text-ink">예비교원</strong>이 AI
+            시대의 교실을 준비할 수 있도록 지원합니다. 교육과정을 마련하고, 역량을
+            키우는 프로그램을 운영하며, 그 성과를 학교와 지역에 확산합니다.
+          </p>
         </section>
 
         {/* 인재상 */}
@@ -144,37 +132,29 @@ export default function AboutPage() {
           </ul>
         </section>
 
-        {/* 추진 방향 */}
-        <section aria-labelledby="about-directions">
+        {/* 목표 — 계획서처럼 수단(작은 글) 위, 목표(굵은 글) 아래 */}
+        <section aria-labelledby="about-goals">
           <h2
-            id="about-directions"
+            id="about-goals"
             className="text-lg font-bold tracking-tight"
           >
-            추진 방향
+            목표
           </h2>
-          <ol className="mt-4 grid gap-3 sm:grid-cols-3">
-            {DIRECTIONS.map((d) => (
+          <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+            {GOALS.map((g) => (
               <li
-                key={d.n}
-                className="flex gap-4 rounded-xl border border-line bg-surface p-5 sm:flex-col sm:gap-3"
+                key={g.title}
+                className="rounded-xl border border-line bg-surface p-5"
               >
-                <span
-                  aria-hidden="true"
-                  className="text-2xl font-extrabold leading-none text-brand-300 dark:text-brand-700"
-                >
-                  {d.n}
-                </span>
-                <div>
-                  <p className="break-keep font-bold tracking-tight">
-                    {d.title}
-                  </p>
-                  <p className="mt-1.5 break-keep text-sm leading-relaxed text-ink-muted">
-                    {d.desc}
-                  </p>
-                </div>
+                <p className="break-keep text-sm leading-relaxed text-ink-muted">
+                  {g.lead}
+                </p>
+                <p className="mt-1.5 break-keep text-base font-bold tracking-tight">
+                  {g.title}
+                </p>
               </li>
             ))}
-          </ol>
+          </ul>
         </section>
 
         {/* 협력체계 — 로고 자리. 파일이 올 때까지 기관명 텍스트 (09-14 iSERI) */}
