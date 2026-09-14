@@ -26,6 +26,11 @@ const config: Config = {
           700: '#172e6e',
           800: '#132558',
           900: '#0f1d45',
+          // globals.css 의 --brand-soft (라이트 #e8edfa · 다크 #1a2748).
+          // ⚠️ 09-14 까지 이 키가 없어서 `bg-brand-soft` 가 CSS 로 안 나갔다 —
+          //    홈 히어로·Badge·ConsentBlock 이 라이트 모드에서 바탕색 없이 떠 있었다.
+          //    var() 색이라 `/60` 같은 투명도 수식은 무시되고 원색이 쓰인다.
+          soft: 'var(--brand-soft)',
         },
         // 의미 색 — CSS 변수 참조
         bg: 'var(--bg)',

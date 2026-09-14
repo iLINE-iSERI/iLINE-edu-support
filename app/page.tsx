@@ -23,7 +23,8 @@ const SHORTCUTS = [
   {
     href: '/about',
     title: '사업 소개',
-    desc: '추진 체계와 지원 내용을 확인하세요',
+    // 09-14 사업소개 문안 확정(D-70) — 지원 내용은 그 화면에 없다
+    desc: '사업의 비전과 인재상, 협력체계를 확인하세요',
   },
   // 시설 예약 (09-12, D-56) — 회원 혜택이라 이용 단계가 아니라 바로가기에 둔다
   {
@@ -50,7 +51,10 @@ export default function SupportHomePage() {
   return (
     <>
       {/* 히어로 + 신청 CTA */}
-      <section className="border-b border-line bg-brand-soft/60 dark:bg-brand-900/20">
+      {/* 09-14: 원래 `bg-brand-soft/60` 였는데 brand-soft 가 var() 색이라 `/60` 을 붙이면
+          클래스가 아예 안 나와 라이트 모드 히어로가 흰색으로 떠 있었다. /60 과 비슷한
+          밝기의 brand-50 으로 바꿨다. */}
+      <section className="border-b border-line bg-brand-50 dark:bg-brand-900/20">
         <div className="container-page py-12 sm:py-16">
           <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
             {SITE.funder}
