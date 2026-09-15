@@ -1,4 +1,10 @@
 import type { Metadata, Viewport } from 'next'
+// 글꼴 — Pretendard Variable 동적 서브셋 (09-15 · D-71 M-0).
+// 이전에는 globals.css 의 --font-sans 에 이름만 있고 파일이 없어 OS 마다 다른
+// 글꼴로 보였다. npm 패키지 `pretendard`(OFL)에서 CSS 를 불러오면 Next 가 92개
+// 조각 파일을 함께 배포하고, 브라우저는 화면에 쓰인 글자 범위만 내려받는다
+// (unicode-range). 외부 CDN 의존 없음. 규칙: docs/4-기록/10-디자인-규칙.md §1
+import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'

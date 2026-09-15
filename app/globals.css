@@ -41,7 +41,8 @@
   --status-approved: #15803d;
   --status-rejected: var(--gray-500);
 
-  /* 타이포 — 한글 폴백 포함 */
+  /* 타이포 — Pretendard 는 app/layout.tsx 에서 실제 파일을 불러온다 (09-15).
+     그 전에는 이름만 있어 OS 글꼴로 보였다. 뒤는 파일이 늦게 올 때의 폴백 */
   --font-sans: "Pretendard Variable", Pretendard, -apple-system,
     BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic",
     "Noto Sans KR", system-ui, sans-serif;
