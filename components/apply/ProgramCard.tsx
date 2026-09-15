@@ -49,6 +49,11 @@ export default function ProgramCard({ program }: { program: Program }) {
       <p className="mt-3 text-sm text-ink-subtle">
         접수 {formatPeriod(program.opensAt, program.closesAt)}
       </p>
+      {(program.activityStart || program.activityEnd) && (
+        <p className="mt-1 text-sm text-ink-subtle">
+          활동 {formatPeriod(program.activityStart, program.activityEnd)}
+        </p>
+      )}
 
       {isGroup && program.maxTeamSize && (
         <p className="mt-1 text-xs text-ink-subtle">

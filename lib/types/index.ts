@@ -148,6 +148,14 @@ export interface Program {
   /** 접수 기간 */
   opensAt?: Timestamp
   closesAt?: Timestamp
+  /**
+   * 활동 기간 (D-72 · 09-15 iSERI) — 접수와 별개로 **프로그램이 실제로 진행되는
+   * 날짜**. 둘 다 선택. 홈 첫 화면은 접수 중인 것만 보이지만(교수님 09-14),
+   * 활동 기간이 있으면 목록·상세에 "활동 10. 6. ~ 11. 30." 으로 보여 준다.
+   * 날짜만 받는다(시각 없음) — 저장은 그날 00:00 Timestamp.
+   */
+  activityStart?: Timestamp
+  activityEnd?: Timestamp
 
   /* ── 신청서 구성 (D-29) — 전부 선택 ─────────────────────────
      프로그램마다 신청 항목이 달라지는 문제를, 폼 빌더를 만드는 대신

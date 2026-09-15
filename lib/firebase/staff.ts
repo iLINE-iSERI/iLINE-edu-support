@@ -178,6 +178,9 @@ export interface ProgramInput {
   description?: string
   opensAt?: Date
   closesAt?: Date
+  /** 활동 기간 (D-72) — 날짜만 */
+  activityStart?: Date
+  activityEnd?: Date
   noteLabel?: string
   noteRequired?: boolean
   attachmentGuide?: string
@@ -209,6 +212,8 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   put('description', input.description?.trim())
   put('opensAt', input.opensAt)
   put('closesAt', input.closesAt)
+  put('activityStart', input.activityStart)
+  put('activityEnd', input.activityEnd)
   put('noteLabel', input.noteLabel?.trim())
   put('attachmentGuide', input.attachmentGuide?.trim())
   // '기본 신청서'를 고르면 빈 문자열이 오고, put 이 걸러 낸다.

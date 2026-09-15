@@ -20,6 +20,7 @@
   --gray-300: #d4d4d8;
   --gray-500: #71717a;
   --gray-600: #52525b;
+  --gray-700: #3f3f46;
   --gray-800: #27272a;
   --gray-900: #18181b;
 
@@ -30,7 +31,9 @@
   --border: var(--gray-200);
   --border-strong: var(--gray-300);
   --text: var(--gray-900);
-  --text-muted: var(--gray-600);
+  /* 09-15 (D-72) 교수님 "칙칙하다" — 설명 글자를 한 단계 진하게 (600 → 700).
+     흰 바탕 위 대비 9.3:1 → 11:1. 힌트(subtle)는 그대로 500 = 4.8:1 */
+  --text-muted: var(--gray-700);
   --text-subtle: var(--gray-500);
 
   /* 신청서 상태 (§4-4) */

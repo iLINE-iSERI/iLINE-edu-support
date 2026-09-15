@@ -126,6 +126,14 @@ export default function ProgramDetailPage() {
               {formatPeriod(program.opensAt, program.closesAt)}
             </dd>
           </div>
+          {(program.activityStart || program.activityEnd) && (
+            <div>
+              <dt className="text-ink-subtle">활동 기간</dt>
+              <dd className="mt-0.5 font-medium">
+                {formatPeriod(program.activityStart, program.activityEnd)}
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="text-ink-subtle">신청 방식</dt>
             <dd className="mt-0.5 font-medium">

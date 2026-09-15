@@ -58,6 +58,19 @@ function fromInputValue(v: string): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d
 }
 
+/** 활동 기간은 날짜만 (D-72) — 'YYYY-MM-DD' ↔ 그날 00:00 */
+function toDateInput(ts?: Timestamp): string {
+  if (!ts) return ''
+  const d = ts.toDate()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+function fromDateInput(v: string): Date | undefined {
+  if (!v) return undefined
+  const d = new Date(`${v}T00:00`)
+  return Number.isNaN(d.getTime()) ? undefined : d
+}
+
 interface FormState {
   id: string
   title: string
@@ -68,6 +81,8 @@ interface FormState {
   description: string
   opensAt: string
   closesAt: string
+  activityStart: string
+  activityEnd: string
   noteLabel: string
   noteRequired: boolean
   attachmentGuide: string
@@ -88,6 +103,8 @@ const EMPTY: FormState = {
   description: '',
   opensAt: '',
   closesAt: '',
+  activityStart: '',
+  activityEnd: '',
   noteLabel: '',
   noteRequired: false,
   attachmentGuide: '',
@@ -108,6 +125,8 @@ function toForm(p: Program): FormState {
     description: p.description ?? '',
     opensAt: toInputValue(p.opensAt),
     closesAt: toInputValue(p.closesAt),
+    activityStart: toDateInput(p.activityStart),
+    activityEnd: toDateInput(p.activityEnd),
     noteLabel: p.noteLabel ?? '',
     noteRequired: Boolean(p.noteRequired),
     attachmentGuide: p.attachmentGuide ?? '',
@@ -210,6 +229,8 @@ function StaffProgramsContent() {
       description: f.description,
       opensAt: fromInputValue(f.opensAt),
       closesAt: fromInputValue(f.closesAt),
+      activityStart: fromDateInput(f.activityStart),
+      activityEnd: fromDateInput(f.activityEnd),
       noteLabel: f.noteLabel,
       noteRequired: f.noteRequired,
       attachmentGuide: f.attachmentGuide,
@@ -246,7 +267,7 @@ function StaffProgramsContent() {
   function reject(found: FieldErrors) {
     setErrors(found)
 
-    const ORDER: (keyof FormState)[] = ['id', 'title', 'year', 'opensAt', 'closesAt']
+    const ORDER: (keyof FormState)[] = ['id', 'title', 'year', 'opensAt', 'closesAt', 'activityStart', 'activityEnd']
     const first = ORDER.find((k) => found[k])
     if (!first) return
 
@@ -282,6 +303,12 @@ function StaffProgramsContent() {
     const closes = fromInputValue(form.closesAt)
     if (opens && closes && opens >= closes) {
       found.closesAt = '접수 시작보다 빠릅니다'
+    }
+
+    const aStart = fromDateInput(form.activityStart)
+    const aEnd = fromDateInput(form.activityEnd)
+    if (aStart && aEnd && aStart > aEnd) {
+      found.activityEnd = '활동 시작보다 빠릅니다'
     }
 
     /* 중복 ID 확인도 **여기서 함께** 한다.
@@ -528,6 +555,41 @@ function StaffProgramsContent() {
                   onChange={(e) => set('closesAt', e.target.value)}
                   className={inputCls(errors.closesAt)}
                   aria-invalid={Boolean(errors.closesAt)}
+                />
+              </Field>
+            </div>
+
+            {/* 활동 기간 (D-72) — 접수와 별개. 홈에는 접수 중인 것만 오르고,
+                이 값은 목록·상세에 "활동 기간"으로 보인다 */}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field
+                id="activityStart"
+                label="활동 시작일"
+                error={errors.activityStart}
+                hint="선택. 프로그램이 실제로 진행되는 기간 — 목록·상세에 표시됩니다."
+              >
+                <input
+                  id="pf-activityStart"
+                  type="date"
+                  value={form.activityStart}
+                  onChange={(e) => set('activityStart', e.target.value)}
+                  className={inputCls(errors.activityStart)}
+                  aria-invalid={Boolean(errors.activityStart)}
+                />
+              </Field>
+              <Field
+                id="activityEnd"
+                label="활동 종료일"
+                error={errors.activityEnd}
+                hint="선택. 산출물 제출 마감 등은 공고 본문에 적어 주세요."
+              >
+                <input
+                  id="pf-activityEnd"
+                  type="date"
+                  value={form.activityEnd}
+                  onChange={(e) => set('activityEnd', e.target.value)}
+                  className={inputCls(errors.activityEnd)}
+                  aria-invalid={Boolean(errors.activityEnd)}
                 />
               </Field>
             </div>

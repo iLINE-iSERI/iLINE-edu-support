@@ -126,3 +126,24 @@ export function formatPeriod(from?: Timestamp, to?: Timestamp): string {
   if (!from && to) return `${formatDate(to)}까지`
   return `${formatDate(from)} ~ ${formatDate(to)}`
 }
+
+/**
+ * 짧은 기간 표기 (홈 첫 화면용 · D-72) — '2026. 9. 15.(월) 09:00 ~ 9. 30.(화) 18:00'
+ * 같은 해면 뒤쪽 연도는 생략하고, 시각이 00:00 이면(날짜만 받은 활동 기간) 시각을 뺀다.
+ */
+export function formatPeriodShort(from?: Timestamp, to?: Timestamp): string {
+  if (!from && !to) return '상시'
+  const DOW = ['일', '월', '화', '수', '목', '금', '토']
+  const one = (d: Date, withYear: boolean) => {
+    const t = d.getHours() || d.getMinutes()
+      ? ` ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      : ''
+    return `${withYear ? `${d.getFullYear()}. ` : ''}${d.getMonth() + 1}. ${d.getDate()}.(${DOW[d.getDay()]})${t}`
+  }
+  const f = from?.toDate()
+  const t = to?.toDate()
+  if (f && !t) return `${one(f, true)}부터`
+  if (!f && t) return `${one(t, true)}까지`
+  if (f && t) return `${one(f, true)} ~ ${one(t, t.getFullYear() !== f.getFullYear())}`
+  return ''
+}
