@@ -275,6 +275,45 @@ async function fitColumns(
 }
 
 /**
+ * 링크 셀 — URL 을 그대로 쓰면 80자가 넘어 열이 잘린다 (09-17). 셀에는 짧은 글자만 두고
+ * 그 글자에 링크를 건다. 클릭하면 똑같이 열리고, 열은 글자 폭만 차지한다.
+ * 값을 RAW 로 쓴 **뒤에** 부른다 (그 셀만 덮어쓴다).
+ */
+async function linkCell(
+  sheets: Sheets,
+  spreadsheetId: string,
+  gid: number,
+  rowNo: number,
+  colIndex: number,
+  url: string,
+  label: string
+) {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          updateCells: {
+            range: { sheetId: gid, startRowIndex: rowNo - 1, endRowIndex: rowNo, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
+            rows: [
+              {
+                values: [
+                  {
+                    userEnteredValue: { stringValue: label },
+                    userEnteredFormat: { textFormat: { link: { uri: url }, underline: true } },
+                  },
+                ],
+              },
+            ],
+            fields: 'userEnteredValue,userEnteredFormat.textFormat.link,userEnteredFormat.textFormat.underline',
+          },
+        },
+      ],
+    },
+  })
+}
+
+/**
  * 한 줄 서식 — 가운데 정렬 · 줄바꿈 · (취소면) 회색 바탕.
  * 행 높이는 따로 정하지 않는다: 줄바꿈이 켜져 있고 높이를 손으로 정하지 않았으면
  * 구글 시트가 내용에 맞춰 스스로 늘린다.
@@ -326,6 +365,9 @@ async function formatRow(
 }
 
 /** 신청 탭에서 고정 폭으로 둘 열 — 긴 글이 오는 곳. 나머지는 자동 맞춤 */
+/** Q 신청서 PDF — 셀에는 'PDF 열기' 글자 + 링크 (URL 은 잘려서) */
+const PDF_COL = 16
+
 const APP_FIXED_WIDTHS: ColumnWidths = {
   13: 320, // N 추가 기재 — 자유 글이라 자동 맞춤을 하면 한없이 넓어진다
   14: 440, // O 프로그램별 기재 — 같은 이유. 줄바꿈으로 감싼다 (넓을수록 줄 수가 준다)
@@ -575,6 +617,9 @@ export async function syncApplication(
     await step('시트 줄 서식', () =>
       formatRow(sheets, cfg.sheetId, gid, existing, HEADERS.length, APP_FIXED_WIDTHS, cancelled)
     )
+    if (driveUrl) {
+      await step('PDF 링크', () => linkCell(sheets, cfg.sheetId, gid, existing, PDF_COL, driveUrl, 'PDF 열기'))
+    }
     // 열 너비는 줄을 쓴 뒤 매번 내용에 맞춘다 (09-16 iSERI)
     await step('열 너비 맞춤', () =>
       fitColumns(sheets, cfg.sheetId, gid, null, HEADERS.length, APP_FIXED_WIDTHS)
@@ -599,6 +644,9 @@ export async function syncApplication(
     await step('시트 줄 서식', () =>
       formatRow(sheets, cfg.sheetId, gid, rowNo, HEADERS.length, APP_FIXED_WIDTHS, cancelled)
     )
+    if (driveUrl) {
+      await step('PDF 링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, PDF_COL, driveUrl, 'PDF 열기'))
+    }
     await step('열 너비 맞춤', () =>
       fitColumns(sheets, cfg.sheetId, gid, null, HEADERS.length, APP_FIXED_WIDTHS)
     )
@@ -627,8 +675,9 @@ export async function syncApplication(
 const SETTLEMENT_SHEET = '정산'
 
 /** 「정산」 탭 머리글 — 반출 범위 문서 §1′ 과 일치해야 한다 */
-/** 「정산」 탭 — 드라이브 폴더 링크 열(F)만 고정 폭 + 줄바꿈 */
-const SETTLEMENT_FIXED_WIDTHS: ColumnWidths = { 5: 260 }
+/** 「정산」 탭 — 고정 폭 열 없음 (폴더 링크는 '폴더 열기' 글자 + 링크) */
+const SETTLEMENT_FIXED_WIDTHS: ColumnWidths = {}
+const FOLDER_COL = 5
 
 const SETTLEMENT_HEADERS = [
   '정산번호',
@@ -925,6 +974,7 @@ export async function syncSettlement(
     await step('시트 줄 서식', () =>
       formatRow(sheets, cfg.sheetId, gid, existing, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false)
     )
+    await step('폴더 링크', () => linkCell(sheets, cfg.sheetId, gid, existing, FOLDER_COL, person.url, '폴더 열기'))
     await step('열 너비 맞춤', () =>
       fitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_SHEET, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
     )
@@ -946,6 +996,7 @@ export async function syncSettlement(
     await step('시트 줄 서식', () =>
       formatRow(sheets, cfg.sheetId, gid, rowNo, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false)
     )
+    await step('폴더 링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, FOLDER_COL, person.url, '폴더 열기'))
     await step('열 너비 맞춤', () =>
       fitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_SHEET, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
     )
