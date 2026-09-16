@@ -51,6 +51,8 @@ const HEADERS = [
   // 프로그램이 셋만 되어도 시트가 빈칸투성이가 된다(D-43에서 겪은 일).
   // 한 칸에 `항목: 값` 을 줄바꿈으로 이어 붙인다.
   '프로그램별 기재',
+  // D-73: 마감 전 본인 수정 — '2회 · 2026-09-20 14:02' 처럼. 없으면 빈칸
+  '수정',
 ]
 
 /**
@@ -136,10 +138,13 @@ async function ensureHeaders(
 ) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
-    range: 'A1:Q1',
+    range: 'A1:R1',
   })
-  if (res.data.values?.[0]?.length) return
+  const first = res.data.values?.[0] ?? []
+  if (first.length >= HEADERS.length) return
 
+  // 비어 있거나(처음), 열이 늘어난 뒤 옛 머리글이면(D-73 '수정' 열) 머리글을 다시 쓴다.
+  // 값 행은 건드리지 않는다.
   await sheets.spreadsheets.values.update({
     spreadsheetId: sheetId,
     range: 'A1',
@@ -192,7 +197,9 @@ async function uploadPdf(
   drive: ReturnType<typeof google.drive>,
   folderId: string,
   app: Application,
-  pdf: Buffer
+  pdf: Buffer,
+  /** 수정본(D-73)이면 같은 파일의 **내용을 교체**한다 — 링크·이름은 그대로 */
+  replace = false
 ): Promise<string> {
   const found = await drive.files.list({
     q:
@@ -205,6 +212,13 @@ async function uploadPdf(
   })
   const already = found.data.files?.[0]
   if (already) {
+    if (replace && already.id) {
+      await drive.files.update({
+        fileId: already.id,
+        supportsAllDrives: true,
+        media: { mimeType: 'application/pdf', body: Readable.from(pdf) },
+      })
+    }
     return (
       already.webViewLink ||
       `https://drive.google.com/file/d/${already.id}/view`
@@ -264,10 +278,12 @@ export async function syncApplication(
   const { cfg, sheets, drive } = c
   const ap = app.applicant
 
+  const edited = (app.editCount ?? 0) > 0
+
   let driveUrl = ''
   if (pdf) {
     driveUrl = await step('드라이브 업로드 · DRIVE_FOLDER_ID 확인', () =>
-      uploadPdf(drive, cfg.driveFolderId, app, pdf)
+      uploadPdf(drive, cfg.driveFolderId, app, pdf, edited)
     )
   }
 
@@ -295,7 +311,24 @@ export async function syncApplication(
       .filter((r) => r.value)
       .map((r) => `${r.label}: ${r.value}`)
       .join('\n'),
+    // D-73 수정 흔적
+    edited ? `${app.editCount}회 · ${seoulStamp(app.lastEditedAt?.toDate?.())}` : '',
   ]
+
+  // 이미 시트에 줄이 있으면(수정본 · 재시도) **그 줄을 덮어쓴다** — 정산 탭과 같은 방식.
+  // 새 줄을 또 붙이면 담당자가 같은 사람을 두 번 세게 된다.
+  const existing = Number(app.sheetRowId) || 0
+  if (existing > 1) {
+    await step('시트 줄 갱신', () =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId: cfg.sheetId,
+        range: `A${existing}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      })
+    )
+    return { sheetRow: existing, driveUrl: driveUrl || undefined }
+  }
 
   const appended = await step('시트에 줄 추가', () =>
     sheets.spreadsheets.values.append({

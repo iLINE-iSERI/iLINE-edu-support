@@ -11,13 +11,23 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { submitApplication, requestSync } from '@/lib/firebase/applications'
+import {
+  submitApplication,
+  updateMyApplication,
+  requestSync,
+} from '@/lib/firebase/applications'
+import Button from '@/components/ui/Button'
 import ApplicationSheet from './ApplicationSheet'
 import PortraitConsent from './PortraitConsent'
 import { formFor, type FormValues } from '@/lib/forms'
 import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
 import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
-import { profileRows, type Program, type SupportUser } from '@/lib/types'
+import {
+  profileRows,
+  type Application,
+  type Program,
+  type SupportUser,
+} from '@/lib/types'
 
 /**
  * 첨부 가능한 형식 — **Storage 규칙과 같은 범위**로 맞춘다.
@@ -60,25 +70,38 @@ export default function ApplicationForm({
   program,
   member,
   uid,
+  editing,
 }: {
   program: Program
   member: SupportUser
   uid: string
+  /**
+   * 수정 모드 (D-73 · 09-16) — 이미 제출한 신청서를 넘기면 그 내용으로 채워진 채
+   * 열리고, **전용 항목과 자유 기재란만** 고칠 수 있다. 신청자 정보·첨부·초상권은
+   * 제출 당시 값이 읽기 전용으로 보인다(바꾸려면 취소 후 재신청). 저장하면
+   * 같은 문서를 제자리에서 고치고 PDF 를 새 버전으로 뜬다.
+   */
+  editing?: Application
 }) {
   const router = useRouter()
-  const [note, setNote] = useState('')
+  const isEdit = Boolean(editing)
+  const [note, setNote] = useState(editing?.note ?? '')
   const [files, setFiles] = useState<File[]>([])
   /**
    * 초상권 활용 동의 (D-44) — `null` 은 **아직 고르지 않음**이다.
    * `false`(거부)와 반드시 구분해야 한다. 기본값을 false 로 두면
    * 화면을 스쳐 지나간 사람이 전부 '거부'로 기록된다.
+   * 수정 모드에서는 제출 당시 답을 그대로 쓴다(바꿀 수 없음).
    */
-  const [portrait, setPortrait] = useState<boolean | null>(null)
+  const [portrait, setPortrait] = useState<boolean | null>(
+    editing ? editing.applicant.portraitConsent : null
+  )
   /**
    * 프로그램 전용 항목의 답 (D-50).
    * 어떤 항목이 있는지는 **이 화면이 모른다** — 프로그램에 걸린 양식이 정한다.
+   * 수정 모드면 저장해 둔 원래 값(formValues)으로 시작한다.
    */
-  const [extra, setExtra] = useState<FormValues>({})
+  const [extra, setExtra] = useState<FormValues>(editing?.formValues ?? {})
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState('')
   const [error, setError] = useState('')
@@ -146,7 +169,7 @@ export default function ApplicationForm({
       setError(`${program.noteLabel}을(를) 입력해 주세요.`)
       return
     }
-    if (program.attachmentRequired && files.length === 0) {
+    if (program.attachmentRequired && files.length === 0 && !isEdit) {
       setError('첨부 서류를 올려 주세요.')
       return
     }
@@ -179,6 +202,23 @@ export default function ApplicationForm({
         console.error('[iLINE] 신청서 PDF 생성 실패 — 제출은 계속합니다:', e)
       }
 
+      if (editing) {
+        // ── 수정 (D-73) — 같은 문서를 제자리에서. 첨부는 건드리지 않는다
+        setStep('수정 내용을 저장하는 중…')
+        await updateMyApplication({
+          app: editing,
+          program,
+          formData: form ? form.toRows(extra) : undefined,
+          formValues: form ? extra : undefined,
+          note,
+          pdf,
+        })
+        // 시트 줄 덮어쓰기 · 드라이브 PDF 교체. 실패해도 수정은 끝났다.
+        void requestSync(editing.id)
+        router.replace('/mypage?edited=1')
+        return
+      }
+
       setStep(files.length > 0 ? '파일을 올리는 중…' : '제출하는 중…')
       const appId = await submitApplication({
         program,
@@ -186,6 +226,7 @@ export default function ApplicationForm({
         uid,
         portraitConsent: portrait,
         formData: form ? form.toRows(extra) : undefined,
+        formValues: form ? extra : undefined,
         note,
         files,
         pdf,
@@ -202,7 +243,10 @@ export default function ApplicationForm({
       // 신청자는 자기가 뭘 잘못했는지 알 수 없다.
       setError(
         firebaseErrorKind(err) === 'permission-denied'
-          ? '접수 기간이 아니거나 이미 신청하신 프로그램입니다. ' +
+          ? isEdit
+            ? '지금은 수정할 수 없습니다. 접수가 마감되었거나 신청 상태가 바뀌었을 수 있습니다. ' +
+              '마이페이지를 새로고침해 확인해 주세요.'
+            : '접수 기간이 아니거나 이미 신청하신 프로그램입니다. ' +
               '화면을 새로고침해 상태를 확인해 주세요.'
           : firestoreErrorMessage(err)
       )
@@ -227,30 +271,56 @@ export default function ApplicationForm({
         program={program}
         member={member}
         note={note}
-        fileNames={files.map((f) => f.name)}
+        fileNames={
+          editing ? (editing.files ?? []).map((f) => f.fileName) : files.map((f) => f.name)
+        }
         portraitConsent={portrait}
         formRows={form ? form.toRows(extra) : undefined}
+        edit={
+          editing
+            ? {
+                applicant: editing.applicant,
+                submittedAt: editing.submittedAt?.toDate?.(),
+                editNo: (editing.editCount ?? 0) + 1,
+              }
+            : undefined
+        }
       />
+
+      {isEdit && (
+        <div className="rounded-xl border border-brand-200 bg-brand-soft p-4 text-sm leading-relaxed dark:border-brand-800 dark:bg-brand-900/20">
+          <p className="font-bold">제출한 신청서를 수정합니다</p>
+          <p className="mt-1 text-ink-muted">
+            접수 마감 전까지 <strong>신청 내용</strong>(프로그램별 항목·기재란)을 고칠 수
+            있습니다. 신청자 정보·첨부 파일·초상권 동의는 제출 당시 그대로이며, 바꾸시려면
+            마이페이지에서 취소한 뒤 다시 신청해 주세요.
+          </p>
+        </div>
+      )}
 
       {/* ── 신청자 정보 — 확인만 ────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-bold">신청자 정보</h2>
-          <Link
-            href="/mypage/profile"
-            className="text-xs text-ink-muted underline underline-offset-2"
-          >
-            내용이 다르면 회원정보 수정
-          </Link>
+          {!isEdit && (
+            <Link
+              href="/mypage/profile"
+              className="text-xs text-ink-muted underline underline-offset-2"
+            >
+              내용이 다르면 회원정보 수정
+            </Link>
+          )}
         </div>
         <p className="mt-1 text-xs text-ink-subtle">
-          회원가입 때 등록하신 정보입니다. 제출 시점의 내용이 신청서에
-          그대로 보관됩니다.
+          {isEdit
+            ? '제출 당시의 정보입니다. 수정할 수 없습니다.'
+            : '회원가입 때 등록하신 정보입니다. 제출 시점의 내용이 신청서에 그대로 보관됩니다.'}
         </p>
 
-        {/* 유형(D-43)에 따라 칸이 다르다. PDF 원본과 **같은 목록**을 쓴다 */}
+        {/* 유형(D-43)에 따라 칸이 다르다. PDF 원본과 **같은 목록**을 쓴다.
+            수정 모드에서는 회원 문서가 아니라 신청서에 박힌 사본을 보인다 */}
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-          {profileRows(member).map(([label, value]) => (
+          {profileRows(editing ? editing.applicant : member).map(([label, value]) => (
             <Row key={label} label={label} value={value} />
           ))}
         </dl>
@@ -260,7 +330,11 @@ export default function ApplicationForm({
         <dl className="mt-4 grid gap-3 border-t border-line pt-4 text-sm sm:grid-cols-2">
           <Row
             label="개인정보 수집·이용 동의"
-            value={consent('personal_info') ? 'O (동의)' : 'X (미동의)'}
+            value={
+              (editing ? editing.applicant.personalInfoConsent : consent('personal_info'))
+                ? 'O (동의)'
+                : 'X (미동의)'
+            }
           />
         </dl>
       </section>
@@ -297,8 +371,23 @@ export default function ApplicationForm({
         </section>
       )}
 
+      {/* ── 첨부 (수정 모드) — 제출 당시 목록만, 바꿀 수 없다 (D-73 범위 밖) ── */}
+      {isEdit && (editing?.files?.length ?? 0) > 0 && (
+        <section className="rounded-2xl border border-line bg-surface p-5">
+          <h2 className="font-bold">첨부 서류</h2>
+          <p className="mt-1 text-xs text-ink-subtle">제출 당시 올린 파일입니다. 수정할 수 없습니다.</p>
+          <ul className="mt-3 space-y-2">
+            {editing!.files!.map((f) => (
+              <li key={f.storagePath} className="rounded-lg bg-subtle px-3 py-2 text-sm">
+                {f.fileName}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* ── 첨부 — 프로그램이 요구할 때만 ────────────────────── */}
-      {wantsFiles && (
+      {wantsFiles && !isEdit && (
         <section className="rounded-2xl border border-line bg-surface p-5">
           <h2 className="font-bold">
             첨부 서류
@@ -387,9 +476,16 @@ export default function ApplicationForm({
           사진·영상에 대한 동의입니다.
         </p>
 
-        <div className="mt-4">
-          <PortraitConsent value={portrait} onChange={setPortrait} />
-        </div>
+        {isEdit ? (
+          <p className="mt-3 rounded-lg bg-subtle px-3 py-2 text-sm">
+            제출 당시 답 · <strong>{portrait ? '동의함' : '동의하지 않음'}</strong>
+            <span className="text-ink-subtle"> — 수정할 수 없습니다</span>
+          </p>
+        ) : (
+          <div className="mt-4">
+            <PortraitConsent value={portrait} onChange={setPortrait} />
+          </div>
+        )}
       </section>
 
       {error && (
@@ -402,19 +498,31 @@ export default function ApplicationForm({
       )}
 
       <div className="rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
-        제출하시면 <strong>수정할 수 없습니다.</strong> 내용을 바꾸셔야 하는
-        경우 담당자에게 문의해 주세요. 제출 시점의 신청서는{' '}
-        <strong>PDF 원본으로 보관</strong>되며, 결과는 마이페이지에서 확인하실
-        수 있습니다.
+        {isEdit ? (
+          <>
+            저장하시면 신청서가 <strong>새 버전의 PDF</strong>로 다시 만들어지고, 이전
+            버전도 기록으로 남습니다. 접수 마감 뒤에는 수정할 수 없습니다.
+          </>
+        ) : (
+          <>
+            제출 뒤에도 <strong>접수 마감 전까지는</strong> 마이페이지에서 신청 내용을
+            고칠 수 있습니다(신청자 정보·첨부·초상권 동의는 제외). 제출 시점의 신청서는{' '}
+            <strong>PDF 원본으로 보관</strong>되며, 결과는 마이페이지에서 확인하실 수
+            있습니다.
+          </>
+        )}
       </div>
 
-      <button
-        type="submit"
-        disabled={busy}
-        className="touch-target w-full rounded-xl bg-brand-600 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-      >
-        {busy ? step || '제출 중…' : '신청서 제출'}
-      </button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button type="submit" disabled={busy} className="w-full sm:flex-1">
+          {busy ? step || (isEdit ? '저장 중…' : '제출 중…') : isEdit ? '수정 내용 저장' : '신청서 제출'}
+        </Button>
+        {isEdit && (
+          <Button variant="secondary" href="/mypage" className="w-full sm:w-auto">
+            취소하고 돌아가기
+          </Button>
+        )}
+      </div>
     </form>
   )
 }

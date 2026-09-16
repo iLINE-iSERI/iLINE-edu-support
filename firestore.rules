@@ -130,12 +130,25 @@ service cloud.firestore {
         && request.resource.data.status in ['draft', 'submitted']
         && acceptingNow(request.resource.data.programId);
 
-      // 신청자는 '작성 중'일 때만 수정 가능. 상태 변경은 담당자만. (D-10)
+      // 상태 변경은 담당자만 (D-10). 본인은 아래 두 경우만 — 취소(D-48), 수정(D-73).
       allow update: if isStaff()
+
+        // ── 마감 전 본인 수정 (D-73 · 09-16) ─────────────────────
+        // 신청서 **내용**만 고친다 — 팀 활동 중 변동(팀명·역할·계획 등)을 덮기 위해.
+        //   ① 자기 신청서  ② '제출 완료' 또는 '보완 요청'  ③ 접수 기간 중
+        //   ④ 바꿀 수 있는 칸을 못 박는다 — 내용(note · formData · formValues) ·
+        //      새 PDF(generatedPdfPath · pdfHistory) · 흔적(editCount · lastEditedAt).
+        //      상태·신청자 사본·첨부·초상권·프로그램은 여기 없으므로 못 건드린다.
+        // 예전의 "draft·revision 이면 본인 update 허용" 조항은 칸 제한이 없어
+        // 이 조항으로 **대체**했다(더 좁아짐). draft 는 D-29 로 쓰지 않는다.
         || (isMember()
             && resource.data.uid == request.auth.uid
-            && resource.data.status in ['draft', 'revision']
-            && request.resource.data.uid == resource.data.uid)
+            && resource.data.status in ['submitted', 'revision']
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['note', 'noteLabel', 'formData', 'formValues',
+                           'generatedPdfPath', 'pdfHistory',
+                           'editCount', 'lastEditedAt', 'updatedAt'])
+            && acceptingNow(resource.data.programId))
 
         // ── 본인 취소 (D-48) ─────────────────────────────────────
         // 신청자가 스스로 신청을 물릴 수 있다. 조건이 셋이다.

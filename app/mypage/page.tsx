@@ -11,8 +11,10 @@ import {
   listMyApplications,
   fileUrl,
   canCancelMyself,
+  canEditMyself,
   cancelMyApplication,
 } from '@/lib/firebase/applications'
+import Button from '@/components/ui/Button'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { listMySettlements } from '@/lib/firebase/settlements'
 import SettlementSection from '@/components/settlement/SettlementSection'
@@ -40,6 +42,7 @@ function MypageContent() {
   const { member, user } = useAuth()
   const params = useSearchParams()
   const justSubmitted = params.get('submitted') === '1'
+  const justEdited = params.get('edited') === '1'
   const justSavedProfile = params.get('profile') === 'saved'
 
   const [apps, setApps] = useState<Application[] | null>(null)
@@ -108,6 +111,18 @@ function MypageContent() {
           </div>
         )}
 
+        {justEdited && (
+          <div
+            role="status"
+            className="rounded-xl border border-status-approved/40 bg-status-approved/10 p-4 text-sm leading-relaxed"
+          >
+            <p className="font-bold text-status-approved">신청 내용을 수정했습니다</p>
+            <p className="mt-1 text-ink-muted">
+              새 버전의 신청서 PDF 가 만들어졌습니다. 접수 마감 전까지는 다시 고칠 수 있습니다.
+            </p>
+          </div>
+        )}
+
         {justSavedProfile && (
           <div
             role="status"
@@ -162,6 +177,13 @@ function MypageContent() {
                           제출
                         </span>
                       )}
+                      {/* 마감 전 본인 수정 흔적 (D-73) */}
+                      {(a.editCount ?? 0) > 0 && a.lastEditedAt && (
+                        <span className="text-xs text-ink-subtle">
+                          · {a.lastEditedAt.toDate().toLocaleDateString('ko-KR')} 수정
+                          ({a.editCount}회)
+                        </span>
+                      )}
                     </div>
 
                     <p className="mt-2 font-bold">
@@ -208,6 +230,22 @@ function MypageContent() {
                         uid={user.uid}
                         onDone={load}
                       />
+                    )}
+
+                    {/* 마감 전 본인 수정 (D-73) — 조건은 취소와 같다 */}
+                    {canEditMyself(
+                      a,
+                      programs.find((p) => p.id === a.programId) ?? null
+                    ) && (
+                      <div className="mt-3 border-t border-line pt-3">
+                        <Button variant="secondary" href={`/apply/${a.programId}?edit=1`}>
+                          신청 내용 수정
+                        </Button>
+                        <p className="mt-2 text-xs leading-relaxed text-ink-subtle">
+                          접수 마감 전까지 프로그램별 항목·기재란을 고칠 수 있습니다.
+                          신청자 정보·첨부·초상권 동의는 취소 후 다시 신청해야 바뀝니다.
+                        </p>
+                      </div>
                     )}
 
                     {/* 본인 취소 (D-48) — 접수 기간 중 · 제출 완료/보완 요청만 */}

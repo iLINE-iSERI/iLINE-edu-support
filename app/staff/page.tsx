@@ -301,6 +301,12 @@ function ApplicationRow({
         <span className="text-xs text-ink-subtle">
           {app.submittedAt?.toDate().toLocaleString('ko-KR')} 제출
         </span>
+        {/* 마감 전 본인 수정 (D-73) — 심사 중 내용이 바뀐 것을 놓치지 않게 */}
+        {(app.editCount ?? 0) > 0 && (
+          <span className="rounded-full bg-status-revision/10 px-2.5 py-1 text-xs font-bold text-status-revision">
+            수정됨 · {app.lastEditedAt?.toDate().toLocaleString('ko-KR')} · {app.editCount}회
+          </span>
+        )}
       </div>
 
       <p className="mt-2 font-bold">{app.programTitle || app.programId}</p>

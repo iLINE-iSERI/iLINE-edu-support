@@ -13,7 +13,12 @@
 
 import { forwardRef } from 'react'
 import { SITE } from '@/lib/config/site'
-import { profileRows, type Program, type SupportUser } from '@/lib/types'
+import {
+  profileRows,
+  type ApplicantSnapshot,
+  type Program,
+  type SupportUser,
+} from '@/lib/types'
 
 const ApplicationSheet = forwardRef<
   HTMLDivElement,
@@ -31,13 +36,30 @@ const ApplicationSheet = forwardRef<
     portraitConsent: boolean | null
     /** 프로그램 전용 항목의 답 (D-50). 없는 프로그램이 대부분이다 */
     formRows?: { label: string; value: string }[]
+    /**
+     * 수정 모드 (D-73) — 제출 당시의 신청자 사본과 최초 제출일.
+     * 회원 문서가 아니라 **신청서에 박힌 값**으로 찍어야 원본과 같다.
+     * `editedAt` 이 있으면 "수정본 (n회)" 표시가 붙는다.
+     */
+    edit?: {
+      applicant: ApplicantSnapshot
+      submittedAt?: Date
+      editNo: number
+    }
   }
 >(function ApplicationSheet(
-  { program, member, note, fileNames, portraitConsent, formRows },
+  { program, member, note, fileNames, portraitConsent, formRows, edit },
   ref
 ) {
   const consent = (purpose: string) =>
-    member.consents.some((c) => c.purpose === purpose && c.agreed) ? 'O' : 'X'
+    edit
+      ? edit.applicant.personalInfoConsent
+        ? 'O'
+        : 'X'
+      : member.consents.some((c) => c.purpose === purpose && c.agreed)
+        ? 'O'
+        : 'X'
+  const person = edit ? edit.applicant : member
 
   const today = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric',
@@ -84,14 +106,24 @@ const ApplicationSheet = forwardRef<
           rows={[
             ['프로그램명', program.title],
             ['사업 연도', `${program.year}년`],
-            ['신청일', today],
+            [
+              '신청일',
+              edit?.submittedAt
+                ? edit.submittedAt.toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : today,
+            ],
+            ...(edit ? [[`수정본 (${edit.editNo}회)`, `${today} 수정`] as [string, string]] : []),
           ]}
         />
       </Section>
 
       <Section title="신청자 정보">
         {/* 유형(D-43)에 따라 칸이 다르다 — lib/types 의 profileRows 가 정한다 */}
-        <Table rows={profileRows(member)} />
+        <Table rows={profileRows(person)} />
       </Section>
 
       <Section title="동의 여부">
@@ -163,7 +195,7 @@ const ApplicationSheet = forwardRef<
             fontSize: '15px',
           }}
         >
-          {today} · 신청인 <strong>{member.name}</strong>
+          {today} · 신청인 <strong>{person.name}</strong>
         </p>
 
         <footer

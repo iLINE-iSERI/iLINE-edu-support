@@ -56,10 +56,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
   }
 
-  // 이미 올린 건은 다시 올리지 않는다 — 눌러도 시트에 중복 줄이 생기지 않게
-  if (app.sheetSyncedAt) {
-    return NextResponse.json({ skipped: 'already-synced' })
-  }
+  // 이미 올린 건이라도 다시 부를 수 있다 (D-73 수정본). 시트 줄 번호가 있으면
+  // syncApplication 이 **그 줄을 덮어쓰고** 드라이브 PDF 를 교체하므로 중복이 안 생긴다.
+  // 줄 번호 없이 sheetSyncedAt 만 있는 옛 건(연동 전 시험 데이터)은 새 줄로 간다.
 
   try {
     let pdf: Buffer | null = null

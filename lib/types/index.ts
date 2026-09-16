@@ -405,6 +405,21 @@ export interface Application {
    *    덕분에 시트·PDF·담당자 화면은 **양식을 몰라도 그대로 뿌릴 수 있다.**
    */
   formData?: { label: string; value: string }[]
+  /**
+   * 전용 항목의 **원래 값**(칸 이름 → 값) — 수정 화면에 다시 채워 넣기 위해 (D-73).
+   * `formData` 는 사람이 읽는 사본이고, 폼을 되살리려면 이 값이 있어야 한다.
+   * 09-16 이전에 제출된 신청서에는 없다 → 그 건은 수정 화면이 열리지 않는다.
+   */
+  formValues?: Record<string, string>
+
+  /* ── 마감 전 본인 수정 (D-73) ─────────────────────────────
+     같은 문서를 제자리에서 고친다. 바뀌는 칸은 note · formData · formValues ·
+     generatedPdfPath 뿐이고, 아래 셋은 그 흔적이다. 규칙이 이 칸들만 허용한다. */
+  /** 몇 번 고쳤나 (없으면 0) */
+  editCount?: number
+  lastEditedAt?: Timestamp
+  /** 이전 PDF 경로들 — 최초본부터 순서대로. 최신본은 generatedPdfPath */
+  pdfHistory?: string[]
 
   /**
    * 신청자가 스스로 취소하며 남긴 사유 (D-48 · 선택).

@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import Badge from '@/components/ui/Badge'
 import { useAuth } from '@/components/auth/AuthProvider'
 import ApplicationForm from '@/components/apply/ApplicationForm'
-import { findMyApplication } from '@/lib/firebase/applications'
+import { findMyApplication, canEditMyself } from '@/lib/firebase/applications'
+import Button from '@/components/ui/Button'
 import { APPLICATION_STATUS_LABEL } from '@/lib/types'
 import {
   getProgram,
@@ -27,7 +28,19 @@ import type { Program, Application } from '@/lib/types'
  * 자유 기재란·첨부는 프로그램이 요구할 때만 나타난다.
  */
 export default function ProgramDetailPage() {
+  // useSearchParams 는 Suspense 경계가 필요하다 (Next 14 빌드 요구)
+  return (
+    <Suspense fallback={<div className="container-page py-16"><p className="text-sm text-ink-muted">불러오는 중…</p></div>}>
+      <ProgramDetailContent />
+    </Suspense>
+  )
+}
+
+function ProgramDetailContent() {
   const params = useParams<{ programId: string }>()
+  const search = useSearchParams()
+  /** 마이페이지 [수정하기]로 들어온 경우 (D-73) — 같은 화면을 수정 모드로 연다 */
+  const wantsEdit = search.get('edit') === '1'
   const { status, member, user } = useAuth()
 
   const [program, setProgram] = useState<Program | null | 'notfound'>(null)
@@ -200,6 +213,10 @@ export default function ProgramDetailPage() {
                 회원 등록
               </Link>
             </div>
+          ) : mine && wantsEdit && canEditMyself(mine, program) ? (
+            <p className="text-sm text-ink-muted">
+              아래에서 신청 내용을 고친 뒤 <strong>[수정 내용 저장]</strong>을 눌러 주세요.
+            </p>
           ) : mine ? (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -207,14 +224,20 @@ export default function ProgramDetailPage() {
                 <p className="mt-1 text-sm text-ink-muted">
                   현재 상태 ·{' '}
                   <strong>{APPLICATION_STATUS_LABEL[mine.status]}</strong>
+                  {(mine.editCount ?? 0) > 0 && (
+                    <span className="text-ink-subtle"> · {mine.editCount}회 수정</span>
+                  )}
                 </p>
               </div>
-              <Link
-                href="/mypage"
-                className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-6 font-semibold"
-              >
-                내 신청 현황
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                {/* 마감 전 본인 수정 (D-73) — 조건은 취소와 같다 */}
+                {canEditMyself(mine, program) && (
+                  <Button href={`/apply/${program.id}?edit=1`}>신청 내용 수정</Button>
+                )}
+                <Button variant="secondary" href="/mypage">
+                  내 신청 현황
+                </Button>
+              </div>
             </div>
           ) : mine === undefined ? (
             <p className="text-sm text-ink-muted">신청 가능 여부 확인 중…</p>
@@ -232,6 +255,22 @@ export default function ProgramDetailPage() {
           user &&
           mine === null && (
             <ApplicationForm program={program} member={member} uid={user.uid} />
+          )}
+
+        {/* 신청서 수정 (D-73) — 같은 화면을 수정 모드로. 조건은 canEditMyself 가 정한다 */}
+        {status === 'member' &&
+          member &&
+          user &&
+          mine &&
+          wantsEdit &&
+          canEditMyself(mine, program) && (
+            <ApplicationForm
+              key={mine.id}
+              program={program}
+              member={member}
+              uid={user.uid}
+              editing={mine}
+            />
           )}
 
         <Link

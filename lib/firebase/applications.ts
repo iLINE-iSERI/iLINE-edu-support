@@ -12,9 +12,12 @@ import {
   query,
   where,
   setDoc,
+  updateDoc,
   serverTimestamp,
   writeBatch,
   Timestamp,
+  deleteField,
+  increment,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { getDb, getStorageClient, COL, STORAGE_ROOT } from './config'
@@ -94,6 +97,8 @@ export interface SubmitInput {
   portraitConsent: boolean
   /** 프로그램 전용 항목의 답 (D-50) — 라벨과 값을 함께 저장한다 */
   formData?: { label: string; value: string }[]
+  /** 전용 항목의 원래 값 — 수정 화면 되살리기용 (D-73) */
+  formValues?: Record<string, string>
   note?: string
   files: File[]
   /** 제출 시점에 만든 신청서 PDF (D-28). 없으면 그냥 넘어간다 */
@@ -108,13 +113,13 @@ export interface SubmitInput {
  * ⚠️ 문서 ID를 **미리 만들고** 파일부터 올린 뒤 마지막에 문서를 쓴다.
  *    이유가 둘이다.
  *      · 첨부와 PDF를 신청건별 폴더에 모을 수 있다
- *      · 제출된(submitted) 신청서는 규칙상 신청자가 수정할 수 없다.
- *        문서를 먼저 만들고 나중에 PDF 경로를 덧붙이려 하면 막힌다.
+ *      · 제출된 신청서에서 본인이 바꿀 수 있는 칸은 규칙이 못 박아 두었다(D-73).
+ *        문서를 먼저 만들고 나중에 첨부 목록을 덧붙이려 하면 막힌다.
  *    업로드가 중간에 실패하면 문서가 아예 안 만들어지므로,
  *    '첨부 없는 신청서'가 남는 일도 없다.
  */
 export async function submitApplication(input: SubmitInput): Promise<string> {
-  const { program, member, uid, portraitConsent, formData, note, files, pdf } = input
+  const { program, member, uid, portraitConsent, formData, formValues, note, files, pdf } = input
 
   const appRef = doc(collection(getDb(), COL.applications))
   const base = `${STORAGE_ROOT}/applications/${uid}/${appRef.id}`
@@ -156,6 +161,7 @@ export async function submitApplication(input: SubmitInput): Promise<string> {
   // 값이 없으면 칸 자체를 만들지 않는다 — 빈 배열이 남으면 화면이
   // "항목이 있는데 비었다"로 오해한다 (D-43에서 배운 것)
   if (formData && formData.length > 0) payload.formData = formData
+  if (formValues && Object.keys(formValues).length > 0) payload.formValues = formValues
   if (note && note.trim()) {
     payload.note = note.trim()
     payload.noteLabel = program.noteLabel ?? '추가 기재'
@@ -274,6 +280,90 @@ export function canCancelMyself(app: Application, program: Program | null): bool
   if (opens !== undefined && now < opens) return false
   if (closes !== undefined && now > closes) return false
   return true
+}
+
+/**
+ * 신청자가 **직접 내용을 고칠 수 있는 상태인가** (D-73 · 09-16).
+ *
+ * 조건은 취소(`canCancelMyself`)와 같다 — 제출 완료/보완 요청 · 공개된 프로그램 ·
+ * 접수 기간 중. 그래서 [수정하기]와 [신청 취소]는 늘 함께 보이고 함께 사라진다.
+ * 여기에 하나 더: **전용 양식이 걸린 프로그램인데 원래 값(formValues)이 없으면**
+ * 폼을 되살릴 수 없어 수정 화면을 열지 않는다(09-16 이전 제출분).
+ *
+ * ⚠️ 진짜 차단은 `firestore.rules` 의 본인 수정 조항이다. 여기와 함께 고칠 것.
+ */
+export function canEditMyself(app: Application, program: Program | null): boolean {
+  const EDITABLE = ['submitted', 'revision']
+  if (!EDITABLE.includes(app.status)) return false
+  if (!program || !program.published) return false
+  if (program.formType && !app.formValues) return false
+
+  const now = Date.now()
+  const opens = program.opensAt?.toMillis()
+  const closes = program.closesAt?.toMillis()
+  if (opens !== undefined && now < opens) return false
+  if (closes !== undefined && now > closes) return false
+  return true
+}
+
+export interface EditInput {
+  app: Application
+  program: Program
+  formData?: { label: string; value: string }[]
+  formValues?: Record<string, string>
+  note?: string
+  /** 다시 만든 신청서 PDF. 실패해서 없으면 PDF 는 옛것이 남는다 */
+  pdf?: Blob | null
+}
+
+/**
+ * 신청서 내용 수정 — **같은 문서를 제자리에서** 고친다 (D-73).
+ *
+ * 문서 ID·열쇠 문서·시트 줄 번호가 그대로라 중복이 생기지 않는다.
+ * 바꾸는 칸은 규칙이 허용하는 것뿐이다 — 다른 칸을 건드리면 통째로 거부된다.
+ *
+ * PDF 는 `신청서-v2.pdf`, `v3…` 로 **새 파일**을 만들고 옛 경로는 `pdfHistory` 에
+ * 남긴다. 국비 사업이라 "처음에 뭐라고 냈는지"가 남아야 한다. 화면·드라이브에는
+ * 최신본만 보인다. 첨부·초상권·신청자 정보는 여기서 다루지 않는다(범위 밖).
+ */
+export async function updateMyApplication(input: EditInput): Promise<void> {
+  const { app, program, formData, formValues, note, pdf } = input
+  const db = getDb()
+  const base = `${STORAGE_ROOT}/applications/${app.uid}/${app.id}`
+
+  const patch: Record<string, unknown> = {
+    editCount: increment(1),
+    lastEditedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }
+
+  if (pdf) {
+    const version = (app.editCount ?? 0) + 2 // 최초본이 v1
+    const path = `${base}/신청서-v${version}.pdf`
+    await uploadBytes(ref(getStorageClient(), path), pdf, {
+      contentType: 'application/pdf',
+    })
+    patch.generatedPdfPath = path
+    patch.pdfHistory = [
+      ...(app.pdfHistory ?? []),
+      ...(app.generatedPdfPath ? [app.generatedPdfPath] : []),
+    ]
+  }
+
+  // 값이 없으면 칸을 **지운다** — 빈 배열·빈 문자열을 남기면 화면이
+  // "항목이 있는데 비었다"로 읽는다 (제출 때와 같은 원칙)
+  patch.formData = formData && formData.length > 0 ? formData : deleteField()
+  patch.formValues =
+    formValues && Object.keys(formValues).length > 0 ? formValues : deleteField()
+  if (note && note.trim()) {
+    patch.note = note.trim()
+    patch.noteLabel = program.noteLabel ?? '추가 기재'
+  } else {
+    patch.note = deleteField()
+    patch.noteLabel = deleteField()
+  }
+
+  await updateDoc(doc(db, COL.applications, app.id), patch)
 }
 
 /**
