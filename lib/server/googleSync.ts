@@ -145,8 +145,11 @@ function clients() {
      고칠 수는 없다"). 담당자가 손으로 넓힌 너비는 다음 동기화 때 되돌아간다 — 의도된 것.
      긴 글이 오는 열(추가 기재·프로그램별 기재)만 고정 폭 + 줄바꿈 (자동 맞춤은 가장 긴
      줄에 맞추므로 자유 글이면 한없이 넓어진다).
-   · 줄을 쓸 때마다 **그 줄만** 서식을 건다: 가로·세로 가운데, 줄바꿈(→ 행 높이가 내용에
-     맞춰 자동으로 늘어난다), 취소된 건은 회색 바탕.
+   · 줄을 쓸 때마다 **그 줄만** 서식을 건다: 가로·세로 가운데, 취소된 건은 회색 바탕.
+   · ⚠️ 줄바꿈(WRAP)은 **긴 글 열에만** 건다 (09-17 iSERI 발견). 구글의 자동 맞춤은
+     "줄바꿈을 허용한 상태의 최소 폭"을 재는데, 한글은 글자마다 끊을 수 있어 짧은 한글
+     열이 **글자 한 개 폭**으로 줄어든다("김종선"이 세 줄). 짧은 열은 CLIP + 자동 맞춤.
+   · 자동 맞춤은 줄을 쓰고 서식을 건 **뒤에** 돌린다 — 그래야 새 줄의 내용이 측정에 든다.
    ═══════════════════════════════════════════════════════════════ */
 
 type Sheets = ReturnType<typeof google.sheets>
@@ -173,14 +176,45 @@ async function sheetInfo(
   }
 }
 
-/** 열 번호(0부터) → 픽셀 너비. 없는 열은 내용에 자동 맞춤 */
+/** 열 번호(0부터) → 픽셀 너비. 여기 있는 열만 줄바꿈 + 고정 폭, 나머지는 자동 맞춤 */
 type ColumnWidths = Record<number, number>
 
+/** 머리글 서식 — 첫 줄 고정·굵게·가운데. 바탕색은 담당자 몫이라 건드리지 않는다 */
+async function setupHeader(sheets: Sheets, spreadsheetId: string, gid: number, columnCount: number) {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          updateSheetProperties: {
+            properties: { sheetId: gid, gridProperties: { frozenRowCount: 1 } },
+            fields: 'gridProperties.frozenRowCount',
+          },
+        },
+        {
+          repeatCell: {
+            range: { sheetId: gid, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: columnCount },
+            cell: {
+              userEnteredFormat: {
+                textFormat: { bold: true },
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+                wrapStrategy: 'CLIP',
+              },
+            },
+            fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment,verticalAlignment,wrapStrategy)',
+          },
+        },
+      ],
+    },
+  })
+}
+
 /**
- * 머리글 서식 + 열 너비 — 머리글을 (다시) 쓸 때 한 번.
- * 첫 줄 고정·굵게, 지정한 열은 고정 폭, 나머지는 자동 맞춤.
+ * 열 너비 — **줄을 쓰고 서식을 건 뒤에** 부른다.
+ * 짧은 열은 내용에 자동 맞춤(줄바꿈이 없어 한글도 한 줄 폭으로 잰다), 긴 글 열은 고정 폭.
  */
-async function setupColumns(
+async function autoFitColumns(
   sheets: Sheets,
   spreadsheetId: string,
   gid: number,
@@ -188,27 +222,6 @@ async function setupColumns(
   fixed: ColumnWidths
 ) {
   const requests: object[] = [
-    {
-      updateSheetProperties: {
-        properties: { sheetId: gid, gridProperties: { frozenRowCount: 1 } },
-        fields: 'gridProperties.frozenRowCount',
-      },
-    },
-    {
-      repeatCell: {
-        range: { sheetId: gid, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: columnCount },
-        // 바탕색은 건드리지 않는다 — 담당자가 머리글에 칠한 색(09-16 노란색)이 유지되게
-        cell: {
-          userEnteredFormat: {
-            textFormat: { bold: true },
-            horizontalAlignment: 'CENTER',
-            verticalAlignment: 'MIDDLE',
-            wrapStrategy: 'WRAP',
-          },
-        },
-        fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment,verticalAlignment,wrapStrategy)',
-      },
-    },
     {
       autoResizeDimensions: {
         dimensions: { sheetId: gid, dimension: 'COLUMNS', startIndex: 0, endIndex: columnCount },
@@ -239,44 +252,45 @@ async function formatRow(
   gid: number,
   rowNo: number, // 1부터 (시트 표기)
   columnCount: number,
+  wrapCols: ColumnWidths,
   muted: boolean
 ) {
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      requests: [
-        {
-          repeatCell: {
-            range: {
-              sheetId: gid,
-              startRowIndex: rowNo - 1,
-              endRowIndex: rowNo,
-              startColumnIndex: 0,
-              endColumnIndex: columnCount,
-            },
-            cell: {
-              userEnteredFormat: {
-                horizontalAlignment: 'CENTER',
-                verticalAlignment: 'MIDDLE',
-                wrapStrategy: 'WRAP',
-                backgroundColor: muted
-                  ? { red: 0.93, green: 0.93, blue: 0.93 }
-                  : { red: 1, green: 1, blue: 1 },
-                textFormat: { foregroundColor: muted ? { red: 0.5, green: 0.5, blue: 0.5 } : { red: 0.1, green: 0.1, blue: 0.1 } },
-              },
-            },
-            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,backgroundColor,textFormat.foregroundColor)',
-          },
-        },
-      ],
+  const base = {
+    horizontalAlignment: 'CENTER',
+    verticalAlignment: 'MIDDLE',
+    backgroundColor: muted ? { red: 0.93, green: 0.93, blue: 0.93 } : { red: 1, green: 1, blue: 1 },
+    textFormat: {
+      foregroundColor: muted ? { red: 0.5, green: 0.5, blue: 0.5 } : { red: 0.1, green: 0.1, blue: 0.1 },
     },
-  })
+  }
+  const requests: object[] = [
+    // 줄 전체 — 줄바꿈 없음(CLIP). 자동 맞춤이 한 줄 폭으로 재게 하기 위해
+    {
+      repeatCell: {
+        range: { sheetId: gid, startRowIndex: rowNo - 1, endRowIndex: rowNo, startColumnIndex: 0, endColumnIndex: columnCount },
+        cell: { userEnteredFormat: { ...base, wrapStrategy: 'CLIP' } },
+        fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,backgroundColor,textFormat.foregroundColor)',
+      },
+    },
+  ]
+  // 긴 글 열만 줄바꿈 — 행 높이는 이 열들 때문에 늘어난다
+  for (const col of Object.keys(wrapCols)) {
+    const i = Number(col)
+    requests.push({
+      repeatCell: {
+        range: { sheetId: gid, startRowIndex: rowNo - 1, endRowIndex: rowNo, startColumnIndex: i, endColumnIndex: i + 1 },
+        cell: { userEnteredFormat: { wrapStrategy: 'WRAP' } },
+        fields: 'userEnteredFormat.wrapStrategy',
+      },
+    })
+  }
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } })
 }
 
 /** 신청 탭에서 고정 폭으로 둘 열 — 긴 글이 오는 곳. 나머지는 자동 맞춤 */
 const APP_FIXED_WIDTHS: ColumnWidths = {
-  13: 300, // N 추가 기재 — 자유 글이라 자동 맞춤을 하면 한없이 넓어진다
-  14: 380, // O 프로그램별 기재 — 같은 이유. 줄바꿈으로 감싼다
+  13: 320, // N 추가 기재 — 자유 글이라 자동 맞춤을 하면 한없이 넓어진다
+  14: 440, // O 프로그램별 기재 — 같은 이유. 줄바꿈으로 감싼다 (넓을수록 줄 수가 준다)
 }
 
 /** 첫 줄이 비어 있으면 머리글을 넣는다. 첫 탭의 gid 를 돌려준다 */
@@ -302,9 +316,7 @@ async function ensureHeaders(
       requestBody: { values: [HEADERS] },
     })
   }
-  // 열 너비는 **매번** 내용에 맞춘다 (09-16 iSERI: 손으로 조정하지 않아도 되게).
-  // 긴 글 열 둘만 고정 폭 + 줄바꿈.
-  await setupColumns(sheets, sheetId, gid, HEADERS.length, APP_FIXED_WIDTHS)
+  await setupHeader(sheets, sheetId, gid, HEADERS.length)
   return gid
 }
 
@@ -523,7 +535,11 @@ export async function syncApplication(
       })
     )
     await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, existing, HEADERS.length, cancelled)
+      formatRow(sheets, cfg.sheetId, gid, existing, HEADERS.length, APP_FIXED_WIDTHS, cancelled)
+    )
+    // 열 너비는 줄을 쓴 뒤 매번 내용에 맞춘다 (09-16 iSERI)
+    await step('열 너비 맞춤', () =>
+      autoFitColumns(sheets, cfg.sheetId, gid, HEADERS.length, APP_FIXED_WIDTHS)
     )
     return { sheetRow: existing, driveUrl: driveUrl || undefined }
   }
@@ -543,7 +559,10 @@ export async function syncApplication(
   const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
   if (rowNo) {
     await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, rowNo, HEADERS.length, cancelled)
+      formatRow(sheets, cfg.sheetId, gid, rowNo, HEADERS.length, APP_FIXED_WIDTHS, cancelled)
+    )
+    await step('열 너비 맞춤', () =>
+      autoFitColumns(sheets, cfg.sheetId, gid, HEADERS.length, APP_FIXED_WIDTHS)
     )
   }
 
@@ -570,6 +589,9 @@ export async function syncApplication(
 const SETTLEMENT_SHEET = '정산'
 
 /** 「정산」 탭 머리글 — 반출 범위 문서 §1′ 과 일치해야 한다 */
+/** 「정산」 탭 — 드라이브 폴더 링크 열(F)만 고정 폭 + 줄바꿈 */
+const SETTLEMENT_FIXED_WIDTHS: ColumnWidths = { 5: 260 }
+
 const SETTLEMENT_HEADERS = [
   '정산번호',
   '프로그램명',
@@ -776,8 +798,7 @@ async function ensureSettlementSheet(
       requestBody: { values: [SETTLEMENT_HEADERS] },
     })
   }
-  // 열 너비는 매번 내용에 맞춘다 — 드라이브 폴더 링크 열(F)만 고정 폭
-  await setupColumns(sheets, sheetId, gid, SETTLEMENT_HEADERS.length, { 5: 260 })
+  await setupHeader(sheets, sheetId, gid, SETTLEMENT_HEADERS.length)
   return gid
 }
 
@@ -864,7 +885,10 @@ export async function syncSettlement(
       })
     )
     await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, existing, SETTLEMENT_HEADERS.length, false)
+      formatRow(sheets, cfg.sheetId, gid, existing, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false)
+    )
+    await step('열 너비 맞춤', () =>
+      autoFitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
     )
     return { sheetRow: existing, driveUrl: person.url, uploaded }
   }
@@ -882,7 +906,10 @@ export async function syncSettlement(
   const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
   if (rowNo) {
     await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, rowNo, SETTLEMENT_HEADERS.length, false)
+      formatRow(sheets, cfg.sheetId, gid, rowNo, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false)
+    )
+    await step('열 너비 맞춤', () =>
+      autoFitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
     )
   }
 
