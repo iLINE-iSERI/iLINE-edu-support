@@ -131,7 +131,9 @@ service cloud.firestore {
         && acceptingNow(request.resource.data.programId);
 
       // 상태 변경은 담당자만 (D-10). 본인은 아래 두 경우만 — 취소(D-48), 수정(D-73).
-      allow update: if isStaff()
+      // 취소된 건은 담당자도 못 바꾼다 (09-16) — 열쇠 문서가 지워져 재신청이 열린 상태라
+      // 되돌리면 같은 사람의 신청서가 두 건이 된다. 기록으로만 남긴다.
+      allow update: if (isStaff() && resource.data.status != 'cancelled')
 
         // ── 마감 전 본인 수정 (D-73 · 09-16) ─────────────────────
         // 신청서 **내용**만 고친다 — 팀 활동 중 변동(팀명·역할·계획 등)을 덮기 위해.

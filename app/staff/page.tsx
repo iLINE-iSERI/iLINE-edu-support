@@ -415,7 +415,24 @@ function ApplicationRow({
         </p>
       ) : null}
 
+      {/* ── 취소된 건 — 상태를 바꿀 수 없다 (09-16 iSERI 발견) ──
+          취소는 열쇠 문서를 지워 재신청을 열어 준 상태라, 여기서 '선정'으로 되돌리면
+          같은 사람의 신청서가 두 건이 될 수 있다. 화면·저장 함수·규칙 세 겹으로 막는다. */}
+      {app.status === 'cancelled' && (
+        <div className="mt-4 rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
+          <p className="font-bold text-ink">취소된 신청입니다 — 상태를 바꿀 수 없습니다.</p>
+          <p className="mt-1">
+            기록으로만 남습니다. 신청자가 같은 프로그램에 다시 신청하면 <strong>새 건</strong>으로
+            들어옵니다.
+          </p>
+          {app.reviewNote && (
+            <p className="mt-2 whitespace-pre-line text-xs">담당자 메모: {app.reviewNote}</p>
+          )}
+        </div>
+      )}
+
       {/* ── 상태 변경 ─────────────────────────────────────── */}
+      {app.status !== 'cancelled' && (
       <div className="mt-4 border-t border-line pt-4">
         <div className="flex flex-wrap gap-2">
           {FLOW.map((s) => (
@@ -476,6 +493,7 @@ function ApplicationRow({
           {msg && <span className="text-sm text-ink-muted">{msg}</span>}
         </div>
       </div>
+      )}
 
       {/* ── 신청 취소 (W-2) ───────────────────────────────────
           위의 상태 버튼과 **일부러 떼어 놓았다.** 취소는 신청자가 같은

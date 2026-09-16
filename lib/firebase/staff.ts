@@ -80,6 +80,14 @@ export async function updateApplicationStatus(
 
     const current = snap.data().status as ApplicationStatus
 
+    // 취소된 건은 되돌리지 않는다 (09-16). 열쇠 문서가 이미 지워져 재신청이 열린 상태라,
+    // 여기서 '선정'으로 바꾸면 같은 사람의 신청서가 두 건이 될 수 있다. 규칙도 막는다.
+    if (current === 'cancelled') {
+      throw new UserFacingError(
+        '취소된 신청은 상태를 바꿀 수 없습니다. 신청자가 다시 신청하면 새 건으로 들어옵니다.'
+      )
+    }
+
     // ⚠️ **덮어쓰기 사고 방지** (D-48′).
     //
     //    담당자 화면은 목록을 불러온 시점의 상태를 들고 있다. 그 사이
