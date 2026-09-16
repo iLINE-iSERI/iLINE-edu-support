@@ -13,6 +13,7 @@ import {
   canCancelMyself,
   canEditMyself,
   cancelMyApplication,
+  requestSync,
 } from '@/lib/firebase/applications'
 import Button from '@/components/ui/Button'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
@@ -350,6 +351,8 @@ function CancelBlock({
     setError('')
     try {
       await cancelMyApplication(app, reason)
+      // 시트 줄을 「취소됨」·회색으로, 드라이브 PDF 를 「취소」 폴더로 (D-74)
+      void requestSync(app.id)
       onDone()
     } catch (e) {
       console.error('[iLINE] 신청 취소 실패:', e)

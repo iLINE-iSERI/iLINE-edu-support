@@ -23,7 +23,7 @@ import {
   retrySync,
 } from '@/lib/firebase/staff'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
-import { fileUrl } from '@/lib/firebase/applications'
+import { fileUrl, requestSync } from '@/lib/firebase/applications'
 import { firestoreErrorMessage, actionErrorMessage } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
@@ -248,6 +248,8 @@ function ApplicationRow({
     try {
       // app.status = 목록을 불러왔을 때의 상태. 그 사이 신청자가 취소했으면 막힌다
       await updateApplicationStatus(app.id, status, note, reviewerUid, app.status)
+      // 시트의 「상태(사본)」 열을 같은 줄에 다시 쓴다 (D-74). 실패해도 상태 변경은 끝났다
+      void requestSync(app.id)
       setMsg('저장했습니다.')
       onSaved()
     } catch (e) {
@@ -282,6 +284,8 @@ function ApplicationRow({
     setMsg('')
     try {
       await cancelApplication(app, note, reviewerUid)
+      // 시트 줄을 「취소됨」·회색으로, 드라이브 PDF 를 「취소」 폴더로 (D-74)
+      void requestSync(app.id)
       setMsg('취소 처리했습니다.')
       onSaved()
     } catch (e) {

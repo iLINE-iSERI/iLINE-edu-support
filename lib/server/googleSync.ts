@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto'
 import { google } from 'googleapis'
 import { getGoogleConfig } from './env'
 import {
+  APPLICATION_STATUS_LABEL,
   MEMBER_TYPE_LABEL,
   SETTLEMENT_STATUS_LABEL,
   memberTypeOf,
@@ -45,7 +46,6 @@ const HEADERS = [
   '개인정보 수집·이용 동의',
   '초상권 활용 동의',
   '상태(사본)',
-  '신청서 PDF',
   '추가 기재',
   // D-50: 프로그램 전용 항목. **항목마다 열을 만들지 않는다** —
   // 프로그램이 셋만 되어도 시트가 빈칸투성이가 된다(D-43에서 겪은 일).
@@ -53,6 +53,8 @@ const HEADERS = [
   '프로그램별 기재',
   // D-73: 마감 전 본인 수정 — '2회 · 2026-09-20 14:02' 처럼. 없으면 빈칸
   '수정',
+  // 09-16 iSERI: 링크 열은 맨 끝으로 (기재 내용을 먼저 읽게)
+  '신청서 PDF',
 ]
 
 /**
@@ -131,26 +133,179 @@ function clients() {
   }
 }
 
-/** 첫 줄이 비어 있으면 머리글을 넣는다 */
+
+/* ═══════════════════════════════════════════════════════════════
+   시트 서식 (D-74 · 09-16)
+
+   iSERI: "팀 프로그램의 기재가 들어오면 가독성이 나쁘다 — 행 높이·열 너비가 내용에
+   맞게, 모든 셀 가운데 정렬." 담당자가 시트에서 손으로 해 둘 수도 있지만, 「정산」 탭은
+   코드가 만들고 시트가 새로 생길 수도 있어 코드가 맡는다.
+
+   · 열 너비는 **줄을 쓸 때마다** 내용에 맞춘다 (iSERI 09-16: "보기 불편할 때마다 손으로
+     고칠 수는 없다"). 담당자가 손으로 넓힌 너비는 다음 동기화 때 되돌아간다 — 의도된 것.
+     긴 글이 오는 열(추가 기재·프로그램별 기재)만 고정 폭 + 줄바꿈 (자동 맞춤은 가장 긴
+     줄에 맞추므로 자유 글이면 한없이 넓어진다).
+   · 줄을 쓸 때마다 **그 줄만** 서식을 건다: 가로·세로 가운데, 줄바꿈(→ 행 높이가 내용에
+     맞춰 자동으로 늘어난다), 취소된 건은 회색 바탕.
+   ═══════════════════════════════════════════════════════════════ */
+
+type Sheets = ReturnType<typeof google.sheets>
+
+/**
+ * 탭 이름 → 숫자 ID (batchUpdate 는 이름이 아니라 gid 를 요구한다). 이름이 없으면 첫 탭.
+ * `setUp`(첫 줄 고정 여부)은 참고용 — 09-16부터 열 너비는 매번 맞추므로 표시로 쓰지 않는다.
+ */
+async function sheetInfo(
+  sheets: Sheets,
+  spreadsheetId: string,
+  title?: string
+): Promise<{ gid: number; setUp: boolean; exists: boolean }> {
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties(sheetId,title,gridProperties.frozenRowCount)',
+  })
+  const list = meta.data.sheets ?? []
+  const hit = title ? list.find((s) => s.properties?.title === title) : list[0]
+  return {
+    gid: hit?.properties?.sheetId ?? 0,
+    setUp: (hit?.properties?.gridProperties?.frozenRowCount ?? 0) >= 1,
+    exists: Boolean(hit),
+  }
+}
+
+/** 열 번호(0부터) → 픽셀 너비. 없는 열은 내용에 자동 맞춤 */
+type ColumnWidths = Record<number, number>
+
+/**
+ * 머리글 서식 + 열 너비 — 머리글을 (다시) 쓸 때 한 번.
+ * 첫 줄 고정·굵게, 지정한 열은 고정 폭, 나머지는 자동 맞춤.
+ */
+async function setupColumns(
+  sheets: Sheets,
+  spreadsheetId: string,
+  gid: number,
+  columnCount: number,
+  fixed: ColumnWidths
+) {
+  const requests: object[] = [
+    {
+      updateSheetProperties: {
+        properties: { sheetId: gid, gridProperties: { frozenRowCount: 1 } },
+        fields: 'gridProperties.frozenRowCount',
+      },
+    },
+    {
+      repeatCell: {
+        range: { sheetId: gid, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: columnCount },
+        // 바탕색은 건드리지 않는다 — 담당자가 머리글에 칠한 색(09-16 노란색)이 유지되게
+        cell: {
+          userEnteredFormat: {
+            textFormat: { bold: true },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE',
+            wrapStrategy: 'WRAP',
+          },
+        },
+        fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment,verticalAlignment,wrapStrategy)',
+      },
+    },
+    {
+      autoResizeDimensions: {
+        dimensions: { sheetId: gid, dimension: 'COLUMNS', startIndex: 0, endIndex: columnCount },
+      },
+    },
+  ]
+  for (const [col, px] of Object.entries(fixed)) {
+    const i = Number(col)
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId: gid, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 },
+        properties: { pixelSize: px },
+        fields: 'pixelSize',
+      },
+    })
+  }
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } })
+}
+
+/**
+ * 한 줄 서식 — 가운데 정렬 · 줄바꿈 · (취소면) 회색 바탕.
+ * 행 높이는 따로 정하지 않는다: 줄바꿈이 켜져 있고 높이를 손으로 정하지 않았으면
+ * 구글 시트가 내용에 맞춰 스스로 늘린다.
+ */
+async function formatRow(
+  sheets: Sheets,
+  spreadsheetId: string,
+  gid: number,
+  rowNo: number, // 1부터 (시트 표기)
+  columnCount: number,
+  muted: boolean
+) {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          repeatCell: {
+            range: {
+              sheetId: gid,
+              startRowIndex: rowNo - 1,
+              endRowIndex: rowNo,
+              startColumnIndex: 0,
+              endColumnIndex: columnCount,
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+                wrapStrategy: 'WRAP',
+                backgroundColor: muted
+                  ? { red: 0.93, green: 0.93, blue: 0.93 }
+                  : { red: 1, green: 1, blue: 1 },
+                textFormat: { foregroundColor: muted ? { red: 0.5, green: 0.5, blue: 0.5 } : { red: 0.1, green: 0.1, blue: 0.1 } },
+              },
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,backgroundColor,textFormat.foregroundColor)',
+          },
+        },
+      ],
+    },
+  })
+}
+
+/** 신청 탭에서 고정 폭으로 둘 열 — 긴 글이 오는 곳. 나머지는 자동 맞춤 */
+const APP_FIXED_WIDTHS: ColumnWidths = {
+  13: 300, // N 추가 기재 — 자유 글이라 자동 맞춤을 하면 한없이 넓어진다
+  14: 380, // O 프로그램별 기재 — 같은 이유. 줄바꿈으로 감싼다
+}
+
+/** 첫 줄이 비어 있으면 머리글을 넣는다. 첫 탭의 gid 를 돌려준다 */
 async function ensureHeaders(
   sheets: ReturnType<typeof google.sheets>,
   sheetId: string
-) {
+): Promise<number> {
+  const { gid } = await sheetInfo(sheets, sheetId)
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
     range: 'A1:R1',
   })
-  const first = res.data.values?.[0] ?? []
-  if (first.length >= HEADERS.length) return
-
-  // 비어 있거나(처음), 열이 늘어난 뒤 옛 머리글이면(D-73 '수정' 열) 머리글을 다시 쓴다.
-  // 값 행은 건드리지 않는다.
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: 'A1',
-    valueInputOption: 'RAW',
-    requestBody: { values: [HEADERS] },
-  })
+  const first = (res.data.values?.[0] ?? []).map(String)
+  const same = first.length === HEADERS.length && HEADERS.every((h, i) => first[i] === h)
+  if (!same) {
+    // 비어 있거나(처음), 열이 늘거나 순서가 바뀌었으면 머리글을 다시 쓴다.
+    // ⚠️ 값 행은 건드리지 않는다 — 순서가 바뀐 뒤의 옛 줄은 다음 동기화 때 그 줄이
+    //    새 순서로 다시 써지거나, 시험 데이터라면 정리 스크립트로 지운다.
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: 'A1',
+      valueInputOption: 'RAW',
+      requestBody: { values: [HEADERS] },
+    })
+  }
+  // 열 너비는 **매번** 내용에 맞춘다 (09-16 iSERI: 손으로 조정하지 않아도 되게).
+  // 긴 글 열 둘만 고정 폭 + 줄바꿈.
+  await setupColumns(sheets, sheetId, gid, HEADERS.length, APP_FIXED_WIDTHS)
+  return gid
 }
 
 /**
@@ -201,10 +356,11 @@ async function uploadPdf(
   /** 수정본(D-73)이면 같은 파일의 **내용을 교체**한다 — 링크·이름은 그대로 */
   replace = false
 ): Promise<string> {
+  // 부모 폴더를 조건에 넣지 않는다 — 취소된 건은 「취소」 하위 폴더로 옮겨져 있다 (D-74)
   const found = await drive.files.list({
     q:
       `appProperties has { key='applicationId' and value='${app.id}' } ` +
-      `and '${folderId}' in parents and trashed = false`,
+      `and trashed = false`,
     fields: 'files(id, webViewLink)',
     pageSize: 1,
     supportsAllDrives: true,
@@ -239,6 +395,37 @@ async function uploadPdf(
   })
 
   return res.data.webViewLink || `https://drive.google.com/file/d/${res.data.id}/view`
+}
+
+/**
+ * 취소된 건의 PDF 를 같은 폴더 안 「취소」 하위 폴더로 옮긴다 (D-74 · 09-16 iSERI).
+ * 지우지 않는다 — 내역은 남아야 한다. 파일 ID 가 그대로라 시트의 링크도 살아 있다.
+ * 이미 거기 있으면 아무것도 하지 않는다. 파일이 없으면(연동 전 건) 조용히 넘어간다.
+ */
+async function moveToCancelled(
+  drive: ReturnType<typeof google.drive>,
+  folderId: string,
+  app: Application
+): Promise<void> {
+  const found = await drive.files.list({
+    q:
+      `appProperties has { key='applicationId' and value='${app.id}' } ` +
+      `and trashed = false`,
+    fields: 'files(id, parents)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const file = found.data.files?.[0]
+  if (!file?.id) return
+  const cancelledFolder = await folderByName(drive, folderId, '취소')
+  if ((file.parents ?? []).includes(cancelledFolder)) return
+  await drive.files.update({
+    fileId: file.id,
+    supportsAllDrives: true,
+    addParents: cancelledFolder,
+    removeParents: (file.parents ?? []).join(','),
+  })
 }
 
 /**
@@ -287,7 +474,14 @@ export async function syncApplication(
     )
   }
 
-  await step('시트 열기 · SHEET_ID 확인', () => ensureHeaders(sheets, cfg.sheetId))
+  // 취소된 건: PDF 를 「취소」 폴더로 (D-74). 업로드 뒤에 옮겨야 처음 동기화되는 취소 건도
+  // 제자리에 간다. 시트 줄은 아래에서 회색으로.
+  const cancelled = app.status === 'cancelled'
+  if (cancelled) {
+    await step('취소 폴더로 이동', () => moveToCancelled(drive, cfg.driveFolderId, app))
+  }
+
+  const gid = await step('시트 열기 · SHEET_ID 확인', () => ensureHeaders(sheets, cfg.sheetId))
 
   const row = [
     app.id,
@@ -303,8 +497,8 @@ export async function syncApplication(
     ap?.email || '',
     ap?.personalInfoConsent ? 'O' : 'X',
     ap?.portraitConsent ? 'O' : 'X',
-    app.status,
-    driveUrl,
+    // D-74: 영어 코드 대신 화면과 같은 한글 상태. 상태가 바뀔 때마다 이 줄을 다시 쓴다
+    APPLICATION_STATUS_LABEL[app.status] ?? app.status,
     app.note ? `[${app.noteLabel || '추가 기재'}] ${app.note}` : '',
     // 저장된 라벨을 그대로 쓴다. 서버는 어떤 양식인지 모른다 (D-50).
     (app.formData ?? [])
@@ -313,6 +507,7 @@ export async function syncApplication(
       .join('\n'),
     // D-73 수정 흔적
     edited ? `${app.editCount}회 · ${seoulStamp(app.lastEditedAt?.toDate?.())}` : '',
+    driveUrl,
   ]
 
   // 이미 시트에 줄이 있으면(수정본 · 재시도) **그 줄을 덮어쓴다** — 정산 탭과 같은 방식.
@@ -326,6 +521,9 @@ export async function syncApplication(
         valueInputOption: 'RAW',
         requestBody: { values: [row] },
       })
+    )
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, existing, HEADERS.length, cancelled)
     )
     return { sheetRow: existing, driveUrl: driveUrl || undefined }
   }
@@ -343,6 +541,11 @@ export async function syncApplication(
   // '신청현황!A5:N5' 같은 문자열에서 행 번호만 뽑는다
   const updated = appended.data.updates?.updatedRange || ''
   const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
+  if (rowNo) {
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, rowNo, HEADERS.length, cancelled)
+    )
+  }
 
   return { sheetRow: rowNo, driveUrl: driveUrl || undefined }
 }
@@ -550,31 +753,32 @@ async function trashStaleReceipts(drive: Drive, folderId: string, current: Recei
 async function ensureSettlementSheet(
   sheets: ReturnType<typeof google.sheets>,
   sheetId: string
-) {
-  const meta = await sheets.spreadsheets.get({
-    spreadsheetId: sheetId,
-    fields: 'sheets.properties.title',
-  })
-  const exists = (meta.data.sheets ?? []).some((s) => s.properties?.title === SETTLEMENT_SHEET)
-  if (!exists) {
-    await sheets.spreadsheets.batchUpdate({
+): Promise<number> {
+  const info = await sheetInfo(sheets, sheetId, SETTLEMENT_SHEET)
+  let gid = info.gid
+  if (!info.exists) {
+    const created = await sheets.spreadsheets.batchUpdate({
       spreadsheetId: sheetId,
       requestBody: { requests: [{ addSheet: { properties: { title: SETTLEMENT_SHEET } } }] },
     })
+    gid = created.data.replies?.[0]?.addSheet?.properties?.sheetId ?? 0
   }
 
   const head = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
     range: `'${SETTLEMENT_SHEET}'!A1:H1`,
   })
-  if (head.data.values?.[0]?.length) return
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: `'${SETTLEMENT_SHEET}'!A1`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [SETTLEMENT_HEADERS] },
-  })
+  if (!head.data.values?.[0]?.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `'${SETTLEMENT_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [SETTLEMENT_HEADERS] },
+    })
+  }
+  // 열 너비는 매번 내용에 맞춘다 — 드라이브 폴더 링크 열(F)만 고정 폭
+  await setupColumns(sheets, sheetId, gid, SETTLEMENT_HEADERS.length, { 5: 260 })
+  return gid
 }
 
 /** 지급일 — `2026-09-12` (한국 날짜). 시각은 의미 없어 뺀다 */
@@ -633,7 +837,7 @@ export async function syncSettlement(
   await step('뺀 영수증 정리', () => trashStaleReceipts(drive, person.id, receipts))
 
   // ── 시트: 「정산」 탭 ────────────────────────────────────────
-  await step('시트 「정산」 탭 · SHEET_ID 확인', () =>
+  const gid = await step('시트 「정산」 탭 · SHEET_ID 확인', () =>
     ensureSettlementSheet(sheets, cfg.sheetId)
   )
 
@@ -659,6 +863,9 @@ export async function syncSettlement(
         requestBody: { values: [row] },
       })
     )
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, existing, SETTLEMENT_HEADERS.length, false)
+    )
     return { sheetRow: existing, driveUrl: person.url, uploaded }
   }
 
@@ -673,6 +880,11 @@ export async function syncSettlement(
   )
   const updated = appended.data.updates?.updatedRange || ''
   const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
+  if (rowNo) {
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, rowNo, SETTLEMENT_HEADERS.length, false)
+    )
+  }
 
   return { sheetRow: rowNo, driveUrl: person.url, uploaded }
 }

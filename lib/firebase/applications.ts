@@ -287,8 +287,9 @@ export function canCancelMyself(app: Application, program: Program | null): bool
  *
  * 조건은 취소(`canCancelMyself`)와 같다 — 제출 완료/보완 요청 · 공개된 프로그램 ·
  * 접수 기간 중. 그래서 [수정하기]와 [신청 취소]는 늘 함께 보이고 함께 사라진다.
- * 여기에 하나 더: **전용 양식이 걸린 프로그램인데 원래 값(formValues)이 없으면**
- * 폼을 되살릴 수 없어 수정 화면을 열지 않는다(09-16 이전 제출분).
+ * 여기에 둘 더: 고칠 칸이 없는 프로그램(전용 양식·기재란 둘 다 없음)은 열지 않고,
+ * **전용 양식이 걸린 프로그램인데 원래 값(formValues)이 없으면** 폼을 되살릴 수 없어
+ * 수정 화면을 열지 않는다(09-16 이전 제출분).
  *
  * ⚠️ 진짜 차단은 `firestore.rules` 의 본인 수정 조항이다. 여기와 함께 고칠 것.
  */
@@ -296,6 +297,9 @@ export function canEditMyself(app: Application, program: Program | null): boolea
   const EDITABLE = ['submitted', 'revision']
   if (!EDITABLE.includes(app.status)) return false
   if (!program || !program.published) return false
+  // 고칠 수 있는 칸이 하나도 없는 프로그램(전용 양식도 기재란도 없음)이면 버튼을
+  // 띄우지 않는다 — 열어 봐야 빈 화면이다 (09-16 iSERI 질문에서 발견)
+  if (!program.formType && !program.noteLabel) return false
   if (program.formType && !app.formValues) return false
 
   const now = Date.now()
