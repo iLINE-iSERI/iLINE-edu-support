@@ -66,7 +66,10 @@ export default function Header() {
     pathname === href || pathname.startsWith(href + '/')
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
+    // 바탕은 **불투명**하게 (09-17 iSERI: 스크롤하면 헤더가 투명해져 글자가 겹쳐 보임).
+    // 원래 `bg-surface/95` 였는데 surface 가 CSS 변수 색이라 `/95` 가 CSS 로 안 나갔다 —
+    // D-70 의 bg-brand-soft 와 같은 함정. 반투명은 애초에 의도가 아니었으므로 그냥 불투명.
+    <header className="sticky top-0 z-40 border-b border-line bg-surface">
       <div className="container-page">
         {/* 1단: 로고 + 계정 영역 */}
         <div className="flex h-16 items-center justify-between gap-4">

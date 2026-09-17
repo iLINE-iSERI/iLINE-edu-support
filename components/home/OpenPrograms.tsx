@@ -88,7 +88,7 @@ export default function OpenPrograms() {
           }
         >
           {state.kind === 'loading' && (
-            <div className="rounded-2xl bg-surface/90 p-6 text-sm text-ink-muted">
+            <div className="rounded-2xl bg-surface p-6 text-sm text-ink-muted">
               공고를 확인하는 중…
             </div>
           )}
