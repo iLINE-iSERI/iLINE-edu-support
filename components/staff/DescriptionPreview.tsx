@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cardText, CARD_RULES, CARD_TEXT_CLS } from '@/lib/ui/programCardText'
+import { cardText, visibleItems, CARD_TEXT, type CardMode } from '@/lib/ui/programCardText'
 
 /**
  * 담당자 화면 — 소개글이 **목록 카드에서 어떻게 보일지** 미리보기 (D-90 → D-91 · 09-18).
@@ -11,31 +11,26 @@ import { cardText, CARD_RULES, CARD_TEXT_CLS } from '@/lib/ui/programCardText'
  * 여기서 다시 구현하지 않는다. 카드 전체를 흉내 내지 않고 소개글 영역만.
  *
  * D-91: [휴대폰] [PC] 토글, 기본 **휴대폰** — 학생 대부분이 휴대폰으로 보고 잘림도 거기서만
- * 생긴다(D-90 에서 "모바일은 범위 밖" 이라 한 판단을 뒤집음). 폭·개수·클램프는 CARD_RULES ·
- * CARD_TEXT_CLS 에서 가져온다 — 미리보기에 값을 따로 적지 않는다.
+ * 생긴다(D-90 에서 "모바일은 범위 밖" 이라 한 판단을 뒤집음). 폭·개수·클램프는 CARD_TEXT
+ * (단일 출처)에서 가져온다 — 미리보기에 값을 따로 적지 않는다.
  *
  * aria-live 없음 — 타이핑마다 읽어 주면 방해다. 비공개 프로그램을 목록에 노출하는 방식은
  * 택하지 않았다: 공개 조회에 권한 분기를 넣으면 실수 하나로 미공개 공고가 학생에게 보인다.
  */
-type Mode = keyof typeof CARD_RULES
-
-const MODE_LABEL: Record<Mode, string> = { mobile: '휴대폰', desktop: 'PC' }
-const ITEM_CLS: Record<Mode, string> = {
-  mobile: CARD_TEXT_CLS.itemMobile,
-  desktop: CARD_TEXT_CLS.itemDesktop,
-}
+const MODES: CardMode[] = ['mobile', 'desktop']
+const MODE_LABEL: Record<CardMode, string> = { mobile: '휴대폰', desktop: 'PC' }
 
 export default function DescriptionPreview({ text }: { text: string }) {
-  const [mode, setMode] = useState<Mode>('mobile')
+  const [mode, setMode] = useState<CardMode>('mobile')
   const [shown, setShown] = useState(text)
   useEffect(() => {
     const t = window.setTimeout(() => setShown(text), 200)
     return () => window.clearTimeout(t)
   }, [text])
 
-  const rule = CARD_RULES[mode]
+  const rule = CARD_TEXT[mode]
   const { blurb, items: all, itemTotal } = cardText(shown)
-  const items = all.slice(0, rule.itemMax)
+  const items = visibleItems(all, mode)
   const empty = !blurb && items.length === 0
 
   return (
@@ -47,7 +42,7 @@ export default function DescriptionPreview({ text }: { text: string }) {
           role="group"
           aria-label="미리보기 화면 폭"
         >
-          {(Object.keys(CARD_RULES) as Mode[]).map((m) => (
+          {MODES.map((m) => (
             <button
               key={m}
               type="button"
@@ -75,11 +70,11 @@ export default function DescriptionPreview({ text }: { text: string }) {
           </p>
         ) : (
           <>
-            {blurb && <p className={CARD_TEXT_CLS.blurb}>{blurb}</p>}
+            {blurb && <p className={CARD_TEXT.blurbBase + ' ' + rule.blurbClamp}>{blurb}</p>}
             {items.length > 0 && (
-              <ul className={CARD_TEXT_CLS.list}>
+              <ul className={CARD_TEXT.listBase}>
                 {items.map((line, i) => (
-                  <li key={i} className={ITEM_CLS[mode]}>
+                  <li key={i} className={CARD_TEXT.itemBase + ' ' + rule.itemClamp}>
                     {line}
                   </li>
                 ))}

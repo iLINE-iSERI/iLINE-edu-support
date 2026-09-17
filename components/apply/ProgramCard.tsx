@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import PosterImage from '@/components/ui/PosterImage'
-import { cardText, CARD_RULES, CARD_TEXT_CLS } from '@/lib/ui/programCardText'
+import { cardText, CARD_TEXT } from '@/lib/ui/programCardText'
 import {
   getProgramPhase,
   PHASE_LABEL,
@@ -28,6 +28,8 @@ export default function ProgramCard({ program }: { program: Program }) {
   const poster = program.poster?.url
   const closed = phase === 'closed'
   const { blurb, items } = cardText(program.description)
+  // 두 모드 중 큰 개수만큼 그리고, 휴대폰 초과분은 CSS 로 숨긴다 (규칙은 CARD_TEXT 한 곳)
+  const shown = items.slice(0, Math.max(CARD_TEXT.mobile.itemMax, CARD_TEXT.desktop.itemMax))
 
   return (
     <article
@@ -89,16 +91,22 @@ export default function ProgramCard({ program }: { program: Program }) {
       <div className="flex min-w-0 flex-col [grid-area:body]">
         {/* 소개 → 요약 2줄 + 항목(휴대폰 3개×2줄 · PC 3개×1줄). 규칙·스타일은
             lib/ui/programCardText 한 곳 — 담당자 미리보기와 공유(D-90) */}
-        {blurb && <p className={'md:mt-1.5 ' + CARD_TEXT_CLS.blurb}>{blurb}</p>}
-        {items.length > 0 && (
-          <ul className={CARD_TEXT_CLS.list}>
-            {items.map((line, i) => (
+        {blurb && (
+          <p className={'md:mt-1.5 ' + CARD_TEXT.blurbBase + ' ' + CARD_TEXT.responsive.blurbClamp}>
+            {blurb}
+          </p>
+        )}
+        {shown.length > 0 && (
+          <ul className={CARD_TEXT.listBase}>
+            {shown.map((line, i) => (
               <li
                 key={i}
                 className={
-                  CARD_TEXT_CLS.item +
-                  // 휴대폰 규칙 개수를 넘는 항목은 휴대폰에서 숨김 (지금은 둘 다 3이라 해당 없음)
-                  (i >= CARD_RULES.mobile.itemMax ? ' ' + CARD_TEXT_CLS.itemDesktopOnly : '')
+                  CARD_TEXT.itemBase +
+                  ' ' +
+                  CARD_TEXT.responsive.itemClamp +
+                  // 휴대폰 규칙 개수를 넘는 항목은 CSS 로 숨긴다(JS 폭 분기 금지 — 하이드레이션)
+                  (i >= CARD_TEXT.mobile.itemMax ? ' ' + CARD_TEXT.responsive.itemOverflow : '')
                 }
               >
                 {line}
