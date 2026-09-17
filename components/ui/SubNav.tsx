@@ -30,10 +30,13 @@ export default function SubNav({
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={
-                  'relative shrink-0 px-4 py-3 text-sm font-medium transition-colors ' +
+                  // D-85: 헤더 대메뉴와 같은 규칙 — hover 중립 면, 굵기는 배타적으로
+                  // (font-medium 을 공통에 두면 활성 font-bold 가 진다 · Header.tsx 주석)
+                  'relative shrink-0 rounded-lg px-4 py-3 text-sm transition-colors ' +
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 ' +
                   (active
-                    ? 'font-bold text-theme-strong after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-theme'
-                    : 'text-ink-muted hover:text-ink')
+                    ? 'font-bold text-theme-strong hover:bg-theme/[0.07] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-theme'
+                    : 'font-medium text-ink-muted hover:bg-ink/5 hover:text-ink active:bg-ink/[0.08]')
                 }
               >
                 {item.label}

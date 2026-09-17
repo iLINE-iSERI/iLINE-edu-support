@@ -213,10 +213,16 @@ export default function Header() {
               href={item.href}
               aria-current={isActive(item.href) ? 'page' : undefined}
               className={
-                'relative px-4 py-3 text-sm font-medium transition-colors ' +
+                // D-85: hover = 중립 면(ink 5%) + 글자 진해짐 / 활성 = 테마색 + 밑줄 + 굵기.
+                // ⚠️ font-medium 을 공통에 두면 활성의 font-bold 가 진다 — 빌드된 CSS 에서
+                // .font-bold 가 .font-medium 보다 **앞에** 나와(알파벳순) 뒤의 500 이 이긴다.
+                // 굵기는 활성/비활성에 배타적으로 준다. `text-ink`·`bg-ink/5` 는 --text 토큰이라
+                // 다크에서는 저절로 밝은 글자·흰 저알파 면이 된다 (dark: 변형 불필요).
+                'relative rounded-lg px-4 py-3 text-sm transition-colors ' +
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 ' +
                 (isActive(item.href)
-                  ? 'font-bold text-theme-strong after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-theme'
-                  : 'text-ink-muted hover:text-brand-600 dark:hover:text-brand-300')
+                  ? 'font-bold text-theme-strong hover:bg-theme/[0.07] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-theme'
+                  : 'font-medium text-ink-muted hover:bg-ink/5 hover:text-ink active:bg-ink/[0.08]')
               }
             >
               {item.label}
@@ -248,10 +254,11 @@ export default function Header() {
                 onClick={() => setOpen(false)}
                 aria-current={isActive(item.href) ? 'page' : undefined}
                 className={
-                  'flex items-center rounded-lg px-3 py-3 text-base font-medium ' +
+                  // 굵기는 배타적으로 (D-85 — 위 데스크톱 메뉴와 같은 이유)
+                  'flex items-center rounded-lg px-3 py-3 text-base ' +
                   (isActive(item.href)
                     ? 'border-l-4 border-theme bg-theme-tint font-bold text-theme-strong'
-                    : 'text-ink-muted')
+                    : 'font-medium text-ink-muted')
                 }
               >
                 {item.label}
