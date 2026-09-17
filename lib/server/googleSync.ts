@@ -153,6 +153,9 @@ function clients() {
      열이 **글자 한 개 폭**으로 줄어든다("김종선"이 세 줄). 짧은 열은 CLIP + 자동 맞춤.
    · 열 너비는 줄을 쓴 **뒤에**, 열의 값을 전부 읽어 **직접 잰다** (API 자동 맞춤은 한글을
      좁게 잰다 — 09-17). 바탕색은 취소 줄만 칠하고 나머지는 담당자 몫으로 남긴다.
+   · 줄 추가는 OVERWRITE (D-92 · 09-18): INSERT_ROWS 는 끼워 넣기라 **윗줄 서식을 물려받는다**
+     — 첫 줄은 헤더(노란 바탕·굵게)를 그대로 물려받았다. OVERWRITE 는 아래 빈 칸에 써 넣어
+     기본 서식으로 들어간다. 09-17 에 "담당자가 칠한 노란색" 이라 본 것도 사실은 이것.
    ═══════════════════════════════════════════════════════════════ */
 
 type Sheets = ReturnType<typeof google.sheets>
@@ -330,7 +333,8 @@ async function formatRow(
   muted: boolean
 ) {
   // 바탕색은 **취소 줄만** 회색으로 칠한다. 나머지 줄은 건드리지 않는다 — 흰색을 강제하면
-  // 담당자가 손으로 칠한 색이 지워진다 (09-17 발견: 노란색이 A~Q 만 흰색으로 되돌아감)
+  // 담당자가 손으로 칠한 색이 지워진다. (09-17 "노란색이 A~Q 만 흰색으로" 는 INSERT_ROWS 가
+  // 헤더 서식을 물려준 것을 이 함수가 지우던 것 — D-92 에서 OVERWRITE 로 원인을 없앰)
   const base: Record<string, unknown> = {
     horizontalAlignment: 'CENTER',
     verticalAlignment: 'MIDDLE',
@@ -634,7 +638,10 @@ export async function syncApplication(
       spreadsheetId: cfg.sheetId,
       range: 'A1',
       valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
+      // OVERWRITE — 빈 칸에 써 넣는다 (D-92 · 09-18). INSERT_ROWS 는 줄을 **끼워 넣어** 바로 윗줄
+      // 서식을 물려받는다 — 시트가 비어 있으면 윗줄이 헤더라 노란 바탕·굵은 글씨가 새 줄에 그대로.
+      // 09-17 의 "노란색" 도 담당자가 칠한 게 아니라 이것이었다.
+      insertDataOption: 'OVERWRITE',
       requestBody: { values: [row] },
     })
   )
@@ -988,7 +995,10 @@ export async function syncSettlement(
       spreadsheetId: cfg.sheetId,
       range: `'${SETTLEMENT_SHEET}'!A1`,
       valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
+      // OVERWRITE — 빈 칸에 써 넣는다 (D-92 · 09-18). INSERT_ROWS 는 줄을 **끼워 넣어** 바로 윗줄
+      // 서식을 물려받는다 — 시트가 비어 있으면 윗줄이 헤더라 노란 바탕·굵은 글씨가 새 줄에 그대로.
+      // 09-17 의 "노란색" 도 담당자가 칠한 게 아니라 이것이었다.
+      insertDataOption: 'OVERWRITE',
       requestBody: { values: [row] },
     })
   )
@@ -1121,7 +1131,10 @@ export async function syncOutput(o: Output, openUrl: string): Promise<OutputSync
       spreadsheetId: cfg.sheetId,
       range: `'${OUTPUT_SHEET}'!A1`,
       valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
+      // OVERWRITE — 빈 칸에 써 넣는다 (D-92 · 09-18). INSERT_ROWS 는 줄을 **끼워 넣어** 바로 윗줄
+      // 서식을 물려받는다 — 시트가 비어 있으면 윗줄이 헤더라 노란 바탕·굵은 글씨가 새 줄에 그대로.
+      // 09-17 의 "노란색" 도 담당자가 칠한 게 아니라 이것이었다.
+      insertDataOption: 'OVERWRITE',
       requestBody: { values: [row] },
     })
   )
