@@ -1,5 +1,5 @@
 import PageHeader from '@/components/ui/PageHeader'
-import Placeholder from '@/components/ui/Placeholder'
+import EmptyState from '@/components/ui/EmptyState'
 
 export const metadata = { title: '갤러리' }
 
@@ -22,12 +22,19 @@ export default function GalleryPage() {
         description="사업 참여자가 만든 산출물과 활동 사진을 공유하는 공간입니다."
       />
       {/* 09-17 D-76: 참여자끼리 공유는 「산출물 제출」의 참여자 자료실에서 이미 된다.
-          갤러리는 **로그인 없이 누구나** 보는 공개 공간으로 남겨 두는 자리 — 문구를 거기에 맞춤 */}
-      <Placeholder
-        title="준비 중입니다"
-        desc="이곳은 사업 산출물을 누구나 볼 수 있게 공개하는 공간으로 준비 중입니다. 참여자끼리의 공유는 「산출물 제출」 메뉴의 참여자 자료실에서 이미 할 수 있습니다. 여기에 공개하는 것은 만드신 분의 동의를 받아 정합니다."
-        items={['수업 지도안 · 활동 사례 등 산출물', '프로그램 활동 사진']}
-      />
+          갤러리는 **로그인 없이 누구나** 보는 공개 공간으로 남겨 두는 자리.
+          D-84: 표준 빈 상태 카드 — 「준비 중」 배지는 남긴다(메뉴에 두되 의도된 상태임을 밝힘),
+          갈 곳(참여자 자료실)을 말만 하지 않고 버튼으로 준다 */}
+      <div className="container-page py-10">
+        <EmptyState
+          variant="preparing"
+          icon="images"
+          badge="준비 중"
+          title="곧 참여자들의 산출물이 이곳에 공개됩니다"
+          description="수업 지도안·활동 사례 같은 산출물과 프로그램 활동 사진을 누구나 볼 수 있게 공개하는 공간입니다. 공개 여부는 만드신 분의 동의를 받아 정합니다."
+          secondaryAction={{ label: '참여자 자료실 보기', href: '/outputs' }}
+        />
+      </div>
     </>
   )
 }

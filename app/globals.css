@@ -313,6 +313,31 @@ body[data-theme='notice']  { --theme-accent: 15 118 110; --theme-accent-strong: 
     @apply hidden lg:sticky lg:top-[7rem] lg:flex lg:h-[calc(100vh-7rem)] lg:flex-col lg:justify-start;
   }
 
+  /* ── 빈 상태 카드 (D-84) — 흰 카드 · 왼쪽 정렬 · 테마 색 아이콘 칩. components/ui/EmptyState */
+  .empty-card {
+    @apply rounded-2xl border border-line bg-surface text-left;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 16px -10px rgb(15 23 42 / 0.1);
+  }
+  .empty-icon {
+    @apply flex size-10 shrink-0 items-center justify-center rounded-[11px];
+    background: rgb(var(--theme-accent) / 0.1);
+  }
+  .empty-icon svg {
+    width: 21px;
+    height: 21px;
+    stroke: rgb(var(--theme-accent));
+    stroke-width: 1.75;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  @media (prefers-color-scheme: dark) {
+    /* 어두운 면엔 유채색 틴트 대신 밝기. 획은 다크의 밝은 파랑(--theme-accent 가 이미 그 값) */
+    .empty-icon {
+      background: rgb(255 255 255 / 0.06);
+    }
+  }
+
   /* 절 제목 앞 세로 바 — 청록 (지시서 §5) */
   .section-title {
     /* 세로 바는 테마 색 (D-82) — 메뉴마다 파랑~청록으로 바뀐다 */

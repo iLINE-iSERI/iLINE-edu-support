@@ -46,20 +46,15 @@ function GuestIntro() {
         title="산출물 제출"
         description="프로그램에 선정된 참여자가 활동 산출물과 사진을 올리는 곳입니다."
       />
+      {/* D-84: 이 화면이 빈 상태의 표준이 됐다 — 문구 그대로, 부품(EmptyState gate)으로 */}
       <div className="container-page py-10">
-        <div className="mx-auto max-w-xl rounded-2xl border border-line shadow-card bg-surface p-6 sm:p-8">
-          <p className="text-lg font-bold">로그인하면 내가 참여 중인 프로그램이 보입니다</p>
-          <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-            선정된 프로그램마다 제출창이 열리고, 활동 기간 중 언제든 지도안·발표자료·활동 사진을
-            올릴 수 있습니다. 담당자가 추가로 요청한 것이 있으면 여기에서 확인하고 다시 낼 수 있습니다.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2.5">
-            <Button href="/login?next=%2Foutputs">로그인</Button>
-            <Button variant="secondary" href="/apply">
-              프로그램 보기
-            </Button>
-          </div>
-        </div>
+        <EmptyState
+          variant="gate"
+          title="로그인하면 내가 참여 중인 프로그램이 보입니다"
+          description="선정된 프로그램마다 제출창이 열리고, 활동 기간 중 언제든 지도안·발표자료·활동 사진을 올릴 수 있습니다. 담당자가 추가로 요청한 것이 있으면 여기에서 확인하고 다시 낼 수 있습니다."
+          primaryAction={{ label: '로그인', href: '/login?next=%2Foutputs' }}
+          secondaryAction={{ label: '프로그램 보기', href: '/apply' }}
+        />
       </div>
     </>
   )
@@ -130,7 +125,7 @@ function OutputsContent() {
             title="참여 중인 프로그램이 없습니다"
             desc="프로그램에 선정되면 이곳에 제출창이 열립니다. 신청 현황은 마이페이지에서 확인하세요."
             action={
-              <div className="flex flex-wrap justify-center gap-2.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button variant="secondary" href="/apply">
                   프로그램 보기
                 </Button>

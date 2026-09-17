@@ -25,9 +25,13 @@ export default function ResourcesPage() {
           합니다.
         </p>
 
+        {/* D-84: 탭이 경로(/notice)라 "탭 전환" = 그 경로로 이동 */}
         <EmptyState
+          variant="empty"
+          icon="folder-open"
           title="등록된 자료가 없습니다"
-          desc="공고문과 제출 서식이 준비되면 이곳에 게시됩니다."
+          description="공고문과 제출 서식이 준비되면 이곳에 게시됩니다."
+          secondaryAction={{ label: '공지사항 보기', href: '/notice' }}
         />
       </div>
     </>

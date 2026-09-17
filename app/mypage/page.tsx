@@ -170,7 +170,7 @@ function MypageContent() {
               <EmptyState
                 title="아직 신청하신 프로그램이 없습니다"
                 desc="접수 중인 프로그램을 확인해 보세요."
-                action={<Button href="/apply">프로그램 보기</Button>}
+                primaryAction={{ label: '접수 중인 프로그램 보기', href: '/apply' }}
               />
             ) : (
               <ul className="space-y-3">

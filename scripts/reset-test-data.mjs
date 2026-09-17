@@ -36,7 +36,9 @@
  *   --all               담당자 계정까지 **전부** 지웁니다
  *                       (기본은 `role: staff` 회원을 자동으로 남깁니다.
  *                        담당자를 지우면 권한 부여를 처음부터 다시 해야 합니다)
- *   --programs          `test-` 로 시작하는 **프로그램 공고**도 지웁니다
+ *   --programs          `test-` 로 시작하는 **프로그램 공고**도 지웁니다 (포스터 파일 포함)
+ *   --program <id>      이 ID 의 공고를 지웁니다 — `test-` 로 안 시작하는 시험 공고용 (여러 번 가능)
+ *                       (09-18 추가: 시험 공고 ID 가 test- 가 아니어서 남은 일이 있었다)
  *   --bucket <이름>     Storage 버킷 이름 (기본: .env.local 에서 읽음)
  *
  * ⚠️ 옵션을 설계한 원칙: **옵션은 지우는 범위를 넓히지 않고 좁히기만 한다.**
@@ -99,6 +101,7 @@ const valueOf = (flag) => {
 const doDelete = has('--delete')
 const keepStaff = !has('--all')
 const alsoPrograms = has('--programs')
+const programIds = valueOf('--program').map((v) => v.trim()).filter(Boolean)
 const keepAccounts = has('--keep-accounts')
 const keepEmails = valueOf('--keep').map((e) => e.trim().toLowerCase())
 const onlyEmails = valueOf('--only').map((e) => e.trim().toLowerCase())
@@ -291,14 +294,18 @@ const deliveryIds = onlyUids ? [] : (await db.collection(COL.reservationDeliveri
 /** Storage 에서 비울 자리 — `--only` 면 그 사람 폴더만 */
 const storageTargets = onlyUids
   ? [...onlyUids].flatMap((uid) => STORAGE_PREFIXES.map((p) => `${p}${uid}/`))
-  : STORAGE_PREFIXES
+  : [...STORAGE_PREFIXES]
 
 let testPrograms = []
-if (alsoPrograms && !onlyUids) {
+if ((alsoPrograms || programIds.length > 0) && !onlyUids) {
   const snap = await db.collection(COL.programs).select('title').get()
   testPrograms = snap.docs
-    .filter((d) => d.id.startsWith('test-'))
+    .filter((d) => (alsoPrograms && d.id.startsWith('test-')) || programIds.includes(d.id))
     .map((d) => ({ id: d.id, title: d.get('title') || '' }))
+  const missing = programIds.filter((id) => !snap.docs.some((d) => d.id === id))
+  if (missing.length) console.log(`\n⚠️ --program 으로 준 ID 중 없는 것: ${missing.join(', ')}`)
+  // 공고의 포스터 파일 (D-81 · 공개 경로) — 공고와 함께 지운다
+  for (const p of testPrograms) storageTargets.push(`support/public/programs/${p.id}/`)
 }
 
 /* ── 무엇을 지울지 보여준다 ───────────────────────────────── */
@@ -353,7 +360,7 @@ line('예약 자리 잠금 + 하루 열쇠', slotIds.length + dayKeyIds.length)
 if (!onlyUids) line('행정실 전달 기록', deliveryIds.length)
 line('회원 문서', usersToDelete.length)
 line('로그인 계정', accountsToDelete.length)
-if (alsoPrograms && !onlyUids) line('시험용 공고 (test-)', testPrograms.length)
+if ((alsoPrograms || programIds.length > 0) && !onlyUids) line('시험용 공고', testPrograms.length)
 console.log(`   Storage: ${storageTargets.join(', ')} 아래`)
 
 if (keepAccounts) {
@@ -469,7 +476,7 @@ if (deliveryIds.length > 0) {
 console.log('③ 회원 문서…')
 await deleteDocs(COL.users, usersToDelete.map((u) => u.uid))
 
-if (alsoPrograms && !onlyUids && testPrograms.length > 0) {
+if (!onlyUids && testPrograms.length > 0) {
   console.log('③′ 시험용 공고…')
   await deleteDocs(COL.programs, testPrograms.map((p) => p.id))
 }
