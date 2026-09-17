@@ -19,6 +19,22 @@ import type { Program } from '@/lib/types'
  * 카드 전체를 링크로 만들지 않는다 — 안에 버튼(링크)이 있어 링크 속 링크가 되므로.
  * 제목과 포스터, 버튼이 각각 상세로 간다. 올리면 카드가 살짝 떠오른다(.card-link).
  */
+/**
+ * 목록 카드에 보일 한 토막 — 소개 본문의 **첫 문단**만 (D-87 · 09-18).
+ *
+ * 담당자가 문단과 이모지 항목(👥 대상 · 📊 활동 · 💰 지원)으로 구조를 잡아 쓴 글이
+ * 목록에서는 줄바꿈이 사라진 채 한 덩어리로 붙어 이모지가 문장 중간에 박혔다.
+ * **목록은 훑고 고르는 화면, 상세는 읽는 화면** — 목록에서 본문 줄바꿈을 살리면 담당자가
+ * 쓴 원문 구조가 카드 높이를 좌우해 목록이 들쭉날쭉해진다. 그래서 빈 줄 기준 첫 문단만
+ * 취하고, 문단 안의 한 줄 바꿈은 공백으로 펴서 2줄로 자른다. 첫 문단이 짧아도 뒤 문단을
+ * 끌어오지 않는다(끌어오는 순간 이모지 항목이 딸려 온다). 상세·홈 카드는 그대로.
+ */
+export function firstParagraph(text?: string): string {
+  if (!text) return ''
+  const first = text.trim().split(/\n\s*\n/)[0] ?? ''
+  return first.replace(/\s*\n\s*/g, ' ').trim()
+}
+
 export default function ProgramCard({ program }: { program: Program }) {
   const phase = getProgramPhase(program)
   const dday = phase === 'open' ? daysUntilClose(program) : null
@@ -26,6 +42,7 @@ export default function ProgramCard({ program }: { program: Program }) {
   const href = `/apply/${program.id}`
   const poster = program.poster?.url
   const closed = phase === 'closed'
+  const blurb = firstParagraph(program.description)
 
   return (
     <article
@@ -36,15 +53,17 @@ export default function ProgramCard({ program }: { program: Program }) {
       {poster && (
         <Link
           href={href}
-          className="group relative block shrink-0 bg-subtle sm:w-[30%] sm:max-w-[260px]"
+          className="group relative block shrink-0 bg-subtle sm:w-[30%] sm:max-w-[220px]"
           aria-label={`${program.title} 포스터 — 자세히 보기`}
         >
-          {/* D-86: next/image — 칸 폭(휴대폰 240 · PC 30%≤260)에 맞는 WebP 만 받는다.
+          {/* D-86: next/image — 칸 폭(휴대폰 240 · PC 30%≤220)에 맞는 WebP 만 받는다.
+              칸 최대폭 260→220 (D-87 · iSERI 선택): 카드 높이를 포스터가 정하므로 칸을 줄여야
+              메타 상자와 버튼 사이 빈 곳(60px)이 실제로 준다. 목록의 포스터는 알아보는 용도.
               priority 없음 = lazy 그대로. 배경 자리는 PosterImage 가 그린다 */}
           <PosterImage
             url={poster}
             alt=""
-            sizes="(max-width: 640px) 240px, 260px"
+            sizes="(max-width: 640px) 240px, 220px"
             className="mx-auto w-full max-w-[240px] sm:max-w-none"
           />
           {/* 올리면 살짝 어두워지며 힌트 */}
@@ -76,9 +95,9 @@ export default function ProgramCard({ program }: { program: Program }) {
           </Link>
         </h3>
 
-        {program.description && (
-          <p className="mt-1.5 line-clamp-2 break-keep text-sm leading-relaxed text-ink-muted">
-            {program.description}
+        {blurb && (
+          <p className="mt-1.5 line-clamp-2 break-keep text-sm leading-[1.65] text-ink-muted">
+            {blurb}
           </p>
         )}
 
@@ -106,6 +125,9 @@ export default function ProgramCard({ program }: { program: Program }) {
           </div>
         </dl>
 
+        {/* CTA — 카드 바닥 고정(mt-auto). 카드 높이는 왼쪽 포스터(3:4)가 정하므로 글이
+            짧으면 메타 상자와 버튼 사이가 비는데, 그 빈 곳이 버튼 위로 가게 두는 쪽이
+            버튼이 중간에 뜨는 것보다 낫다 (D-87). 최소 간격 1.25rem */}
         <div className="mt-4 flex justify-end sm:mt-auto sm:pt-5">
           {closed ? (
             <Button variant="secondary" href={href} className="max-sm:w-full">
