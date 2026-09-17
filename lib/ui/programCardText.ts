@@ -20,7 +20,21 @@
  * 휴리스틱이다 — 근본 해법은 `highlights` 필드(백로그). 원문은 가공하지 않는다(이모지 유지).
  */
 
-export const ITEM_MAX = 3
+/**
+ * 화면별 표시 규칙 (D-91). 목록 카드는 md(820px) 기준으로 두 규칙을 반응형 클래스로 같이 쓰고,
+ * 담당자 미리보기는 토글로 하나씩 재현한다. **값은 여기 한 곳** — 미리보기에 따로 적지 않는다.
+ *   휴대폰  요약 2줄 · 항목 3개 × 각 2줄 (1줄 클램프는 좁은 폭에서 「💰 지원: 팀당 최대 …」처럼
+ *          숫자를 통째로 날려 없느니만 못했다. 지시서는 2개였으나 실제 공고가 👥→📊→💰 순이라
+ *          2개면 결심시키는 💰 줄이 통째로 빠진다 → 3개 · iSERI 09-18)
+ *   PC     요약 2줄 · 항목 3개 × 각 1줄
+ * 폭은 미리보기 재현용 — 휴대폰 343(375 − 16×2) · PC 776(컨테이너 1076 − 카드 패딩 40 − 포스터 240 − 간격 20)
+ */
+export const CARD_RULES = {
+  mobile: { itemMax: 3, width: 343 },
+  desktop: { itemMax: 3, width: 776 },
+} as const
+/** cardText 가 돌려주는 최대 개수 = 두 규칙 중 큰 쪽 */
+export const ITEM_MAX = Math.max(CARD_RULES.mobile.itemMax, CARD_RULES.desktop.itemMax)
 
 const ITEM_RE = [
   // (a) 이모지로 시작 — tsconfig target 이 es5 라 리터럴 /…/u 가 안 통해 생성자로(브라우저는 다 됨)
@@ -57,9 +71,17 @@ export function cardText(text?: string): CardText {
   return { blurb, items: candidates.slice(0, ITEM_MAX), itemTotal: candidates.length }
 }
 
-/** 요약·항목의 글자 스타일 — 목록 카드와 미리보기가 같은 클래스를 쓴다 */
+/**
+ * 요약·항목의 글자 스타일 — 목록 카드와 미리보기가 같은 클래스를 쓴다.
+ * item 은 셋: 카드용(반응형) · 미리보기 휴대폰 · 미리보기 PC. Tailwind 가 클래스를 글자 그대로
+ * 찾으므로 접두어를 조립하지 않고 셋 다 적어 둔다.
+ */
 export const CARD_TEXT_CLS = {
   blurb: 'line-clamp-2 break-keep text-sm leading-[1.65] text-ink-muted',
   list: 'mt-1.5 space-y-0.5 text-sm leading-[1.6] text-ink-muted',
-  item: 'line-clamp-1 break-keep',
+  item: 'break-keep max-md:line-clamp-2 md:line-clamp-1',
+  itemMobile: 'break-keep line-clamp-2',
+  itemDesktop: 'break-keep line-clamp-1',
+  /** 카드에서 휴대폰 규칙 개수를 넘는 항목(3번째)을 숨긴다 */
+  itemDesktopOnly: 'max-md:hidden',
 } as const

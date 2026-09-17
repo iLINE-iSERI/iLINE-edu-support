@@ -10,6 +10,9 @@ const config: Config = {
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
+    // lib 에도 클래스 문자열이 있다 (lib/ui/programCardText 의 CARD_TEXT_CLS · D-91) — 여기 없으면
+    // 그 클래스가 CSS 로 안 나가 조용히 무시된다
+    './lib/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

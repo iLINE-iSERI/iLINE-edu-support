@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import PosterImage from '@/components/ui/PosterImage'
-import { cardText, CARD_TEXT_CLS } from '@/lib/ui/programCardText'
+import { cardText, CARD_RULES, CARD_TEXT_CLS } from '@/lib/ui/programCardText'
 import {
   getProgramPhase,
   PHASE_LABEL,
@@ -32,38 +32,41 @@ export default function ProgramCard({ program }: { program: Program }) {
   return (
     <article
       className={
-        // D-89: 사방 같은 패딩(1rem · sm 1.25rem) 안에 포스터와 글이 같이 들어간다 — 포스터가
-        // 모서리에 붙어 카드 16px 모서리를 뚫고 나오고 배지 줄과 8px 어긋나던 것. 포스터↔글 1.25rem
-        'card-link flex flex-col gap-4 p-4 sm:flex-row sm:gap-5 sm:p-5 ' + (closed ? 'opacity-80' : '')
+        // D-91: 한 DOM, 두 배치 — 이름 붙인 격자 영역(globals.css .program-card).
+        //   휴대폰(md 미만)  [썸네일 | 배지·제목]  →  요약·항목·메타·버튼은 **전체 폭**
+        //   PC(md 이상)      [포스터 | 배지·제목·요약·항목·메타·버튼]  (D-89 가로 분할 그대로)
+        // 휴대폰에서 카드가 화면을 다 먹던 원인은 글이 아니라 240×320 포스터였다(포스터 없는
+        // 카드는 한 화면에 들어왔음) → 썸네일 100px 로. 사방 같은 패딩(1rem · md 1.25rem)
+        'card-link program-card ' + (poster ? '' : 'program-card--noposter ') + (closed ? 'opacity-80' : '')
       }
     >
       {poster && (
         <Link
           href={href}
-          className="group relative block shrink-0 overflow-hidden rounded-xl bg-subtle sm:w-[30%] sm:max-w-[240px] sm:self-center"
+          className="group relative block w-full overflow-hidden rounded-[10px] bg-subtle [grid-area:thumb] md:self-center md:rounded-xl"
           aria-label={`${program.title} 포스터 — 자세히 보기`}
         >
-          {/* D-86: next/image — 칸 폭에 맞는 WebP 만 받는다. priority 없음 = lazy.
-              칸 최대폭 260→220(D-87 B안)→240(D-89 A-3 3순위): 카드 높이 = 포스터 높이인데
-              요약 2줄 + 항목 3줄 + 메타 + 버튼이 220 의 293px 보다 길어 240(320px) 으로.
-              모서리 12px(rounded-xl) — 카드 16px 보다 한 단계 작게. 배경 자리는 PosterImage */}
+          {/* D-86: next/image — 칸 폭에 맞는 WebP 만 받는다(휴대폰 100 · PC ≤240). lazy.
+              PC 칸 최대폭 260→220(D-87)→240(D-89): 카드 높이 = 포스터 높이라 글이 들어오는 폭.
+              목록에서 포스터는 읽는 대상이 아니라 **식별자** — 글자는 상세에서 읽는다(D-91) */}
           <PosterImage
             url={poster}
             alt=""
-            sizes="(max-width: 640px) 240px, 240px"
-            className="mx-auto w-full max-w-[240px] sm:max-w-none"
+            sizes="(max-width: 819px) 100px, 240px"
+            className="w-full"
           />
-          {/* 올리면 살짝 어두워지며 힌트 */}
+          {/* 올리면 살짝 어두워지며 힌트 — 휴대폰(터치)엔 없음 */}
           <span
             aria-hidden="true"
-            className="absolute inset-0 flex items-end justify-center bg-ink/0 pb-3 text-xs font-bold text-white opacity-0 transition group-hover:bg-ink/30 group-hover:opacity-100"
+            className="absolute inset-0 hidden items-end justify-center bg-ink/0 pb-3 text-xs font-bold text-white opacity-0 transition group-hover:bg-ink/30 group-hover:opacity-100 md:flex"
           >
             자세히 보기
           </span>
         </Link>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* 배지 줄 + 제목 — 휴대폰에선 썸네일 오른쪽, PC 에선 글 열 맨 위 */}
+      <div className="min-w-0 [grid-area:head]">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={phase}>{PHASE_LABEL[phase]}</Badge>
           <Badge tone={isGroup ? 'group' : 'individual'}>
@@ -75,19 +78,29 @@ export default function ProgramCard({ program }: { program: Program }) {
             </span>
           )}
         </div>
-
-        <h3 className="mt-3 line-clamp-2 break-keep text-lg font-bold leading-snug tracking-tight">
+        <h3 className="mt-2.5 line-clamp-2 break-keep text-lg font-bold leading-snug tracking-tight md:mt-3">
           <Link href={href} className="hover:text-brand-600">
             {program.title}
           </Link>
         </h3>
+      </div>
 
-        {/* 소개 → 요약 2줄 + 항목 3줄. 규칙·스타일은 lib/ui/programCardText 한 곳(담당자 미리보기와 공유 · D-90) */}
-        {blurb && <p className={'mt-1.5 ' + CARD_TEXT_CLS.blurb}>{blurb}</p>}
+      {/* 본문 — 휴대폰에선 전체 폭(썸네일 아래), PC 에선 글 열의 나머지. 버튼은 바닥(mt-auto) */}
+      <div className="flex min-w-0 flex-col [grid-area:body]">
+        {/* 소개 → 요약 2줄 + 항목(휴대폰 3개×2줄 · PC 3개×1줄). 규칙·스타일은
+            lib/ui/programCardText 한 곳 — 담당자 미리보기와 공유(D-90) */}
+        {blurb && <p className={'md:mt-1.5 ' + CARD_TEXT_CLS.blurb}>{blurb}</p>}
         {items.length > 0 && (
           <ul className={CARD_TEXT_CLS.list}>
             {items.map((line, i) => (
-              <li key={i} className={CARD_TEXT_CLS.item}>
+              <li
+                key={i}
+                className={
+                  CARD_TEXT_CLS.item +
+                  // 휴대폰 규칙 개수를 넘는 항목은 휴대폰에서 숨김 (지금은 둘 다 3이라 해당 없음)
+                  (i >= CARD_RULES.mobile.itemMax ? ' ' + CARD_TEXT_CLS.itemDesktopOnly : '')
+                }
+              >
                 {line}
               </li>
             ))}
@@ -95,7 +108,7 @@ export default function ProgramCard({ program }: { program: Program }) {
         )}
 
         {/* 메타 상자 — 기간·방식 (지시서 §4). 정원·혜택은 데이터가 없어 넣지 않는다 */}
-        <dl className="mt-3 grid gap-x-6 gap-y-1 rounded-lg bg-subtle px-3 py-2 text-sm sm:grid-cols-2">
+        <dl className="mt-3 grid gap-x-6 gap-y-1 rounded-lg bg-subtle px-3 py-2 text-sm md:grid-cols-2">
           <div className="flex gap-2">
             <dt className="shrink-0 text-ink-subtle">접수</dt>
             <dd className="font-medium">{formatPeriod(program.opensAt, program.closesAt)}</dd>
@@ -118,16 +131,14 @@ export default function ProgramCard({ program }: { program: Program }) {
           </div>
         </dl>
 
-        {/* CTA — 카드 바닥 고정(mt-auto). 카드 높이는 왼쪽 포스터(3:4)가 정하므로 글이
-            짧으면 메타 상자와 버튼 사이가 비는데, 그 빈 곳이 버튼 위로 가게 두는 쪽이
-            버튼이 중간에 뜨는 것보다 낫다 (D-87). 최소 간격 1.25rem */}
-        <div className="mt-4 flex justify-end sm:mt-auto sm:pt-4">
+        {/* CTA — PC 는 카드 바닥 고정(mt-auto · D-87), 휴대폰은 전체 폭 */}
+        <div className="mt-4 flex justify-end md:mt-auto md:pt-4">
           {closed ? (
-            <Button variant="secondary" href={href} className="max-sm:w-full">
+            <Button variant="secondary" href={href} className="max-md:w-full">
               공고 보기
             </Button>
           ) : (
-            <Button href={href} className="max-sm:w-full">
+            <Button href={href} className="max-md:w-full">
               자세히 보고 신청하기 →
             </Button>
           )}

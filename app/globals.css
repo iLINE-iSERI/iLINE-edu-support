@@ -313,6 +313,43 @@ body[data-theme='notice']  { --theme-accent: 15 118 110; --theme-accent-strong: 
     @apply hidden lg:sticky lg:top-[7rem] lg:flex lg:h-[calc(100vh-7rem)] lg:flex-col lg:justify-start;
   }
 
+  /* ── 프로그램 목록 카드 격자 (D-91) — 한 DOM, 두 배치. components/apply/ProgramCard
+     휴대폰: [썸네일 6.25rem | 배지·제목] 위, 본문(요약·항목·메타·버튼)은 아래 전체 폭.
+     PC(md): [포스터 | 배지·제목 / 본문] 가로 분할, 포스터가 두 줄에 걸쳐 세로 가운데 */
+  .program-card {
+    display: grid;
+    grid-template-columns: 6.25rem minmax(0, 1fr);
+    grid-template-areas:
+      'thumb head'
+      'body body';
+    gap: 0.75rem 0.875rem;
+    padding: 1rem;
+  }
+  .program-card--noposter {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'body';
+  }
+  @media (min-width: 820px) {
+    .program-card {
+      /* 포스터 열 = 카드 폭의 30%, 최대 15rem(240px) — 열이 폭을 정하고 포스터는 w-full */
+      grid-template-columns: min(30%, 15rem) minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+      grid-template-areas:
+        'thumb head'
+        'thumb body';
+      gap: 0 1.25rem;
+      padding: 1.25rem;
+    }
+    .program-card--noposter {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        'head'
+        'body';
+    }
+  }
+
   /* ── 포스터 자리 (D-86) — 도착 전 테마색 6% 단색, 도착하면 200ms 페이드인. shimmer 없음
      (카드가 쌓이면 화면 전체가 번쩍인다). components/ui/PosterImage */
   .poster-skeleton {
