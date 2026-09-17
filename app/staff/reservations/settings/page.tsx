@@ -115,7 +115,7 @@ function Content() {
           </label>
         </div>
 
-        <fieldset className="rounded-2xl border border-line bg-surface p-5">
+        <fieldset className="rounded-2xl border border-line bg-surface shadow-card p-5">
           <legend className="px-1 text-sm font-bold">휴관일</legend>
           <p className="text-xs text-ink-muted">시험 기간처럼 통째로 닫는 날. 격자에 「－」로 나옵니다. 주말은 넣지 않아도 됩니다.</p>
           <div className="mt-3 flex gap-2">

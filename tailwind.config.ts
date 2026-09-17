@@ -14,42 +14,62 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // 사업 브랜드 (남색 계열) — iLINE의 청록과 구분
+        // 사업 브랜드 — 09-18(D-81) 남색 → 파랑 (Gemini 지시서 §1). 600 = --brand.
+        // 숫자 단계는 Tailwind blue 그대로라 `dark:bg-brand-900`(#1e3a8a, 옛 주색)이
+        // 다크 모드 히어로 바탕으로 자연스럽게 남는다.
         brand: {
-          50: '#eef2fb',
-          100: '#e8edfa',
-          200: '#c9d5f4',
-          300: '#9db2e9',
-          400: '#6b8ada',
-          500: '#3b5fc0',
-          600: '#1e3a8a',
-          700: '#172e6e',
-          800: '#132558',
-          900: '#0f1d45',
-          // globals.css 의 --brand-soft (라이트 #e8edfa · 다크 #1a2748).
-          // ⚠️ 09-14 까지 이 키가 없어서 `bg-brand-soft` 가 CSS 로 안 나갔다 —
-          //    홈 히어로·Badge·ConsentBlock 이 라이트 모드에서 바탕색 없이 떠 있었다.
-          //    var() 색이라 `/60` 같은 투명도 수식은 무시되고 원색이 쓰인다.
-          soft: 'var(--brand-soft)',
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: 'rgb(var(--brand) / <alpha-value>)',
+          700: 'rgb(var(--brand-strong) / <alpha-value>)',
+          800: '#1e40af',
+          900: '#1e3a8a',
+          // globals.css 의 --brand-soft. ⚠️ 09-14 까지 이 키가 없어서 `bg-brand-soft` 가
+          // CSS 로 안 나갔다 — 홈 히어로·Badge·ConsentBlock 이 바탕색 없이 떠 있었다.
+          soft: 'rgb(var(--brand-soft) / <alpha-value>)',
         },
-        // 의미 색 — CSS 변수 참조
-        bg: 'var(--bg)',
-        surface: 'var(--bg-elevated)',
-        subtle: 'var(--bg-subtle)',
-        line: 'var(--border)',
-        'line-strong': 'var(--border-strong)',
-        ink: 'var(--text)',
-        'ink-muted': 'var(--text-muted)',
-        'ink-subtle': 'var(--text-subtle)',
+        // 포인트 (09-18) — 청록 · 귤색 · 슬레이트. 뜻은 globals.css 주석
+        accent: {
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          ink: 'rgb(var(--accent-ink) / <alpha-value>)',
+          soft: 'rgb(var(--accent-soft) / <alpha-value>)',
+        },
+        warn: {
+          DEFAULT: 'rgb(var(--warn) / <alpha-value>)',
+          ink: 'rgb(var(--warn-ink) / <alpha-value>)',
+          soft: 'rgb(var(--warn-soft) / <alpha-value>)',
+        },
+        wait: {
+          DEFAULT: 'rgb(var(--wait) / <alpha-value>)',
+          soft: 'rgb(var(--wait-soft) / <alpha-value>)',
+        },
+        // 의미 색 — CSS 변수(R G B) 참조. `<alpha-value>` 덕에 `/12` 같은 투명도가 통한다
+        bg: 'rgb(var(--bg) / <alpha-value>)',
+        surface: 'rgb(var(--bg-elevated) / <alpha-value>)',
+        subtle: 'rgb(var(--bg-subtle) / <alpha-value>)',
+        line: 'rgb(var(--border) / <alpha-value>)',
+        'line-strong': 'rgb(var(--border-strong) / <alpha-value>)',
+        ink: 'rgb(var(--text) / <alpha-value>)',
+        'ink-muted': 'rgb(var(--text-muted) / <alpha-value>)',
+        'ink-subtle': 'rgb(var(--text-subtle) / <alpha-value>)',
         // 신청서 상태 (§4-4)
         status: {
-          draft: 'var(--status-draft)',
-          submitted: 'var(--status-submitted)',
-          reviewing: 'var(--status-reviewing)',
-          revision: 'var(--status-revision)',
-          approved: 'var(--status-approved)',
-          rejected: 'var(--status-rejected)',
+          draft: 'rgb(var(--status-draft) / <alpha-value>)',
+          submitted: 'rgb(var(--status-submitted) / <alpha-value>)',
+          reviewing: 'rgb(var(--status-reviewing) / <alpha-value>)',
+          revision: 'rgb(var(--status-revision) / <alpha-value>)',
+          approved: 'rgb(var(--status-approved) / <alpha-value>)',
+          rejected: 'rgb(var(--status-rejected) / <alpha-value>)',
         },
+      },
+      boxShadow: {
+        // 카드 (지시서 §1) — 기본 / 링크 카드 호버
+        card: '0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.03)',
+        'card-hover': '0 10px 20px -2px rgba(15, 23, 42, 0.06)',
       },
       fontFamily: {
         sans: ['var(--font-sans)'],

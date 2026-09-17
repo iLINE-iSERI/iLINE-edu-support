@@ -28,7 +28,10 @@ export default function ConsentBlock({
   children: ReactNode
 }) {
   return (
-    <fieldset className="rounded-xl border border-line bg-surface p-4">
+    <fieldset
+      className="rounded-xl border border-line bg-surface shadow-card p-4"
+      data-field-required={required ? 'true' : undefined}
+    >
       <legend className="px-1 text-sm font-bold">
         {title}
         <span

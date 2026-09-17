@@ -19,6 +19,7 @@
  */
 
 import { Suspense, useEffect, useState } from 'react'
+import Button from '@/components/ui/Button'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import AuthShell, { GoogleButton } from '@/components/auth/AuthShell'
@@ -147,7 +148,7 @@ function SignupFlow() {
       setError(
         code.startsWith('auth/')
           ? authErrorMessage(err)
-          : firestoreErrorMessage(err)
+          : firestoreErrorMessage(err),
       )
       setBusy(false)
     }
@@ -286,13 +287,9 @@ function SignupFlow() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="touch-target w-full rounded-xl bg-brand-600 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Button type="submit" full disabled={busy}>
           다음 단계로
-        </button>
+        </Button>
       </form>
     </AuthShell>
   )

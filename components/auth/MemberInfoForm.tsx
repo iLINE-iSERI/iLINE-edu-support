@@ -26,6 +26,7 @@
  */
 
 import { useState } from 'react'
+import Button from '@/components/ui/Button'
 import Field from '@/components/ui/Field'
 import Select from '@/components/ui/Select'
 import ConsentBlock from '@/components/ui/ConsentBlock'
@@ -89,7 +90,7 @@ export default function MemberInfoForm({
   askConsent?: boolean
 }) {
   const [memberType, setMemberType] = useState<MemberType>(
-    initial?.memberType ?? 'student'
+    initial?.memberType ?? 'student',
   )
   const [name, setName] = useState(initial?.name ?? '')
   const [affiliation, setAffiliation] = useState(initial?.affiliation ?? '')
@@ -114,7 +115,7 @@ export default function MemberInfoForm({
     // 소속은 학생·교원만 필수. 일반은 소속이 없을 수 있다.
     if (!isGeneral && !affiliation.trim()) {
       return setLocalError(
-        isStudent ? '소속 대학을 입력해 주세요.' : '소속 기관을 입력해 주세요.'
+        isStudent ? '소속 대학을 입력해 주세요.' : '소속 기관을 입력해 주세요.',
       )
     }
     if (isStudent) {
@@ -125,7 +126,9 @@ export default function MemberInfoForm({
       return setLocalError('연락처를 정확히 입력해 주세요.')
     }
     if (askConsent && personalInfo !== true) {
-      return setLocalError('개인정보 수집·이용에 동의하셔야 가입할 수 있습니다.')
+      return setLocalError(
+        '개인정보 수집·이용에 동의하셔야 가입할 수 있습니다.',
+      )
     }
 
     onSubmit({
@@ -198,7 +201,9 @@ export default function MemberInfoForm({
       />
 
       <Field
-        label={isStudent ? '소속 대학' : isTeacher ? '소속 기관' : '소속 (선택)'}
+        label={
+          isStudent ? '소속 대학' : isTeacher ? '소속 기관' : '소속 (선택)'
+        }
         name="affiliation"
         required={!isGeneral}
         placeholder={
@@ -292,32 +297,32 @@ export default function MemberInfoForm({
           초상권 동의서는 여기 없다. 프로그램 신청 화면에서 받는다 (D-44).
           수정 화면에서는 통째로 나오지 않는다 — 위 askConsent 주석 참고. */}
       {askConsent && (
-      <div className="space-y-3 pt-2">
-        <ConsentBlock
-          id="consent-personal"
-          title="개인정보 수집·이용 동의서"
-          required
-          value={personalInfo}
-          onChange={setPersonalInfo}
-        >
-          <p>
-            <strong>수집·이용 목적</strong> · 재정지원사업 활동 참여 및 사업비
-            집행
-          </p>
-          <p>
-            <strong>수집 항목</strong> · 성명, 소속, 학과·전공, 신분 정보
-            (학번·학년 또는 직위), 연락처, 이메일
-          </p>
-          <p>
-            <strong>보유 및 이용 기간</strong> · 사업 종료 후 3년 (관련 법령 및
-            대학 기록 보존기준 준용)
-          </p>
-          <p className="text-ink-subtle">
-            동의를 거부할 권리가 있으며, 거부하실 경우 프로그램 참여 및 수료증
-            발급이 제한될 수 있습니다.
-          </p>
-        </ConsentBlock>
-      </div>
+        <div className="space-y-3 pt-2">
+          <ConsentBlock
+            id="consent-personal"
+            title="개인정보 수집·이용 동의서"
+            required
+            value={personalInfo}
+            onChange={setPersonalInfo}
+          >
+            <p>
+              <strong>수집·이용 목적</strong> · 재정지원사업 활동 참여 및 사업비
+              집행
+            </p>
+            <p>
+              <strong>수집 항목</strong> · 성명, 소속, 학과·전공, 신분 정보
+              (학번·학년 또는 직위), 연락처, 이메일
+            </p>
+            <p>
+              <strong>보유 및 이용 기간</strong> · 사업 종료 후 3년 (관련 법령
+              및 대학 기록 보존기준 준용)
+            </p>
+            <p className="text-ink-subtle">
+              동의를 거부할 권리가 있으며, 거부하실 경우 프로그램 참여 및 수료증
+              발급이 제한될 수 있습니다.
+            </p>
+          </ConsentBlock>
+        </div>
       )}
 
       {shown && (
@@ -329,13 +334,9 @@ export default function MemberInfoForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={busy}
-        className="touch-target w-full rounded-xl bg-brand-600 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-      >
+      <Button type="submit" full disabled={busy}>
         {busy ? '처리 중…' : submitLabel}
-      </button>
+      </Button>
     </form>
   )
 }

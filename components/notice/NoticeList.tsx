@@ -52,7 +52,7 @@ export default function NoticeList() {
   }
 
   return (
-    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
       {notices.map((n) => (
         <li key={n.id}>
           <Link
@@ -60,7 +60,7 @@ export default function NoticeList() {
             className="flex items-start gap-3 px-5 py-4 hover:bg-subtle"
           >
             {/* 고정 공지는 목록 어디에 있든 눈에 띄어야 한다 */}
-            {n.pinned && <Badge tone="individual">공지</Badge>}
+            {n.pinned && <Badge tone="info">공지</Badge>}
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{n.title}</p>
               <p className="mt-1 text-xs text-ink-subtle">

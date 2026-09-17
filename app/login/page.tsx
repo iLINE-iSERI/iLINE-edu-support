@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import Button from '@/components/ui/Button'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import AuthShell, { GoogleButton } from '@/components/auth/AuthShell'
@@ -168,24 +169,17 @@ function LoginForm() {
             <p className="leading-relaxed">{error}</p>
             {showSignupHint && (
               <div className="mt-3 flex justify-center">
-                <Link
-                  href={`/signup?next=${encodeURIComponent(next)}`}
-                  className="touch-target inline-flex items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700"
-                >
+                <Button href={`/signup?next=${encodeURIComponent(next)}`}>
                   회원가입 하러 가기
-                </Link>
+                </Button>
               </div>
             )}
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="touch-target w-full rounded-xl bg-brand-600 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+        <Button type="submit" full disabled={busy}>
           {busy ? '처리 중…' : '로그인'}
-        </button>
+        </Button>
       </form>
 
       <p className="mt-4 text-center text-sm">

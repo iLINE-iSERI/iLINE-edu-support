@@ -199,10 +199,28 @@ export interface Program {
   /** 제출 안내 — "지도안과 발표자료를 올려 주세요" 같은 한 문단 */
   outputGuide?: string
 
+  /**
+   * 포스터 (D-81 · 09-18). 담당자가 프로그램 화면에서 올린다.
+   * 공개 경로(`support/public/programs/{id}/`)라 로그인 안 한 방문자도 본다 —
+   * 그래서 `url` 을 문서에 같이 둔다(홈·목록이 파일마다 주소를 다시 묻지 않게).
+   * 없으면 홈·목록·상세가 글자 카드로 그려진다. 시트·드라이브·PDF 에는 안 나간다.
+   */
+  poster?: ProgramPoster
+
   /** 공개 여부 — 준비 중인 프로그램은 감춘다 */
   published: boolean
   createdAt: Timestamp
   updatedAt: Timestamp
+}
+
+/** 프로그램 포스터 (D-81) — 세로(3:4) 이미지 하나 */
+export interface ProgramPoster {
+  /** Storage 경로 — 지울 때 쓴다 */
+  path: string
+  /** 공개 다운로드 주소 — <img src> 에 그대로 */
+  url: string
+  fileName?: string
+  size?: number
 }
 
 /**

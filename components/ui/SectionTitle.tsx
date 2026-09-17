@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 /**
  * 절 제목 — 화면 안 큰 구획의 h2 (docs/4-기록/10-디자인-규칙.md §3 · D-72).
  *
- * 크기 18/20px · 800, 왼쪽에 주색 세로 바. 설명은 한 줄, 오른쪽에는
+ * 크기 18/20px · 800, 왼쪽에 청록 세로 바(09-18 D-81 — 주색이 파랑이 되며 절 제목 바는 청록). 설명은 한 줄, 오른쪽에는
  * "전체 보기 →" 같은 링크 하나를 둘 수 있다.
  * 09-15 이전에는 `text-lg font-bold` 가 고정이라 PC 에서 카드 제목과 구분이
  * 약했다. 색이 바뀌면 바(`bg-brand-600`)만 따라간다.
@@ -39,7 +39,7 @@ export default function SectionTitle({
             aria-hidden="true"
             className={
               'inline-block h-[18px] w-1 shrink-0 rounded-sm ' +
-              (invert ? 'bg-white/70' : 'bg-brand-600 dark:bg-brand-300')
+              (invert ? 'bg-white/70' : 'bg-accent')
             }
           />
           {children}

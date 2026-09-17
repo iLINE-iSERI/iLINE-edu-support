@@ -60,7 +60,7 @@ export default function ProgramOutputs({
   return (
     <section
       aria-labelledby={`out-${app.id}`}
-      className="rounded-2xl border-2 border-line-strong bg-surface p-5 sm:p-6"
+      className="rounded-2xl border border-line shadow-card bg-surface p-5 sm:p-6"
     >
       {/* 머리 */}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">

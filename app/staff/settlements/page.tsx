@@ -228,7 +228,7 @@ function SettlementRow({
   }
 
   return (
-    <li className="rounded-2xl border border-line bg-surface p-5">
+    <li className="rounded-2xl border border-line bg-surface shadow-card p-5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-subtle px-2.5 py-1 text-xs font-bold">
           {SETTLEMENT_STATUS_LABEL[row.status]}

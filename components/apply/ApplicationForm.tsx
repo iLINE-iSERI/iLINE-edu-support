@@ -299,7 +299,7 @@ export default function ApplicationForm({
       )}
 
       {/* ── 신청자 정보 — 확인만 ────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-bold">신청자 정보</h2>
           {!isEdit && (
@@ -351,7 +351,7 @@ export default function ApplicationForm({
 
       {/* ── 자유 기재란 — 프로그램이 요구할 때만 ─────────────── */}
       {wantsNote && (
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
           <label htmlFor="note" className="block font-bold">
             {program.noteLabel}
             {program.noteRequired && (
@@ -362,6 +362,7 @@ export default function ApplicationForm({
           </label>
           <textarea
             id="note"
+            data-field-required={program.noteRequired ? 'true' : undefined}
             rows={6}
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -373,7 +374,7 @@ export default function ApplicationForm({
 
       {/* ── 첨부 (수정 모드) — 제출 당시 목록만, 바꿀 수 없다 (D-73 범위 밖) ── */}
       {isEdit && (editing?.files?.length ?? 0) > 0 && (
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
           <h2 className="font-bold">첨부 서류</h2>
           <p className="mt-1 text-xs text-ink-subtle">제출 당시 올린 파일입니다. 수정할 수 없습니다.</p>
           <ul className="mt-3 space-y-2">
@@ -388,7 +389,7 @@ export default function ApplicationForm({
 
       {/* ── 첨부 — 프로그램이 요구할 때만 ────────────────────── */}
       {wantsFiles && !isEdit && (
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
           <h2 className="font-bold">
             첨부 서류
             {program.attachmentRequired && (
@@ -403,10 +404,13 @@ export default function ApplicationForm({
 
           {/* D-24: capture 속성을 두지 않아 '카메라 촬영'과 '파일 선택'이
                    모두 뜨게 한다. 휴대폰에서 영수증을 바로 찍어 올릴 수 있다. */}
+          {/* data-field-* — 찾아가기(lib/ui/formSeek)용. 파일 input 은 고른 뒤 값이 비워지므로 상태로 알려 준다 */}
           <input
             type="file"
             multiple
             accept={ACCEPT}
+            data-field-required={program.attachmentRequired && !editing ? 'true' : undefined}
+            data-field-filled={files.length > 0 || (editing?.files?.length ?? 0) > 0 ? 'true' : 'false'}
             onChange={(e) => handleFiles(e.target.files, e.target)}
             className="mt-4 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2.5 file:font-semibold file:text-white"
           />
@@ -469,7 +473,7 @@ export default function ApplicationForm({
       {/* ── 초상권 동의 (D-44) ──────────────────────────────
           가입이 아니라 여기서 받는다. 사진은 **이 프로그램의 활동**에서
           찍히고, 사람마다 프로그램에 따라 판단이 다를 수 있기 때문이다. */}
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
         <h2 className="font-bold">촬영·초상권 동의</h2>
         <p className="mt-1 text-sm leading-relaxed text-ink-muted">
           이번에 신청하시는 <strong>{program.title}</strong> 활동 중 촬영되는

@@ -23,6 +23,9 @@ import {
   programIdTaken,
   createProgram,
   updateProgram,
+  uploadProgramPoster,
+  deleteProgramPoster,
+  posterRejectReason,
   type ProgramInput,
 } from '@/lib/firebase/staff'
 import {
@@ -34,7 +37,7 @@ import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { useRevealForm } from '@/lib/hooks/useRevealForm'
 import { FORM_OPTIONS } from '@/lib/forms'
 import { Timestamp } from 'firebase/firestore'
-import type { Program } from '@/lib/types'
+import type { Program, ProgramPoster } from '@/lib/types'
 
 /* ── 날짜 칸 ↔ Timestamp ───────────────────────────────────────────
    `datetime-local` 은 '2026-09-10T09:00' 같은 문자열을 주고받는다.
@@ -92,6 +95,8 @@ interface FormState {
   outputOpensAt: string
   outputClosesAt: string
   outputGuide: string
+  /** 포스터 (D-81) — 저장된 것. 새로 고른 파일은 posterFile(폼 밖 상태)에 */
+  poster: ProgramPoster | null
   published: boolean
 }
 
@@ -118,6 +123,7 @@ const EMPTY: FormState = {
   outputOpensAt: '',
   outputClosesAt: '',
   outputGuide: '',
+  poster: null,
   // 새 공고는 항상 비공개로 시작한다. 미리보기가 없으므로,
   // 공개로 시작하면 작성 중인 내용이 그대로 학생에게 보인다.
   published: false,
@@ -144,6 +150,7 @@ function toForm(p: Program): FormState {
     outputOpensAt: toInputValue(p.outputOpensAt),
     outputClosesAt: toInputValue(p.outputClosesAt),
     outputGuide: p.outputGuide ?? '',
+    poster: p.poster ?? null,
     published: Boolean(p.published),
   }
 }
@@ -183,6 +190,20 @@ function StaffProgramsContent() {
   /** 폼이 열리면 그리로 화면을 옮긴다 — 안 그러면 열린 줄 모른다 */
   const formRef = useRevealForm(editingId)
   const [form, setForm] = useState<FormState>(EMPTY)
+  /** 새로 고른 포스터 파일 — 저장할 때 올린다 (D-81). 미리보기는 objectURL */
+  const [posterFile, setPosterFile] = useState<File | null>(null)
+  const [posterMsg, setPosterMsg] = useState('')
+  /** 고른 파일의 미리보기 주소 — 파일이 바뀔 때만 만들고, 바뀌면 이전 것을 놓아준다 */
+  const [posterPreview, setPosterPreview] = useState<string | null>(null)
+  useEffect(() => {
+    if (!posterFile) {
+      setPosterPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(posterFile)
+    setPosterPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [posterFile])
   const [errors, setErrors] = useState<FieldErrors>({})
   /** 저장 버튼 옆에 뜨는 한 줄 — 어느 칸이 문제인지 또는 저장 실패 사유 */
   const [saveMsg, setSaveMsg] = useState('')
@@ -210,6 +231,8 @@ function StaffProgramsContent() {
 
   function openNew() {
     setForm(EMPTY)
+    setPosterFile(null)
+    setPosterMsg('')
     setEditingId('')
     setErrors({})
     setSaveMsg('')
@@ -218,6 +241,8 @@ function StaffProgramsContent() {
 
   function openEdit(p: Program) {
     setForm(toForm(p))
+    setPosterFile(null)
+    setPosterMsg('')
     setEditingId(p.id)
     setErrors({})
     setSaveMsg('')
@@ -227,6 +252,8 @@ function StaffProgramsContent() {
   function close() {
     setEditingId(null)
     setForm(EMPTY)
+    setPosterFile(null)
+    setPosterMsg('')
     setErrors({})
     setSaveMsg('')
   }
@@ -252,6 +279,7 @@ function StaffProgramsContent() {
       outputOpensAt: fromInputValue(f.outputOpensAt),
       outputClosesAt: fromInputValue(f.outputClosesAt),
       outputGuide: f.outputGuide,
+      poster: f.poster ?? undefined,
       published: f.published,
     }
   }
@@ -362,12 +390,25 @@ function StaffProgramsContent() {
 
     setErrors({})
     try {
+      const before = editingId ? programs?.find((p) => p.id === editingId) : undefined
+      const input = toInput(form)
+
+      // 포스터 (D-81): 새 파일이 있으면 먼저 올리고 그 결과를 문서에 넣는다.
+      // 문서 저장이 실패하면 방금 올린 파일이 남지만, 공개 경로의 고아 파일 하나라
+      // 다음 저장 때 덮이거나 지워진다 — 되돌리기 코드는 넣지 않는다.
+      const programId = editingId || form.id
+      if (posterFile) input.poster = await uploadProgramPoster(programId, posterFile)
+
       if (editingId) {
-        const before = programs?.find((p) => p.id === editingId)
-        await updateProgram(editingId, toInput(form), before?.createdAt)
+        await updateProgram(editingId, input, before?.createdAt)
       } else {
-        await createProgram(form.id, toInput(form))
+        await createProgram(form.id, input)
       }
+
+      // 옛 포스터 파일 정리 — 바꿨거나 지웠을 때
+      const oldPath = before?.poster?.path
+      if (oldPath && oldPath !== input.poster?.path) await deleteProgramPoster(oldPath)
+
       close()
       await load()
     } catch (e) {
@@ -428,7 +469,7 @@ function StaffProgramsContent() {
             ref={formRef}
             onSubmit={save}
             noValidate
-            className="space-y-5 rounded-2xl border border-line bg-surface p-5"
+            className="space-y-5 rounded-2xl border border-line bg-surface shadow-card p-5"
           >
             <h2 className="font-bold" data-reveal-title tabIndex={-1}>
               {editingId ? `프로그램 수정 · ${editingId}` : '새 프로그램 등록'}
@@ -547,6 +588,60 @@ function StaffProgramsContent() {
                 placeholder="한두 문장으로 프로그램을 설명해 주세요."
                 className={inputCls()}
               />
+            </Field>
+
+            {/* ── 포스터 (D-81) ──────────────────────────── */}
+            <Field
+              id="poster"
+              label="포스터 (선택)"
+              hint="세로(3:4) 이미지가 가장 잘 맞습니다. JPG · PNG · WEBP, 5MB 이하. 홈·목록·상세에 보이고, 누르면 원본 크기로 뜹니다. 누구나 볼 수 있는 곳에 저장되니 개인정보가 든 이미지는 올리지 마세요."
+            >
+              <div className="flex flex-wrap items-start gap-4">
+                {/* 파일을 고른 직후 한 번은 미리보기 주소가 아직 없다(useEffect 뒤에 생김) —
+                    그때 form.poster 도 없으면 그릴 게 없으니 건너뛴다 (09-18 iSERI 발견) */}
+                {(posterPreview ?? form.poster?.url) && (
+                  <img
+                    src={posterPreview ?? form.poster?.url}
+                    alt="포스터 미리보기"
+                    className="aspect-[3/4] w-28 rounded-lg border border-line bg-subtle object-contain"
+                  />
+                )}
+                <div className="min-w-0 flex-1 space-y-2">
+                  <input
+                    id="pf-poster"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null
+                      if (!f) return
+                      const reason = posterRejectReason(f)
+                      if (reason) {
+                        setPosterMsg(reason)
+                        e.target.value = ''
+                        return
+                      }
+                      setPosterMsg('')
+                      setPosterFile(f)
+                    }}
+                    className="block w-full text-sm text-ink-muted file:mr-3 file:rounded-lg file:border file:border-line-strong file:bg-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink hover:file:border-brand-600 hover:file:text-brand-600"
+                  />
+                  {posterMsg && <p className="text-xs font-semibold text-warn-ink">{posterMsg}</p>}
+                  {(posterFile || form.poster) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // 새로 고른 파일만 취소 — 저장된 포스터는 그대로. 저장된 것을 지우는 건 다음 누름
+                        if (posterFile) setPosterFile(null)
+                        else set('poster', null)
+                        setPosterMsg('')
+                      }}
+                      className="text-xs font-semibold text-ink-muted underline underline-offset-2 hover:text-warn-ink"
+                    >
+                      {posterFile ? '고른 파일 취소' : '포스터 지우기 (저장하면 반영)'}
+                    </button>
+                  )}
+                </div>
+              </div>
             </Field>
 
             <div className="grid gap-5 sm:grid-cols-2">
@@ -798,7 +893,7 @@ function StaffProgramsContent() {
               return (
                 <li
                   key={p.id}
-                  className="rounded-2xl border border-line bg-surface p-5"
+                  className="rounded-2xl border border-line bg-surface shadow-card p-5"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={phase}>{PHASE_LABEL[phase]}</Badge>

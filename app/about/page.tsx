@@ -108,7 +108,7 @@ export default function AboutPage() {
         <section aria-labelledby="about-ideals">
           <h2
             id="about-ideals"
-            className="text-lg font-bold tracking-tight"
+            className="section-title"
           >
             인재상
           </h2>
@@ -116,7 +116,7 @@ export default function AboutPage() {
             {IDEALS.map((p) => (
               <li
                 key={p.name}
-                className="rounded-xl border border-line bg-surface p-5"
+                className="rounded-xl border border-line bg-surface shadow-card p-5"
               >
                 <p className="text-sm font-bold text-brand-600 dark:text-brand-300">
                   {p.name}
@@ -136,7 +136,7 @@ export default function AboutPage() {
         <section aria-labelledby="about-goals">
           <h2
             id="about-goals"
-            className="text-lg font-bold tracking-tight"
+            className="section-title"
           >
             목표
           </h2>
@@ -144,7 +144,7 @@ export default function AboutPage() {
             {GOALS.map((g) => (
               <li
                 key={g.title}
-                className="rounded-xl border border-line bg-surface p-5"
+                className="rounded-xl border border-line bg-surface shadow-card p-5"
               >
                 <p className="break-keep text-sm leading-relaxed text-ink-muted">
                   {g.lead}
@@ -161,7 +161,7 @@ export default function AboutPage() {
         <section aria-labelledby="about-partners">
           <h2
             id="about-partners"
-            className="text-lg font-bold tracking-tight"
+            className="section-title"
           >
             협력체계
           </h2>

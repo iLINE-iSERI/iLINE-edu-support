@@ -91,7 +91,7 @@ function Content() {
         )}
 
         <section>
-          <h2 className="text-lg font-bold tracking-tight">다가오는 예약</h2>
+          <h2 className="section-title">다가오는 예약</h2>
           <div className="mt-4">
             {list === null ? (
               <p className="text-sm text-ink-muted">불러오는 중…</p>

@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
@@ -16,6 +15,7 @@ import {
   requestSync,
 } from '@/lib/firebase/applications'
 import Button from '@/components/ui/Button'
+import Badge, { type BadgeTone } from '@/components/ui/Badge'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { listMySettlements } from '@/lib/firebase/settlements'
 import SettlementSection from '@/components/settlement/SettlementSection'
@@ -25,9 +25,21 @@ import {
   APPLICATION_STATUS_LABEL,
   profileRows,
   type Application,
+  type ApplicationStatus,
   type Program,
   type Settlement,
 } from '@/lib/types'
+
+/** 신청 상태 → 배지 색 (Badge 의 뜻 그대로) */
+const STATUS_TONE: Record<ApplicationStatus, BadgeTone> = {
+  draft: 'neutral',
+  submitted: 'upcoming',
+  reviewing: 'upcoming',
+  revision: 'warn',
+  approved: 'open',
+  rejected: 'closed',
+  cancelled: 'closed',
+}
 
 export default function MypagePage() {
   return (
@@ -117,9 +129,12 @@ function MypageContent() {
             role="status"
             className="rounded-xl border border-status-approved/40 bg-status-approved/10 p-4 text-sm leading-relaxed"
           >
-            <p className="font-bold text-status-approved">신청 내용을 수정했습니다</p>
+            <p className="font-bold text-status-approved">
+              신청 내용을 수정했습니다
+            </p>
             <p className="mt-1 text-ink-muted">
-              새 버전의 신청서 PDF 가 만들어졌습니다. 접수 마감 전까지는 다시 고칠 수 있습니다.
+              새 버전의 신청서 PDF 가 만들어졌습니다. 접수 마감 전까지는 다시
+              고칠 수 있습니다.
             </p>
           </div>
         )}
@@ -141,37 +156,33 @@ function MypageContent() {
 
         {/* ── 내 신청 현황 (D-11) ──────────────────────────── */}
         <section>
-          <h2 className="text-lg font-bold tracking-tight">내 신청 현황</h2>
+          <h2 className="section-title">내 신청 현황</h2>
 
           <div className="mt-4">
             {apps === null ? (
               <p className="text-sm text-ink-muted">불러오는 중…</p>
             ) : error ? (
-              <EmptyState title="신청 내역을 불러오지 못했습니다" desc={error} />
+              <EmptyState
+                title="신청 내역을 불러오지 못했습니다"
+                desc={error}
+              />
             ) : apps.length === 0 ? (
               <EmptyState
                 title="아직 신청하신 프로그램이 없습니다"
                 desc="접수 중인 프로그램을 확인해 보세요."
-                action={
-                  <Link
-                    href="/apply"
-                    className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700"
-                  >
-                    프로그램 보기
-                  </Link>
-                }
+                action={<Button href="/apply">프로그램 보기</Button>}
               />
             ) : (
               <ul className="space-y-3">
                 {apps.map((a) => (
                   <li
                     key={a.id}
-                    className="rounded-2xl border border-line bg-surface p-5"
+                    className="rounded-2xl border border-line shadow-card bg-surface p-5"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-subtle px-2.5 py-1 text-xs font-bold">
-                        {APPLICATION_STATUS_LABEL[a.status]}
-                      </span>
+                      {/* 상태 색 — 색 하나에 뜻 하나(디자인 규칙 §2): 보완 요청 귤색 · 선정 청록 ·
+                          제출·검토 슬레이트 · 미선정·취소 회색. 09-18 이전엔 전부 회색 알약이었다 */}
+                      <Badge tone={STATUS_TONE[a.status]}>{APPLICATION_STATUS_LABEL[a.status]}</Badge>
                       {a.submittedAt && (
                         <span className="text-xs text-ink-subtle">
                           {a.submittedAt.toDate().toLocaleDateString('ko-KR')}{' '}
@@ -181,8 +192,9 @@ function MypageContent() {
                       {/* 마감 전 본인 수정 흔적 (D-73) */}
                       {(a.editCount ?? 0) > 0 && a.lastEditedAt && (
                         <span className="text-xs text-ink-subtle">
-                          · {a.lastEditedAt.toDate().toLocaleDateString('ko-KR')} 수정
-                          ({a.editCount}회)
+                          ·{' '}
+                          {a.lastEditedAt.toDate().toLocaleDateString('ko-KR')}{' '}
+                          수정 ({a.editCount}회)
                         </span>
                       )}
                     </div>
@@ -237,8 +249,9 @@ function MypageContent() {
                     {a.status === 'approved' && (
                       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-line bg-subtle p-4">
                         <p className="min-w-0 flex-1 text-sm leading-relaxed text-ink-muted">
-                          <strong className="text-ink">산출물 제출</strong> — 활동 산출물과 사진은
-                          「산출물 제출」 메뉴에서 올립니다.
+                          <strong className="text-ink">산출물 제출</strong> —
+                          활동 산출물과 사진은 「산출물 제출」 메뉴에서
+                          올립니다.
                         </p>
                         <Button variant="secondary" href="/outputs">
                           산출물 제출 →
@@ -249,15 +262,19 @@ function MypageContent() {
                     {/* 마감 전 본인 수정 (D-73) — 조건은 취소와 같다 */}
                     {canEditMyself(
                       a,
-                      programs.find((p) => p.id === a.programId) ?? null
+                      programs.find((p) => p.id === a.programId) ?? null,
                     ) && (
                       <div className="mt-3 border-t border-line pt-3">
-                        <Button variant="secondary" href={`/apply/${a.programId}?edit=1`}>
+                        <Button
+                          variant="secondary"
+                          href={`/apply/${a.programId}?edit=1`}
+                        >
                           신청 내용 수정
                         </Button>
                         <p className="mt-2 text-xs leading-relaxed text-ink-subtle">
-                          접수 마감 전까지 프로그램별 항목·기재란을 고칠 수 있습니다.
-                          신청자 정보·첨부·초상권 동의는 취소 후 다시 신청해야 바뀝니다.
+                          접수 마감 전까지 프로그램별 항목·기재란을 고칠 수
+                          있습니다. 신청자 정보·첨부·초상권 동의는 취소 후 다시
+                          신청해야 바뀝니다.
                         </p>
                       </div>
                     )}
@@ -281,16 +298,13 @@ function MypageContent() {
         {member && (
           <section>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-lg font-bold tracking-tight">내 정보</h2>
-              <Link
-                href="/mypage/profile"
-                className="text-sm text-brand-600 underline underline-offset-2"
-              >
+              <h2 className="section-title">내 정보</h2>
+              <Button variant="text" href="/mypage/profile">
                 수정하기
-              </Link>
+              </Button>
             </div>
             {/* 유형(D-43)에 따라 칸이 다르다 — 신청서·PDF와 같은 목록을 쓴다 */}
-            <dl className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-5 text-sm sm:grid-cols-2">
+            <dl className="mt-4 grid gap-3 rounded-2xl border border-line shadow-card bg-surface p-5 text-sm sm:grid-cols-2">
               {profileRows(member).map(([label, value]) => (
                 <Row key={label} label={label} value={value} />
               ))}
@@ -374,7 +388,7 @@ function CancelBlock({
       setError(
         firebaseErrorKind(e) === 'permission-denied'
           ? '지금은 취소할 수 없습니다. 접수가 마감되었거나 담당자가 검토를 시작했을 수 있습니다. 화면을 새로고침해 확인해 주세요.'
-          : firestoreErrorMessage(e)
+          : firestoreErrorMessage(e),
       )
       setBusy(false)
     }
@@ -383,19 +397,17 @@ function CancelBlock({
   return (
     <div className="mt-3 border-t border-line pt-3">
       {!open ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="text-sm font-semibold text-ink-muted underline underline-offset-2"
-        >
+        <Button variant="text" onClick={() => setOpen(true)}>
           신청 취소
-        </button>
+        </Button>
       ) : (
         <div className="rounded-xl bg-subtle p-3">
           <p className="text-sm font-bold">이 신청을 취소하시겠습니까?</p>
           <ul className="mt-1.5 space-y-1 text-xs leading-relaxed text-ink-muted">
             <li>· 신청 기록은 &lsquo;취소됨&rsquo;으로 남습니다</li>
-            <li>· 접수 기간 안이라면 이 프로그램에 다시 신청하실 수 있습니다</li>
+            <li>
+              · 접수 기간 안이라면 이 프로그램에 다시 신청하실 수 있습니다
+            </li>
             <li>· 제출하신 신청서와 첨부 파일은 그대로 보관됩니다</li>
           </ul>
 
@@ -403,7 +415,8 @@ function CancelBlock({
             htmlFor={`cancel-${app.id}`}
             className="mt-3 block text-xs font-semibold"
           >
-            취소 사유 <span className="font-normal text-ink-subtle">(선택)</span>
+            취소 사유{' '}
+            <span className="font-normal text-ink-subtle">(선택)</span>
           </label>
           <textarea
             id={`cancel-${app.id}`}
@@ -411,7 +424,7 @@ function CancelBlock({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="적어주시면 프로그램 운영에 참고하겠습니다."
-            className="mt-1.5 w-full rounded-lg border border-line-strong bg-surface p-2.5 text-sm leading-relaxed outline-none focus:border-brand-600"
+            className="mt-1.5 w-full rounded-xl border border-line-strong bg-surface p-3 text-sm leading-relaxed outline-none focus:border-brand-600"
           />
 
           {error && (
@@ -424,25 +437,19 @@ function CancelBlock({
           )}
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={cancel}
-              disabled={busy}
-              className="touch-target rounded-lg border border-status-revision px-4 text-sm font-bold text-status-revision hover:bg-status-revision/10 disabled:opacity-50"
-            >
+            <Button variant="danger" onClick={cancel} disabled={busy}>
               {busy ? '처리 중…' : '취소하기'}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => {
                 setOpen(false)
                 setError('')
               }}
               disabled={busy}
-              className="touch-target rounded-lg px-4 text-sm font-semibold text-ink-muted disabled:opacity-50"
             >
               그대로 두기
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -487,10 +494,9 @@ function FileButton({
       disabled={busy}
       title={label}
       className={
-        'inline-flex max-w-full items-center rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50 ' +
-        (primary
-          ? 'border-line-strong hover:bg-subtle'
-          : 'border-line text-ink-muted hover:bg-subtle')
+        'inline-flex max-w-full items-center rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ' +
+        'hover:border-brand-600 hover:bg-brand-soft hover:text-brand-600 disabled:opacity-50 ' +
+        (primary ? 'border-line-strong' : 'border-line text-ink-muted')
       }
     >
       <span className="truncate">{busy ? '여는 중…' : label}</span>

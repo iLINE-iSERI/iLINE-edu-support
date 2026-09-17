@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Button from '@/components/ui/Button'
 import Link from 'next/link'
 import AuthShell from '@/components/auth/AuthShell'
 import Field from '@/components/ui/Field'
@@ -57,18 +58,17 @@ export default function ForgotPasswordPage() {
           />
 
           {error && (
-            <p role="alert" className="rounded-lg bg-status-revision/10 px-3 py-2 text-sm text-status-revision">
+            <p
+              role="alert"
+              className="rounded-lg bg-status-revision/10 px-3 py-2 text-sm text-status-revision"
+            >
               {error}
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="touch-target w-full rounded-xl bg-brand-600 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
+          <Button type="submit" full disabled={busy}>
             {busy ? '전송 중…' : '재설정 메일 보내기'}
-          </button>
+          </Button>
         </form>
       )}
     </AuthShell>

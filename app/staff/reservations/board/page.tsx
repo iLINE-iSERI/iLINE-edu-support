@@ -135,7 +135,7 @@ function Content() {
 
         <section>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-bold tracking-tight">
+            <h2 className="section-title">
               {longDate(day)} {day === todayYmd && <span className="ml-1 text-sm font-semibold text-brand-600 dark:text-brand-300">오늘</span>}
             </h2>
             <Link href={`/staff/reservations/add?date=${day}`} className="text-sm font-semibold text-brand-600 underline dark:text-brand-300">
@@ -156,7 +156,7 @@ function Content() {
                   const items = dayList.filter((r) => r.venue === v.code)
                   if (items.length === 0) return null
                   return (
-                    <div key={v.code} className="rounded-2xl border border-line bg-surface p-5">
+                    <div key={v.code} className="rounded-2xl border border-line bg-surface shadow-card p-5">
                       <p className="font-bold">{venueLabel(v.code)} <span className="ml-1 text-sm font-normal text-ink-muted">{items.length}건</span></p>
                       <ul className="mt-2 divide-y divide-line text-sm">
                         {items.map((r) => (

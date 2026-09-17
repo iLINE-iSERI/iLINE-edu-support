@@ -21,7 +21,8 @@ import {
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore'
-import { getDb, COL } from './config'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { getDb, COL, getStorageClient } from './config'
 import { UserFacingError } from './errors'
 import { applicationKeyId } from './applications'
 import {
@@ -29,6 +30,7 @@ import {
   type Application,
   type ApplicationStatus,
   type Program,
+  type ProgramPoster,
 } from '@/lib/types'
 
 /**
@@ -200,7 +202,49 @@ export interface ProgramInput {
   outputOpensAt?: Date
   outputClosesAt?: Date
   outputGuide?: string
+  /** 포스터 (D-81) — 화면이 올린 결과를 그대로 넘긴다. 없으면 저장 안 함(= 지움) */
+  poster?: ProgramPoster
   published: boolean
+}
+
+/* ── 포스터 (D-81 · 09-18) ─────────────────────────────────────────────
+   공개 경로 support/public/programs/{id}/ — storage.rules 가 이미 「읽기 누구나 ·
+   쓰기 담당자」로 열어 둔 곳이라 규칙 배포가 필요 없다. 규칙에 형식·크기 검사가
+   없으므로 여기서 거른다(담당자만 올리지만 실수로 30MB 원본을 올리는 일은 막는다). */
+
+export const POSTER_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+}
+export const POSTER_MAX_BYTES = 5 * 1024 * 1024
+
+/** 올릴 수 없는 이유 — 없으면 null */
+export function posterRejectReason(file: File): string | null {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  if (!POSTER_TYPES[ext]) return 'JPG · PNG · WEBP 이미지만 올릴 수 있습니다'
+  if (file.size > POSTER_MAX_BYTES) return '5MB 이하로 줄여서 올려 주세요'
+  return null
+}
+
+/** 포스터 올리기 — 문서에 넣을 값을 돌려준다. 문서 저장은 호출한 쪽이 한다 */
+export async function uploadProgramPoster(programId: string, file: File): Promise<ProgramPoster> {
+  const reason = posterRejectReason(file)
+  if (reason) throw new UserFacingError(reason)
+  const ext = file.name.split('.').pop()!.toLowerCase()
+  const path = `support/public/programs/${programId}/poster_${Date.now()}.${ext}`
+  const r = ref(getStorageClient(), path)
+  await uploadBytes(r, file, { contentType: POSTER_TYPES[ext] })
+  const url = await getDownloadURL(r)
+  return { path, url, fileName: file.name, size: file.size }
+}
+
+/** 옛 포스터 파일 지우기 — 실패해도 저장은 이미 끝난 뒤라 로그만 남긴다 */
+export async function deleteProgramPoster(path: string): Promise<void> {
+  await deleteObject(ref(getStorageClient(), path)).catch((e) =>
+    console.warn('[iLINE] 옛 포스터 삭제 실패(무시):', e)
+  )
 }
 
 /**
@@ -238,6 +282,9 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   put('outputOpensAt', input.outputOpensAt)
   put('outputClosesAt', input.outputClosesAt)
   put('outputGuide', input.outputGuide?.trim())
+
+  // 포스터 (D-81). setDoc 덮어쓰기라 화면이 매번 넘겨야 남는다 — toForm/toInput 이 그렇게 한다
+  put('poster', input.poster)
 
   // 단체 프로그램이 아니면 인원 제한은 의미가 없다
   if (input.participationType === 'group') put('maxTeamSize', input.maxTeamSize)

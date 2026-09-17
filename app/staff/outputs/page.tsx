@@ -213,7 +213,7 @@ function StaffOutputsContent() {
 
         {/* 프로그램 설정 한 줄 + 제출 현황 */}
         {program && (
-          <div className="rounded-2xl border-2 border-line-strong bg-surface p-4 sm:p-5">
+          <div className="rounded-2xl border border-line shadow-card bg-surface p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Badge tone={isShared(program) ? 'open' : 'neutral'}>
                 {OUTPUT_VISIBILITY_LABEL[outputVisibilityOf(program)]}

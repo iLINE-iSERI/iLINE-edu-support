@@ -118,7 +118,7 @@ function Content() {
     <div className="container-page py-8">
       <div className="mx-auto max-w-4xl space-y-6">
         {/* 지난 전달 · 되돌리기 */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface shadow-card p-4 text-sm">
           <p className="text-ink-muted">
             {lastAt ? (
               <>
@@ -164,7 +164,7 @@ function Content() {
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-bold tracking-tight">
+              <h2 className="section-title">
                 이번 전달 — 새 요청 {data.fresh.length} · 취소 {data.cancelled.length}
               </h2>
               <div className="flex gap-2">
@@ -219,7 +219,7 @@ function Content() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5">
+    <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
       <h3 className="font-bold">{title}</h3>
       <div className="mt-3 space-y-4">{children}</div>
     </section>

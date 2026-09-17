@@ -116,7 +116,7 @@ export default function OutputForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="space-y-4 rounded-2xl border-2 border-line-strong bg-surface p-4 sm:p-5">
+    <form onSubmit={submit} noValidate className="space-y-4 rounded-2xl border border-line shadow-card bg-surface p-4 sm:p-5">
       <p className="text-base font-extrabold">{editing ? '다시 제출하기' : '새로 제출하기'}</p>
 
       <label className="block">

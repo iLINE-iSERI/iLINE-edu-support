@@ -60,8 +60,9 @@ export default function ApplyPage() {
           <>
             {open.length > 0 && (
               <section>
-                <h2 className="text-lg font-bold tracking-tight">접수중 · 예정</h2>
-                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <h2 className="section-title">접수중 · 예정</h2>
+                {/* 한 줄에 한 장 — 가로 분할 카드(D-81). 프로그램이 서너 개라 두 칸보다 낫다 */}
+                <div className="mt-4 grid gap-4">
                   {open.map((p) => (
                     <ProgramCard key={p.id} program={p} />
                   ))}
@@ -71,10 +72,8 @@ export default function ApplyPage() {
 
             {closed.length > 0 && (
               <section>
-                <h2 className="text-lg font-bold tracking-tight text-ink-muted">
-                  지난 프로그램
-                </h2>
-                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <h2 className="section-title">지난 프로그램</h2>
+                <div className="mt-4 grid gap-4">
                   {closed.map((p) => (
                     <ProgramCard key={p.id} program={p} />
                   ))}

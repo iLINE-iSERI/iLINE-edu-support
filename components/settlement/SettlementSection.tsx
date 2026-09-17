@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import Button from '@/components/ui/Button'
 import {
   submitSettlement,
   resubmitSettlement,
@@ -64,10 +65,10 @@ export default function SettlementSection({
 
   const [bankName, setBankName] = useState(settlement?.bankInfo?.bankName ?? '')
   const [accountNumber, setAccountNumber] = useState(
-    settlement?.bankInfo?.accountNumber ?? ''
+    settlement?.bankInfo?.accountNumber ?? '',
   )
   const [accountHolder, setAccountHolder] = useState(
-    settlement?.bankInfo?.accountHolder ?? ''
+    settlement?.bankInfo?.accountHolder ?? '',
   )
   const [files, setFiles] = useState<File[]>([])
   const [rejected, setRejected] = useState<{ name: string; why: string }[]>([])
@@ -111,7 +112,7 @@ export default function SettlementSection({
        어긋나면 담당자가 사유를 적어 반려한다. */
     if (rejected.length > 0) {
       return setError(
-        '첨부하지 못한 파일이 있습니다. 확인하시거나 [무시하고 계속]을 눌러 주세요.'
+        '첨부하지 못한 파일이 있습니다. 확인하시거나 [무시하고 계속]을 눌러 주세요.',
       )
     }
 
@@ -187,20 +188,16 @@ export default function SettlementSection({
           )}
           {settlement?.status === 'paid' && (
             <p className="mt-2 text-sm text-ink-muted">
-              {settlement.paidAt?.toDate().toLocaleDateString('ko-KR')} 지급되었습니다.
-              입금이 확인되지 않으면 담당자에게 문의해 주세요.
+              {settlement.paidAt?.toDate().toLocaleDateString('ko-KR')}{' '}
+              지급되었습니다. 입금이 확인되지 않으면 담당자에게 문의해 주세요.
             </p>
           )}
         </div>
 
         {editable && !open && (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="touch-target inline-flex shrink-0 items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700"
-          >
+          <Button onClick={() => setOpen(true)} className="shrink-0">
             {settlement ? '정산 다시 제출' : '정산 제출하기'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -233,7 +230,6 @@ export default function SettlementSection({
           </div>
         </div>
       )}
-
 
       {/* ── 입력 폼 ────────────────────────────────────── */}
       {open && (
@@ -285,8 +281,8 @@ export default function SettlementSection({
               </span>
             </p>
             <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
-              지출 증빙이 있으면 촬영하거나 PDF로 첨부해 주세요. 사진 또는
-              PDF · 1장당 20MB 이하 · 최대 {MAX_FILES}장.
+              지출 증빙이 있으면 촬영하거나 PDF로 첨부해 주세요. 사진 또는 PDF ·
+              1장당 20MB 이하 · 최대 {MAX_FILES}장.
               <br />
               <strong>영수증 없이도 제출할 수 있습니다.</strong> 무엇을 내야
               하는지는 프로그램 공고를 확인해 주세요.
@@ -296,16 +292,28 @@ export default function SettlementSection({
             {prevReceipts.length > 0 && (
               <div className="mt-3 rounded-lg bg-subtle p-3">
                 <p className="text-xs font-semibold text-ink-subtle">
-                  이미 낸 영수증 {prevReceipts.length}장 — <strong>그대로 유지됩니다.</strong>{' '}
-                  잘못 낸 것은 [삭제]를 누르세요
+                  이미 낸 영수증 {prevReceipts.length}장 —{' '}
+                  <strong>그대로 유지됩니다.</strong> 잘못 낸 것은 [삭제]를
+                  누르세요
                 </p>
                 <ul className="mt-2 space-y-1.5 text-sm">
                   {prevReceipts.map((r) => {
                     const off = dropped.has(r.storagePath)
                     return (
-                      <li key={r.storagePath} className="flex items-center justify-between gap-3">
-                        <span className={'flex min-w-0 items-center gap-2 ' + (off ? 'line-through opacity-50' : '')}>
-                          <ReceiptButton path={r.storagePath} label={r.fileName} />
+                      <li
+                        key={r.storagePath}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span
+                          className={
+                            'flex min-w-0 items-center gap-2 ' +
+                            (off ? 'line-through opacity-50' : '')
+                          }
+                        >
+                          <ReceiptButton
+                            path={r.storagePath}
+                            label={r.fileName}
+                          />
                         </span>
                         <button
                           type="button"
@@ -390,25 +398,21 @@ export default function SettlementSection({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              disabled={busy}
-              className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={busy}>
               {busy ? '제출 중…' : '정산 제출'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => {
                 setOpen(false)
                 setError('')
                 setRejected([])
               }}
               disabled={busy}
-              className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-6 font-semibold disabled:opacity-50"
             >
               취소
-            </button>
+            </Button>
             {error && (
               <span
                 role="alert"
@@ -445,7 +449,7 @@ function ReceiptButton({ path, label }: { path: string; label: string }) {
           setBusy(false)
         }
       }}
-      className="inline-flex max-w-full items-center rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-surface disabled:opacity-50"
+      className="inline-flex max-w-full items-center rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:border-brand-600 hover:bg-brand-soft hover:text-brand-600 disabled:opacity-50"
     >
       <span className="truncate">{busy ? '여는 중…' : label}</span>
     </button>

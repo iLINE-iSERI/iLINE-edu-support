@@ -12,7 +12,7 @@ import { twMerge } from 'tailwind-merge'
  *   danger     주황 테두리 · 주황 글자  — 되돌리기 어려운 것 (신청 취소 · 삭제 · 반려)
  *   text       밑줄만                   — 문장 안 행동 (수정하기 · 자세히)
  *
- * 공통: 높이 44px(터치 타깃 D-24) · 모서리 12px · 글자 15px/700 · 아이콘 없음
+ * 공통: 높이 44px(터치 타깃 D-24) · 모서리 8px(09-18 지시서 §1) · 글자 15px/700 · 아이콘 없음
  * (화살표는 `→` 문자). `full` 이면 가로 100% — 휴대폰 폼의 primary 에 쓴다.
  *
  * `href` 가 있으면 링크(내부는 next/link, `http` 로 시작하면 <a>)로, 없으면 <button>.
@@ -23,7 +23,7 @@ import { twMerge } from 'tailwind-merge'
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'text'
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 rounded-xl text-[15px] font-bold ' +
+  'inline-flex items-center justify-center gap-1.5 rounded-lg text-[15px] font-bold ' +
   'transition-colors disabled:cursor-not-allowed disabled:opacity-50 ' +
   'focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-brand-600'
 
@@ -35,8 +35,9 @@ const VARIANT: Record<ButtonVariant, string> = {
   secondary:
     'touch-target px-6 border border-line-strong bg-surface text-ink ' +
     'hover:border-brand-600 hover:bg-brand-soft hover:text-brand-600 dark:hover:border-brand-300 dark:hover:text-brand-300',
+  // 귤색(주의) — 09-18 부터 토큰이 R G B 라 `/10` 투명도가 실제로 나간다
   danger:
-    'touch-target px-5 border border-status-revision text-status-revision hover:bg-status-revision/10',
+    'touch-target px-5 border border-warn-ink text-warn-ink hover:border-warn-ink hover:bg-warn-soft hover:text-warn-ink',
   text:
     'min-h-0 rounded-none px-1 text-sm font-semibold text-ink-muted underline underline-offset-[3px] ' +
     'hover:text-brand-600 dark:hover:text-brand-300',

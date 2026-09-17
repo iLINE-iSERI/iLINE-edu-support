@@ -9,8 +9,8 @@ import SectionTitle from '@/components/ui/SectionTitle'
  *   → 첫 화면 = **지금 접수 중인 프로그램**(네이비 밴드, 최대 3개, 개수에 맞춰 칸이 늘어남)
  *   → 그 아래 바로가기 4개. **참여 절차 4단계는 뺐다**(iSERI 09-15 결정).
  *   → 사업명 히어로도 뺐다 — 헤더에 이미 있다.
- * 톤: 홈만 진한 밴드(톤 1), 안쪽 화면은 흰 바탕 + 굵은 선(톤 2) — iSERI 09-15.
- * 색은 현행 남색. 브레인스토밍 뒤 토큰만 바꾼다 (docs/4-기록/10-디자인-규칙.md §2).
+ * 09-18 (D-81): 남색 밴드를 걷고 흰 히어로(왼쪽 소개 6 : 오른쪽 접수 카드 4)로.
+ * 바로가기는 링크 카드(.card-link) — 올리면 살짝 떠오른다. 색·톤은 10-디자인-규칙 §2.
  */
 
 const SHORTCUTS = [
@@ -53,7 +53,7 @@ export default function SupportHomePage() {
             <Link
               key={c.href}
               href={c.href}
-              className="group rounded-xl border border-line bg-surface p-5 transition hover:border-brand-300 hover:shadow-sm"
+              className="group card-link block p-5"
             >
               <p className="flex items-center gap-1.5 font-bold">
                 {c.title}

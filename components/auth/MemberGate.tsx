@@ -103,7 +103,7 @@ function Notice({
 }) {
   return (
     <div className="container-page py-16">
-      <div className="mx-auto max-w-lg rounded-2xl border border-line bg-surface p-6 text-center sm:p-8">
+      <div className="mx-auto max-w-lg rounded-2xl border border-line bg-surface shadow-card p-6 text-center sm:p-8">
         <h2 className="text-lg font-bold">{title}</h2>
         {desc && (
           <p className="mt-2 text-sm leading-relaxed text-ink-muted">{desc}</p>

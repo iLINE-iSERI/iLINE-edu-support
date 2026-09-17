@@ -94,8 +94,8 @@ export default function FaqPage() {
 
       <div className="container-page space-y-8 py-10">
         <section>
-          <h2 className="text-lg font-bold tracking-tight">자주 묻는 질문</h2>
-          <div className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+          <h2 className="section-title">자주 묻는 질문</h2>
+          <div className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
             {FAQ.map((item) => (
               <details key={item.q} className="group">
                 <summary className="flex cursor-pointer touch-target list-none items-center justify-between gap-4 px-5 py-4 text-left font-semibold marker:content-none">
@@ -121,8 +121,8 @@ export default function FaqPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold tracking-tight">문의하기</h2>
-          <dl className="mt-4 grid gap-4 rounded-2xl border border-line bg-surface p-5 text-sm sm:grid-cols-2">
+          <h2 className="section-title">문의하기</h2>
+          <dl className="mt-4 grid gap-4 rounded-2xl border border-line bg-surface shadow-card p-5 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-ink-subtle">운영 기관</dt>
               <dd className="mt-0.5 font-medium">{SITE.operator}</dd>

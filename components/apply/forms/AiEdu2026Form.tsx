@@ -219,7 +219,7 @@ export default function AiEdu2026Form({
   return (
     <div className="space-y-6">
       {/* ── 1. 지원 자격 ─────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
         <h2 className="font-bold">지원 자격 확인</h2>
 
         <Guide title="팀 구성 필수 요건">
@@ -279,7 +279,7 @@ export default function AiEdu2026Form({
       </section>
 
       {/* ── 2. 팀 정보 ───────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
         <h2 className="font-bold">팀 정보</h2>
         <p className="mt-1 text-sm leading-relaxed text-ink-muted">
           이 프로그램은 <strong>팀원이 각자 신청</strong>합니다. 팀장 한 분이
@@ -306,7 +306,7 @@ export default function AiEdu2026Form({
           />
         </div>
 
-        <fieldset className="mt-4">
+        <fieldset className="mt-4" data-field-required="true">
           <legend className="text-sm font-semibold">
             팀에서의 역할 <span className="text-status-revision">*</span>
           </legend>
@@ -330,7 +330,7 @@ export default function AiEdu2026Form({
 
       {/* ── 3. 연구 계획 — 팀장만 ────────────────────────── */}
       {isLeader && (
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
           <h2 className="font-bold">AI 융합 수업 연구 및 개발 계획</h2>
           <p className="mt-1 text-sm text-ink-muted">
             아래 내용은 <strong>추후 변경할 수 있습니다.</strong> 지금은 대략의
@@ -378,7 +378,7 @@ export default function AiEdu2026Form({
             </table>
           </div>
 
-          <fieldset className="mt-5">
+          <fieldset className="mt-5" data-field-required="true">
             <legend className="text-sm font-semibold">
               연구·개발하고자 하는 융합 수업 유형{' '}
               <span className="text-status-revision">*</span>
@@ -413,7 +413,7 @@ export default function AiEdu2026Form({
             </div>
           </fieldset>
 
-          <fieldset className="mt-5">
+          <fieldset className="mt-5" data-field-required="true">
             <legend className="text-sm font-semibold">
               개발할 수업의 대상 학교급{' '}
               <span className="text-status-revision">*</span>
@@ -431,7 +431,7 @@ export default function AiEdu2026Form({
             </div>
           </fieldset>
 
-          <fieldset className="mt-5">
+          <fieldset className="mt-5" data-field-required="true">
             <legend className="text-sm font-semibold">
               주교과 및 연계 융합교과{' '}
               <span className="text-status-revision">*</span>
@@ -477,6 +477,7 @@ export default function AiEdu2026Form({
             </label>
             <textarea
               id="topic"
+              data-field-required="true"
               rows={4}
               value={v.topic ?? ''}
               onChange={(e) => onChange('topic', e.target.value)}
@@ -488,7 +489,7 @@ export default function AiEdu2026Form({
       )}
 
       {/* ── 4. 일정 확인 ─────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
         <h2 className="font-bold">연구반 주요 일정</h2>
 
         <ol className="mt-3 space-y-2">
@@ -552,6 +553,7 @@ function Check({
   return (
     <label
       htmlFor={id}
+      data-field-required="true"
       className={
         'flex cursor-pointer gap-3 rounded-xl border p-3 text-sm leading-relaxed ' +
         (checked ? 'border-brand-600 bg-brand-soft' : 'border-line-strong')

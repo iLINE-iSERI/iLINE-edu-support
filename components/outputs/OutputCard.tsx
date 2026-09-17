@@ -50,7 +50,7 @@ export default function OutputCard({
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            {who === 'shared' && <Badge tone="individual">{outputOwnerLabel(o)}</Badge>}
+            {who === 'shared' && <Badge tone="info">{outputOwnerLabel(o)}</Badge>}
             {who === 'team' && <Badge tone="neutral">{o.authorName}님이 올림</Badge>}
             {who === 'staff' && (
               <Badge tone={o.teamName ? 'group' : 'individual'}>
@@ -58,7 +58,7 @@ export default function OutputCard({
               </Badge>
             )}
             {o.status === 'revision' && who !== 'shared' && (
-              <Badge tone="group">{OUTPUT_STATUS_LABEL.revision}</Badge>
+              <Badge tone="warn">{OUTPUT_STATUS_LABEL.revision}</Badge>
             )}
             {o.hiddenByStaff && <Badge tone="closed">내려짐</Badge>}
           </div>

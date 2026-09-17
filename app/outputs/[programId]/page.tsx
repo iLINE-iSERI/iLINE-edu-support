@@ -114,7 +114,7 @@ function SharedContent() {
                   compact
                   actions={
                     user && o.uid === user.uid ? (
-                      <Badge tone="individual">내가 올린 것</Badge>
+                      <Badge tone="info">내가 올린 것</Badge>
                     ) : undefined
                   }
                 />

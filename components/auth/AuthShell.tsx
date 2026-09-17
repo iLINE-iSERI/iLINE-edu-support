@@ -16,7 +16,7 @@ export default function AuthShell({
   return (
     <div className="container-page py-10 sm:py-16">
       <div className="mx-auto w-full max-w-md">
-        <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
+        <div className="rounded-2xl border border-line bg-surface shadow-card p-6 sm:p-8">
           <h1 className="text-xl font-extrabold tracking-tight">{title}</h1>
           {desc && (
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">{desc}</p>
@@ -55,7 +55,7 @@ export function GoogleButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="touch-target flex w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-surface font-semibold text-ink disabled:opacity-50"
+      className="touch-target flex w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-surface font-semibold text-ink transition-colors hover:border-brand-600 hover:bg-brand-soft disabled:opacity-50"
     >
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
         <path

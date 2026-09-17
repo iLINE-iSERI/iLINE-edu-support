@@ -184,7 +184,7 @@ function StaffNoticesContent() {
             ref={formRef}
             onSubmit={save}
             noValidate
-            className="space-y-4 rounded-2xl border border-line bg-surface p-5"
+            className="space-y-4 rounded-2xl border border-line bg-surface shadow-card p-5"
           >
             <h2 className="font-bold" data-reveal-title tabIndex={-1}>
               {editingId ? '공지 수정' : '새 공지 작성'}
@@ -305,13 +305,13 @@ function StaffNoticesContent() {
             desc="위 [새 공지 작성]으로 첫 공지를 올려 보세요."
           />
         ) : (
-          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
             {notices.map((n) => (
               <li
                 key={n.id}
                 className="flex flex-wrap items-start gap-3 px-5 py-4"
               >
-                {n.pinned && <Badge tone="individual">고정</Badge>}
+                {n.pinned && <Badge tone="info">고정</Badge>}
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{n.title}</p>
                   <p className="mt-1 text-xs text-ink-subtle">

@@ -200,7 +200,7 @@ function Content() {
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="예: 학과 워크숍 · 행정실 협의 완료" className="touch-target mt-1 w-full rounded-xl border border-line-strong bg-surface px-3" />
         </label>
 
-        <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-4 text-sm leading-relaxed">
+        <label className="flex items-start gap-3 rounded-xl border border-line bg-surface shadow-card p-4 text-sm leading-relaxed">
           <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1 h-4 w-4" />
           <span>
             <strong>행정실과 이미 협의된 이용입니다 — 바로 확정으로 넣습니다.</strong>

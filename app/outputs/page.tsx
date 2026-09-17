@@ -47,7 +47,7 @@ function GuestIntro() {
         description="프로그램에 선정된 참여자가 활동 산출물과 사진을 올리는 곳입니다."
       />
       <div className="container-page py-10">
-        <div className="mx-auto max-w-xl rounded-2xl border-2 border-line-strong bg-surface p-6 sm:p-8">
+        <div className="mx-auto max-w-xl rounded-2xl border border-line shadow-card bg-surface p-6 sm:p-8">
           <p className="text-lg font-bold">로그인하면 내가 참여 중인 프로그램이 보입니다</p>
           <p className="mt-2 text-sm leading-relaxed text-ink-muted">
             선정된 프로그램마다 제출창이 열리고, 활동 기간 중 언제든 지도안·발표자료·활동 사진을

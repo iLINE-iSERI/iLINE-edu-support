@@ -253,8 +253,8 @@ export default function ReserveFlow() {
     const rows = profileRows(member)
     return (
       <div ref={topRef} className="space-y-6">
-        <h2 className="text-lg font-bold tracking-tight">예약 내용 확인</h2>
-        <dl className="grid grid-cols-[6rem_1fr] gap-y-2 rounded-2xl border border-line bg-surface p-5 text-sm">
+        <h2 className="section-title">예약 내용 확인</h2>
+        <dl className="grid grid-cols-[6rem_1fr] gap-y-2 rounded-2xl border border-line bg-surface shadow-card p-5 text-sm">
           <dt className="text-ink-muted">공간</dt>
           <dd className="font-semibold">
             {venueLabel(venueCode)} · {seatLabel(venueCode, seat)}
@@ -276,7 +276,7 @@ export default function ReserveFlow() {
           에서 고친 뒤 예약해 주세요. 정보는 예약 확인 용도로만 씁니다.
         </p>
 
-        <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-4 text-sm leading-relaxed">
+        <label className="flex items-start gap-3 rounded-xl border border-line bg-surface shadow-card p-4 text-sm leading-relaxed">
           <input
             type="checkbox"
             checked={agreed}
@@ -409,7 +409,7 @@ export default function ReserveFlow() {
 
       {/* ④ 길이 · ⑤ 자리 */}
       {!venue.staffOnly && sel && (
-        <section className="space-y-6 rounded-2xl border border-line bg-surface p-5">
+        <section className="space-y-6 rounded-2xl border border-line bg-surface shadow-card p-5">
           <div>
             <h2 className="text-base font-bold">
               3. 길이 — {longDate(sel.date)} {hourLabel(sel.hour)}부터
