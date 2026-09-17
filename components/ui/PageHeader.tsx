@@ -12,7 +12,7 @@ export default function PageHeader({
   description?: string
 }) {
   return (
-    <div className="page-header-wash border-b border-line">
+    <div className="page-header-wash">
       <div className="container-page py-8 sm:py-10">
         <div className="border-l-4 border-theme pl-4">
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{title}</h1>

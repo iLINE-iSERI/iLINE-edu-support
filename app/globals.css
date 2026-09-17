@@ -233,10 +233,28 @@ body[data-theme='notice']  { --theme-accent: 15 118 110; --theme-accent-strong: 
       radial-gradient(760px 340px at 12% -10%, var(--theme-wash-1), transparent 70%),
       radial-gradient(620px 300px at 88% 0%, var(--theme-wash-2), transparent 72%);
   }
-  /* 하위 페이지 제목 띠: 그 메뉴의 색 하나로 */
+  /* 하위 페이지 제목 띠 (D-83): 워시(위) + 평평한 틴트(아래) + 테마색 하단 보더.
+     워시만 있을 땐 transparent 로 사라져 띠가 어디서 끝나는지 선이 없었다 — 필요한 건 채도가 아니라
+     바닥과 모서리. 틴트는 background-color 가 아니라 linear-gradient 로(캔버스 토큰을 따라가게).
+     손잡이: 틴트 .055 (또렷 .075 · 은은 .04) · 보더 .22 (또렷 .30 · 은은 .16) — 둘을 같이 올리지 않는다 */
   .page-header-wash {
     background-color: rgb(var(--bg));
-    background-image: radial-gradient(900px 260px at 20% -40%, var(--theme-wash-1), transparent 72%);
+    background-image:
+      radial-gradient(900px 300px at 18% -45%, rgb(var(--theme-accent) / 0.055), transparent 74%),
+      linear-gradient(rgb(var(--theme-accent) / 0.055), rgb(var(--theme-accent) / 0.055));
+    border-bottom: 1px solid rgb(var(--theme-accent) / 0.22);
+    box-shadow: inset 0 -1px 0 rgb(var(--theme-accent) / 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    /* 다크는 색이 아니라 밝기로 — 어두운 면에 유채색 틴트를 깔면 탁하다. 보더는 밝은 파랑(--brand) 하나 */
+    .page-header-wash {
+      background-color: rgb(var(--bg-elevated));
+      background-image:
+        radial-gradient(900px 300px at 18% -45%, rgb(255 255 255 / 0.035), transparent 74%),
+        linear-gradient(rgb(255 255 255 / 0.028), rgb(255 255 255 / 0.028));
+      border-bottom: 1px solid rgb(var(--brand) / 0.28);
+      box-shadow: none;
+    }
   }
   /* 틴트 밴드 — 캔버스와 미세한 명도차로 구간을 나눈다 */
   .band-tint {
@@ -251,7 +269,9 @@ body[data-theme='notice']  { --theme-accent: 15 118 110; --theme-accent-strong: 
         radial-gradient(520px 240px at 88% 0%, var(--theme-wash-2), transparent 72%);
     }
     .page-header-wash {
-      background-image: radial-gradient(520px 240px at 20% -40%, var(--theme-wash-1), transparent 72%);
+      background-image:
+        radial-gradient(520px 240px at 18% -45%, rgb(var(--theme-accent) / 0.055), transparent 74%),
+        linear-gradient(rgb(var(--theme-accent) / 0.055), rgb(var(--theme-accent) / 0.055));
     }
   }
   /* 바로가기 아이콘 칩 — 라인 아이콘(Lucide 경로 인라인) */
