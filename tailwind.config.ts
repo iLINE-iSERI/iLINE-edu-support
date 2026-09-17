@@ -55,13 +55,21 @@ const config: Config = {
         sans: ['var(--font-sans)'],
       },
       maxWidth: {
+        // 페이지 폭 — 큰 모니터에서는 단계적으로 넓힌다 (09-18 iSERI: "모니터가 바뀌니
+        // 공백이 많아진다"). 값은 globals.css 의 .container-page 가 쓴다
         container: '1140px',
+        'container-xl': '1320px',
+        'container-2xl': '1480px',
       },
       screens: {
         // D-24 모바일 우선 — 기본이 좁은 화면, 여기서부터 확장
         sm: '640px',
         md: '820px',
         lg: '1024px',
+        // 큰 모니터 (09-18) — 1440 이상은 폭을 한 단계, 1920 이상은 두 단계 넓힌다.
+        // 글자 크기는 globals.css 의 html font-size 가 1440~2560 사이에서 16→18px 로 흐른다
+        xl: '1440px',
+        '2xl': '1920px',
       },
       minHeight: {
         touch: '44px', // 터치 타깃 최소 크기 (D-24)

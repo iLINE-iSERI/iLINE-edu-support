@@ -80,6 +80,13 @@
   html {
     /* 앵커 이동 시 고정 헤더에 가려지지 않도록 */
     scroll-padding-top: 5rem;
+
+    /* ── 큰 모니터에서 글자·간격이 같이 커진다 (09-18 · D-79) ──────────
+       iSERI: "모니터가 바뀌니(해상도가 달라지니) 공백 영역이 많아진다."
+       Tailwind 의 글자·간격은 전부 rem 이라 html 의 font-size 만 흐르게 하면
+       화면 전체가 비례해서 커진다. 1440px 까지는 16px 그대로, 2560px 에서 18px.
+       (px 로 못 박은 몇 곳 — text-[15px] 등 — 은 안 커지지만 세부라 괜찮다) */
+    font-size: clamp(16px, calc(16px + (100vw - 1440px) * 0.0018), 18px);
   }
 
   body {
@@ -118,7 +125,9 @@
 @layer components {
   /* 본문 최대폭 컨테이너 — 모바일 우선 여백 */
   .container-page {
-    @apply mx-auto w-full max-w-container px-4 sm:px-6 lg:px-8;
+    /* 1140 → 1440 이상 1320 → 1920 이상 1480 (09-18). 그 위로는 더 안 넓힌다 —
+       한 줄이 너무 길어지면 읽기 어렵다. 글자는 html font-size 로 따로 커진다 */
+    @apply mx-auto w-full max-w-container px-4 sm:px-6 lg:px-8 xl:max-w-container-xl 2xl:max-w-container-2xl;
   }
 
   /* 터치 타깃 44px 이상 (D-24) */
