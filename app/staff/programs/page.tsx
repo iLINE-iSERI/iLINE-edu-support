@@ -17,6 +17,7 @@ import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import Badge from '@/components/ui/Badge'
+import DescriptionPreview from '@/components/staff/DescriptionPreview'
 import MemberGate from '@/components/auth/MemberGate'
 import {
   listAllPrograms,
@@ -588,6 +589,8 @@ function StaffProgramsContent() {
                 placeholder="한두 문장으로 프로그램을 설명해 주세요."
                 className={inputCls()}
               />
+              {/* D-90: 목록 카드 소개글 미리보기 — 저장 없이, 공개 여부와 무관하게 */}
+              <DescriptionPreview text={form.description} />
             </Field>
 
             {/* ── 포스터 (D-81) ──────────────────────────── */}
