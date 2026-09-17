@@ -32,7 +32,7 @@ export default function SubNav({
                 className={
                   'relative shrink-0 px-4 py-3 text-sm font-medium transition-colors ' +
                   (active
-                    ? 'text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-accent'
+                    ? 'font-bold text-theme-strong after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-theme'
                     : 'text-ink-muted hover:text-ink')
                 }
               >

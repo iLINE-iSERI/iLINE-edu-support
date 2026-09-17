@@ -47,6 +47,12 @@ const config: Config = {
           DEFAULT: 'rgb(var(--wait) / <alpha-value>)',
           soft: 'rgb(var(--wait-soft) / <alpha-value>)',
         },
+        // 메뉴별 테마 장식색 (D-82) — border-theme · text-theme-strong · bg-theme-tint
+        theme: {
+          DEFAULT: 'rgb(var(--theme-accent) / <alpha-value>)',
+          strong: 'rgb(var(--theme-accent-strong) / <alpha-value>)',
+          tint: 'var(--theme-tint)',
+        },
         // 의미 색 — CSS 변수(R G B) 참조. `<alpha-value>` 덕에 `/12` 같은 투명도가 통한다
         bg: 'rgb(var(--bg) / <alpha-value>)',
         surface: 'rgb(var(--bg-elevated) / <alpha-value>)',

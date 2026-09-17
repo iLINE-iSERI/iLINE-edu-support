@@ -134,7 +134,7 @@ function Content() {
               type="button"
               disabled={busy}
               onClick={() => undo(last)}
-              className="touch-target rounded-xl border border-line px-4 text-sm font-semibold hover:bg-subtle disabled:opacity-50"
+              className="touch-target rounded-lg border border-line px-4 text-sm font-semibold disabled:opacity-50"
             >
               마지막 전달 되돌리기
             </button>
@@ -171,7 +171,7 @@ function Content() {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="touch-target rounded-xl border border-line-strong px-4 text-sm font-semibold hover:bg-subtle print:hidden"
+                  className="touch-target rounded-lg border border-line-strong px-4 text-sm font-semibold print:hidden"
                 >
                   인쇄
                 </button>
@@ -204,7 +204,7 @@ function Content() {
                 type="button"
                 disabled={busy}
                 onClick={deliver}
-                className="touch-target mt-3 inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+                className="touch-target mt-3 inline-flex items-center justify-center rounded-lg bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 {busy ? '처리 중…' : `행정실 전달 완료 — ${total}건`}
               </button>

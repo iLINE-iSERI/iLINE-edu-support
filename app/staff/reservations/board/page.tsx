@@ -94,12 +94,12 @@ function Content() {
       <div className="mx-auto max-w-4xl space-y-6">
         {/* 주 이동 + 요일 탭 */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <button type="button" onClick={() => moveWeek(-1)} className="touch-target rounded-lg px-3 font-bold hover:bg-subtle" aria-label="이전 주">◀</button>
+          <button type="button" onClick={() => moveWeek(-1)} className="touch-target rounded-lg px-3 font-bold" aria-label="이전 주">◀</button>
           <p className="font-bold">
             {shortDate(days[0])} ~ {shortDate(days[6])}
             <button type="button" onClick={goToday} className="ml-3 text-sm font-semibold text-brand-600 underline dark:text-brand-300">오늘</button>
           </p>
-          <button type="button" onClick={() => moveWeek(1)} className="touch-target rounded-lg px-3 font-bold hover:bg-subtle" aria-label="다음 주">▶</button>
+          <button type="button" onClick={() => moveWeek(1)} className="touch-target rounded-lg px-3 font-bold" aria-label="다음 주">▶</button>
         </div>
         <div className="grid grid-cols-7 gap-1" role="tablist" aria-label="날짜">
           {days.map((d) => {
@@ -191,8 +191,8 @@ function Content() {
                                   className="mt-2 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm"
                                 />
                                 <div className="mt-2 flex justify-end gap-2">
-                                  <button type="button" disabled={busy === r.id} onClick={() => setCancelling(null)} className="touch-target rounded-xl border border-line px-4 text-sm font-semibold">돌아가기</button>
-                                  <button type="button" disabled={busy === r.id} onClick={() => cancel(r)} className="touch-target rounded-xl bg-brand-600 px-4 text-sm font-bold text-white disabled:opacity-50">
+                                  <button type="button" disabled={busy === r.id} onClick={() => setCancelling(null)} className="touch-target rounded-lg border border-line px-4 text-sm font-semibold">돌아가기</button>
+                                  <button type="button" disabled={busy === r.id} onClick={() => cancel(r)} className="touch-target rounded-lg bg-brand-600 px-4 text-sm font-bold text-white disabled:opacity-50">
                                     {busy === r.id ? '취소 중…' : '예약 취소 확정'}
                                   </button>
                                 </div>

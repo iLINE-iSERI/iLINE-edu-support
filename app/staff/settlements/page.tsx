@@ -109,7 +109,7 @@ function StaffSettlementsContent() {
             value={filter}
             onChange={(e) => setFilter(e.target.value as SettlementStatus | '')}
             aria-label="상태"
-            className="touch-target rounded-xl border border-line-strong bg-surface px-3 text-sm"
+            className="touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm"
           >
             <option value="">전체 상태</option>
             {FILTERS.map((s) => (
@@ -121,7 +121,7 @@ function StaffSettlementsContent() {
           <button
             type="button"
             onClick={load}
-            className="touch-target rounded-xl border border-line-strong px-4 text-sm font-semibold hover:bg-subtle"
+            className="touch-target rounded-lg border border-line-strong px-4 text-sm font-semibold"
           >
             새로고침
           </button>
@@ -359,7 +359,7 @@ function SettlementRow({
                 type="button"
                 onClick={() => review('approved')}
                 disabled={busy}
-                className="touch-target rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+                className="touch-target rounded-lg bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 승인
               </button>
@@ -367,7 +367,7 @@ function SettlementRow({
                 type="button"
                 onClick={() => review('rejected')}
                 disabled={busy}
-                className="touch-target rounded-xl border border-status-revision px-5 text-sm font-bold text-status-revision hover:bg-status-revision/10 disabled:opacity-50"
+                className="touch-target rounded-lg border border-status-revision px-5 text-sm font-bold text-status-revision hover:bg-status-revision/10 disabled:opacity-50"
               >
                 반려
               </button>
@@ -403,7 +403,7 @@ function SettlementRow({
               type="button"
               onClick={markPaid}
               disabled={busy}
-              className="touch-target rounded-xl bg-status-approved px-5 text-sm font-bold text-white disabled:opacity-50"
+              className="touch-target rounded-lg bg-status-approved px-5 text-sm font-bold text-white disabled:opacity-50"
             >
               지급 완료
             </button>
@@ -439,7 +439,7 @@ function FileButton({ path, label }: { path: string; label: string }) {
           setBusy(false)
         }
       }}
-      className="inline-flex max-w-full items-center rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink-muted hover:bg-subtle disabled:opacity-50"
+      className="inline-flex max-w-full items-center rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink-muted hover:border-brand-600 hover:text-brand-600 disabled:opacity-50"
     >
       <span className="truncate">{busy ? '여는 중…' : label}</span>
     </button>

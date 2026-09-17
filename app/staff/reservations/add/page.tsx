@@ -142,19 +142,19 @@ function Content() {
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-sm">
             <span className="font-bold">날짜</span>
-            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setSeats([]) }} className="touch-target mt-1 w-full rounded-xl border border-line-strong bg-surface px-3" />
+            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setSeats([]) }} className="touch-target mt-1 w-full rounded-lg border border-line-strong bg-surface px-3" />
             {isWeekend && <span className="mt-1 block text-xs text-ink-subtle">주말 — 회원은 못 고르지만 여기서는 됩니다</span>}
             {isPast && <span className="mt-1 block text-xs text-red-600">지난 날짜입니다</span>}
           </label>
           <label className="block text-sm">
             <span className="font-bold">시작</span>
-            <select value={startHour} onChange={(e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(Math.min(24, v + 1)) }} className="touch-target mt-1 w-full rounded-xl border border-line-strong bg-surface px-3">
+            <select value={startHour} onChange={(e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(Math.min(24, v + 1)) }} className="touch-target mt-1 w-full rounded-lg border border-line-strong bg-surface px-3">
               {HOURS.map((h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
             </select>
           </label>
           <label className="block text-sm">
             <span className="font-bold">끝</span>
-            <select value={endHour} onChange={(e) => setEndHour(Number(e.target.value))} className="touch-target mt-1 w-full rounded-xl border border-line-strong bg-surface px-3">
+            <select value={endHour} onChange={(e) => setEndHour(Number(e.target.value))} className="touch-target mt-1 w-full rounded-lg border border-line-strong bg-surface px-3">
               {HOURS.filter((h) => h > startHour).map((h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
               <option value={24}>24:00</option>
             </select>
@@ -188,16 +188,16 @@ function Content() {
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
             <span className="font-bold">이름 또는 단체명</span>
-            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="예: 교육학과 스터디 동아리" className="touch-target mt-1 w-full rounded-xl border border-line-strong bg-surface px-3" />
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="예: 교육학과 스터디 동아리" className="touch-target mt-1 w-full rounded-lg border border-line-strong bg-surface px-3" />
           </label>
           <label className="block text-sm">
             <span className="font-bold">연락처 <span className="font-normal text-ink-muted">(선택)</span></span>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className="touch-target mt-1 w-full rounded-xl border border-line-strong bg-surface px-3" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className="touch-target mt-1 w-full rounded-lg border border-line-strong bg-surface px-3" />
           </label>
         </div>
         <label className="block text-sm">
           <span className="font-bold">메모 <span className="font-normal text-ink-muted">(선택 · 담당자만 봄)</span></span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="예: 학과 워크숍 · 행정실 협의 완료" className="touch-target mt-1 w-full rounded-xl border border-line-strong bg-surface px-3" />
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="예: 학과 워크숍 · 행정실 협의 완료" className="touch-target mt-1 w-full rounded-lg border border-line-strong bg-surface px-3" />
         </label>
 
         <label className="flex items-start gap-3 rounded-xl border border-line bg-surface shadow-card p-4 text-sm leading-relaxed">
@@ -210,7 +210,7 @@ function Content() {
         </label>
 
         <div className="flex justify-end">
-          <button type="submit" disabled={busy || seats.length === 0} className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50">
+          <button type="submit" disabled={busy || seats.length === 0} className="touch-target inline-flex items-center justify-center rounded-lg bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50">
             {busy ? '넣는 중…' : `${seats.length}자리 추가`}
           </button>
         </div>

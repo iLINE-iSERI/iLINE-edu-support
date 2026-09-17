@@ -57,7 +57,9 @@ export default function NoticeList() {
         <li key={n.id}>
           <Link
             href={`/notice/${n.id}`}
-            className="flex items-start gap-3 px-5 py-4 hover:bg-subtle"
+            className={
+              'flex items-start gap-3 px-5 py-4 hover:bg-subtle ' + (n.pinned ? 'bg-theme-tint' : '')
+            }
           >
             {/* 고정 공지는 목록 어디에 있든 눈에 띄어야 한다 */}
             {n.pinned && <Badge tone="info">공지</Badge>}

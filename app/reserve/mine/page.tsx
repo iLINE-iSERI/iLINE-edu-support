@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
+import Button from '@/components/ui/Button'
 import MemberGate from '@/components/auth/MemberGate'
 import EmptyState from '@/components/ui/EmptyState'
 import ReservationCard from '@/components/reserve/ReservationCard'
@@ -101,12 +101,7 @@ function Content() {
               <EmptyState
                 title="아직 예약이 없습니다"
                 action={
-                  <Link
-                    href="/reserve"
-                    className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700"
-                  >
-                    예약하기
-                  </Link>
+                  <Button href="/reserve">예약하기</Button>
                 }
               />
             ) : (
@@ -129,32 +124,19 @@ function Content() {
                                 : '이 예약을 취소합니다. 자리는 바로 다시 열립니다.'}
                             </p>
                             <div className="mt-3 flex flex-wrap justify-end gap-2">
-                              <button
-                                type="button"
-                                disabled={busy === r.id}
-                                onClick={() => setConfirming(null)}
-                                className="touch-target rounded-xl border border-line px-4 text-sm font-semibold hover:bg-surface"
-                              >
+                              <Button variant="secondary" disabled={busy === r.id} onClick={() => setConfirming(null)}>
                                 돌아가기
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy === r.id}
-                                onClick={() => cancel(r)}
-                                className="touch-target rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-                              >
+                              </Button>
+                              {/* 되돌리기 어려운 것 = danger (디자인 규칙 §4) */}
+                              <Button variant="danger" disabled={busy === r.id} onClick={() => cancel(r)}>
                                 {busy === r.id ? '취소 중…' : '예약 취소 확정'}
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirming(r.id)}
-                            className="touch-target rounded-xl border border-line px-4 text-sm font-semibold hover:bg-subtle"
-                          >
+                          <Button variant="secondary" onClick={() => setConfirming(r.id)}>
                             예약 취소
-                          </button>
+                          </Button>
                         )
                       }
                     />
@@ -167,7 +149,7 @@ function Content() {
 
         {past.length > 0 && (
           <section>
-            <h2 className="text-base font-bold tracking-tight text-ink-muted">
+            <h2 className="section-title text-ink-muted">
               지난 예약 · 취소한 예약
             </h2>
             <ul className="mt-4 space-y-3">

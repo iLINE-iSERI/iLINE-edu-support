@@ -120,31 +120,31 @@ function StaffContent() {
         <div className="flex flex-wrap gap-2">
           <Link
             href="/staff/programs"
-            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
           >
             프로그램 관리 →
           </Link>
           <Link
             href="/staff/notices"
-            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
           >
             공지 관리 →
           </Link>
           <Link
             href="/staff/settlements"
-            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
           >
             정산 관리 →
           </Link>
           <Link
             href="/staff/outputs"
-            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
           >
             산출물 관리 →
           </Link>
           <Link
             href="/staff/reservations"
-            className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold"
+            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
           >
             예약 관리 →
           </Link>
@@ -156,7 +156,7 @@ function StaffContent() {
             value={programId}
             onChange={(e) => setProgramId(e.target.value)}
             aria-label="프로그램"
-            className="touch-target rounded-xl border border-line-strong bg-surface px-3 text-sm"
+            className="touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm"
           >
             <option value="">전체 프로그램</option>
             {programs.map((p) => (
@@ -172,7 +172,7 @@ function StaffContent() {
               setStatusFilter(e.target.value as ApplicationStatus | '')
             }
             aria-label="상태"
-            className="touch-target rounded-xl border border-line-strong bg-surface px-3 text-sm"
+            className="touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm"
           >
             <option value="">전체 상태</option>
             {FILTERABLE.map((s) => (
@@ -185,7 +185,7 @@ function StaffContent() {
           <button
             type="button"
             onClick={load}
-            className="touch-target rounded-xl border border-line-strong px-4 text-sm font-semibold hover:bg-subtle"
+            className="touch-target rounded-lg border border-line-strong px-4 text-sm font-semibold"
           >
             새로고침
           </button>
@@ -492,7 +492,7 @@ function ApplicationRow({
             type="button"
             onClick={save}
             disabled={!dirty || busy}
-            className="touch-target rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-40"
+            className="touch-target rounded-lg bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-40"
           >
             {busy ? '저장 중…' : '변경 저장'}
           </button>
@@ -590,7 +590,7 @@ function FileButton({ path, label }: { path: string; label: string }) {
       onClick={open}
       disabled={busy}
       title={label}
-      className="inline-flex max-w-full items-center rounded-lg border border-line px-3 py-2 text-sm font-semibold text-ink-muted hover:bg-subtle disabled:opacity-50"
+      className="inline-flex max-w-full items-center rounded-lg border border-line px-3 py-2 text-sm font-semibold text-ink-muted hover:border-brand-600 hover:text-brand-600 disabled:opacity-50"
     >
       <span className="truncate">{busy ? '여는 중…' : label}</span>
     </button>

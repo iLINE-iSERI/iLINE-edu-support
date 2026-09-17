@@ -6,7 +6,7 @@
  * 교수님(09-14): 메인이 어렵다, 접수 중인 프로그램이 강조되게, 여러 개면 나열되게.
  * iSERI(09-15): **접수 중인 것만** 올린다(활동 중·예정은 목록에서). 최대 3개.
  * 09-18 (Gemini 지시서 §3): 남색 밴드를 걷고 **6:4 분할** — 왼쪽에 알약 배지·제목·
- * 한 줄 설명·버튼 둘, 오른쪽에 접수 카드. 카드 뒤에 청록·귤색 번짐(8~10%).
+ * 한 줄 설명·버튼 둘, 오른쪽에 접수 카드. 바탕은 파랑+청록 워시(.hero-wash · D-82, 6.2%/5%).
  *
  * 오른쪽은 개수에 따라 자리를 다르게 쓴다 — 빈 칸이 생기지 않게.
  *   1개  카드 하나가 칸을 채움 (제목 크게, 버튼 둘)
@@ -70,7 +70,7 @@ export function HeroView({ state }: { state: HeroState }) {
 
   return (
     <section
-      className="relative overflow-hidden border-b border-line bg-surface"
+      className="hero-wash relative overflow-hidden border-b border-line"
       aria-labelledby="home-hero-title"
       aria-busy={state.kind === 'loading'}
     >
@@ -105,15 +105,6 @@ export function HeroView({ state }: { state: HeroState }) {
         {/* 오른쪽 — 접수 중인 프로그램. 휴대폰에서는 **먼저** 보인다(교수님 09-14: 접수 중인
             프로그램이 주인공) — 소개 글은 그 아래로. PC 는 6:4 로 나란히 */}
         <div className="relative order-first min-w-0 lg:order-none">
-          {/* 카드 뒤 번짐 — 청록·귤색 8~10% (지시서 §3). 장식이라 화면 읽기에서 뺀다 */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -inset-8 -z-0 hidden lg:block"
-          >
-            <div className="absolute left-0 top-0 size-72 rounded-full bg-accent/10 blur-3xl" />
-            <div className="absolute bottom-0 right-0 size-64 rounded-full bg-warn/10 blur-3xl" />
-          </div>
-
           <div className="relative">
             <p className="mb-3 flex items-center justify-between text-sm font-bold text-ink">
               <span>

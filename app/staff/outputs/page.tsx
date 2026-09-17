@@ -164,10 +164,10 @@ function StaffOutputsContent() {
 
       <div className="container-page space-y-6 py-8">
         <div className="flex flex-wrap gap-2">
-          <Link href="/staff" className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold">
+          <Link href="/staff" className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold">
             ← 신청 관리
           </Link>
-          <Link href="/staff/programs" className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-5 text-sm font-semibold">
+          <Link href="/staff/programs" className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold">
             프로그램 관리 →
           </Link>
         </div>
@@ -182,7 +182,7 @@ function StaffOutputsContent() {
               setNoteFor(null)
             }}
             aria-label="프로그램"
-            className="touch-target rounded-xl border border-line-strong bg-surface px-3 text-sm"
+            className="touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm"
           >
             {programs.length === 0 && <option value="">프로그램이 없습니다</option>}
             {programs.map((p) => (
@@ -196,7 +196,7 @@ function StaffOutputsContent() {
             value={filter}
             onChange={(e) => setFilter(e.target.value as Filter)}
             aria-label="상태"
-            className="touch-target rounded-xl border border-line-strong bg-surface px-3 text-sm"
+            className="touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm"
           >
             <option value="">전체 ({counts.all})</option>
             <option value="submitted">제출됨</option>

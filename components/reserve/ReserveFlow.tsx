@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import Button from '@/components/ui/Button'
 import { useAuth } from '@/components/auth/AuthProvider'
 import EmptyState from '@/components/ui/EmptyState'
 import StatusBanner from './StatusBanner'
@@ -231,19 +232,10 @@ export default function ReserveFlow() {
         </div>
         <ReservationCard reservation={result} deliverDate={win.deliverDate} />
         <div className="flex flex-wrap gap-2">
-          <Link
-            href="/reserve/mine"
-            className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700"
-          >
-            내 예약 보기
-          </Link>
-          <button
-            type="button"
-            onClick={reset}
-            className="touch-target inline-flex items-center justify-center rounded-xl border border-line px-6 font-semibold hover:bg-subtle"
-          >
+          <Button href="/reserve/mine">내 예약 보기</Button>
+          <Button variant="secondary" onClick={reset}>
             다른 날 더 예약하기
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -299,22 +291,12 @@ export default function ReserveFlow() {
         )}
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={!agreed || submitting}
-            onClick={submit}
-            className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
+          <Button disabled={!agreed || submitting} onClick={submit}>
             {submitting ? '접수 중…' : '예약 신청하기'}
-          </button>
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => setStep('pick')}
-            className="touch-target inline-flex items-center justify-center rounded-xl border border-line px-6 font-semibold hover:bg-subtle"
-          >
+          </Button>
+          <Button variant="secondary" disabled={submitting} onClick={() => setStep('pick')}>
             돌아가기
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -333,7 +315,7 @@ export default function ReserveFlow() {
       {/* ② 공간 — 카드는 가볍게(분류 + 한 줄), 위치·용도는 고른 뒤 아래에 (09-13 iSERI).
           단체대관용(2334)도 카드로 보여 준다 — 고르면 예약 대신 문의 안내 (D-66) */}
       <section>
-        <h2 className="text-base font-bold">1. 공간</h2>
+        <h2 className="section-title">1. 공간</h2>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist" aria-label="공간">
           {VENUES.map((v) => {
             const on = v.code === venueCode
@@ -382,7 +364,7 @@ export default function ReserveFlow() {
       {/* ③ 날짜·시각 */}
       {!venue.staffOnly && (
       <section>
-        <h2 className="text-base font-bold">
+        <h2 className="section-title">
           2. 날짜와 시작 시각
           {occLoading && (
             <span className="ml-2 text-xs font-normal text-ink-subtle">현황 확인 중…</span>
@@ -411,7 +393,7 @@ export default function ReserveFlow() {
       {!venue.staffOnly && sel && (
         <section className="space-y-6 rounded-2xl border border-line bg-surface shadow-card p-5">
           <div>
-            <h2 className="text-base font-bold">
+            <h2 className="section-title">
               3. 길이 — {longDate(sel.date)} {hourLabel(sel.hour)}부터
             </h2>
             <div className="mt-3 flex gap-2" role="radiogroup" aria-label="길이">
@@ -455,7 +437,7 @@ export default function ReserveFlow() {
           </div>
 
           <div>
-            <h2 className="text-base font-bold">4. 자리</h2>
+            <h2 className="section-title">4. 자리</h2>
             <div className="mt-3">
               <SeatPicker
                 venue={venue}
@@ -467,17 +449,15 @@ export default function ReserveFlow() {
           </div>
 
           <div className="flex justify-end">
-            <button
-              type="button"
+            <Button
               disabled={!seat}
               onClick={() => {
                 setStep('confirm')
                 topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }}
-              className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
             >
               확인하러 가기 →
-            </button>
+            </Button>
           </div>
         </section>
       )}

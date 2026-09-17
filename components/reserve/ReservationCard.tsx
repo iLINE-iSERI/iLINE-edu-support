@@ -11,11 +11,13 @@
 import { seatLabel, venueLabel, hourLabel } from '@/lib/config/venues'
 import { longDate, shortDate } from '@/lib/reservations/window'
 import { RESERVATION_STATUS_LABEL, type Reservation } from '@/lib/types'
+import Badge, { type BadgeTone } from '@/components/ui/Badge'
 
-const TONE: Record<Reservation['status'], string> = {
-  received: 'bg-status-submitted/12 text-status-submitted',
-  confirmed: 'bg-status-approved/12 text-status-approved',
-  cancelled: 'bg-subtle text-ink-subtle',
+/** 접수됨 = 기다림(슬레이트) · 확정됨 = 긍정(청록) · 취소 = 끝(회색) — Badge 의 뜻 그대로 */
+const TONE: Record<Reservation['status'], BadgeTone> = {
+  received: 'upcoming',
+  confirmed: 'open',
+  cancelled: 'closed',
 }
 
 export function timeRange(r: Reservation): string {
@@ -37,19 +39,12 @@ export default function ReservationCard({
   return (
     <div
       className={
-        'rounded-2xl border border-line bg-surface p-5 ' +
+        'card p-5 ' +
         (dim ? 'opacity-60' : '')
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={
-            'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ' +
-            TONE[r.status]
-          }
-        >
-          {RESERVATION_STATUS_LABEL[r.status]}
-        </span>
+        <Badge tone={TONE[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
         <span className="font-mono text-xs text-ink-subtle">{r.code}</span>
       </div>
 

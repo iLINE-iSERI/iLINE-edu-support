@@ -119,8 +119,8 @@ function Content() {
           <legend className="px-1 text-sm font-bold">휴관일</legend>
           <p className="text-xs text-ink-muted">시험 기간처럼 통째로 닫는 날. 격자에 「－」로 나옵니다. 주말은 넣지 않아도 됩니다.</p>
           <div className="mt-3 flex gap-2">
-            <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="touch-target rounded-xl border border-line-strong bg-surface px-3 text-sm" />
-            <button type="button" onClick={addDate} className="touch-target rounded-xl border border-line-strong px-4 text-sm font-semibold">추가</button>
+            <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm" />
+            <button type="button" onClick={addDate} className="touch-target rounded-lg border border-line-strong px-4 text-sm font-semibold">추가</button>
           </div>
           <textarea
             value={closedText}
@@ -142,7 +142,7 @@ function Content() {
         </div>
 
         <div className="flex justify-end">
-          <button type="submit" disabled={busy} className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50">
+          <button type="submit" disabled={busy} className="touch-target inline-flex items-center justify-center rounded-lg bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50">
             {busy ? '저장 중…' : '저장'}
           </button>
         </div>

@@ -160,7 +160,7 @@ function StaffNoticesContent() {
             <button
               type="button"
               onClick={openNew}
-              className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 font-bold text-white hover:bg-brand-700"
+              className="touch-target inline-flex items-center justify-center rounded-lg bg-brand-600 px-5 font-bold text-white hover:bg-brand-700"
             >
               새 공지 작성
             </button>
@@ -272,7 +272,7 @@ function StaffNoticesContent() {
               <button
                 type="submit"
                 disabled={busy}
-                className="touch-target inline-flex items-center justify-center rounded-xl bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+                className="touch-target inline-flex items-center justify-center rounded-lg bg-brand-600 px-6 font-bold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 {busy ? '저장 중…' : '저장'}
               </button>
@@ -280,7 +280,7 @@ function StaffNoticesContent() {
                 type="button"
                 onClick={close}
                 disabled={busy}
-                className="touch-target inline-flex items-center justify-center rounded-xl border border-line-strong px-6 font-semibold disabled:opacity-50"
+                className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-6 font-semibold disabled:opacity-50"
               >
                 취소
               </button>

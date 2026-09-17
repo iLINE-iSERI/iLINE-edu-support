@@ -39,7 +39,7 @@ export default function SectionTitle({
             aria-hidden="true"
             className={
               'inline-block h-[18px] w-1 shrink-0 rounded-sm ' +
-              (invert ? 'bg-white/70' : 'bg-accent')
+              (invert ? 'bg-white/70' : 'bg-theme')
             }
           />
           {children}

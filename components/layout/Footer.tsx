@@ -12,48 +12,50 @@ import { SITE } from '@/lib/config/site'
  */
 export default function Footer() {
   return (
-    <footer className="mt-16 border-t border-line bg-subtle">
-      <div className="container-page space-y-6 py-8 text-sm text-ink-subtle">
+    // 딥 슬레이트 (D-82 §2.4) — 캔버스보다 밝은 흰 푸터는 위계가 뒤집혀 있었다. 페이지를 "닫는" 면.
+    // 색은 라이트·다크 공통 고정값(토큰 아님). 글자 #94A3B8 on #0F172A ≈ 7.3:1
+    <footer className="mt-16 bg-[#0F172A] text-[#94A3B8]">
+      <div className="container-page space-y-6 py-10 text-sm">
         {/* ── 주체 ─────────────────────────────────────── */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="font-semibold text-ink-muted">
+            <p className="font-semibold text-[#E2E8F0]">
               {SITE.university} · {SITE.funder}
             </p>
             <p className="mt-1 text-xs">{SITE.operator} 운영</p>
           </div>
 
           <nav className="flex flex-wrap gap-x-5 gap-y-2" aria-label="푸터">
-            <a href={SITE.introUrl} className="hover:text-ink">
+            <a href={SITE.introUrl} className="text-[#CBD5E1] hover:text-white">
               iLINE 홈
             </a>
-            <Link href="/notice/faq" className="hover:text-ink">
+            <Link href="/notice/faq" className="text-[#CBD5E1] hover:text-white">
               자주 묻는 질문
             </Link>
-            <Link href="/terms" className="hover:text-ink">
+            <Link href="/terms" className="text-[#CBD5E1] hover:text-white">
               이용약관
             </Link>
-            <Link href="/privacy" className="font-medium hover:text-ink">
+            <Link href="/privacy" className="font-medium text-[#CBD5E1] hover:text-white">
               개인정보처리방침
             </Link>
           </nav>
         </div>
 
         {/* ── 문의처 ───────────────────────────────────── */}
-        <div className="border-t border-line pt-5">
-          <p className="text-xs font-semibold text-ink-muted">문의</p>
+        <div className="border-t border-[#E2E8F0]/15 pt-5">
+          <p className="text-xs font-semibold text-[#E2E8F0]">문의</p>
 
           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
             {/* 누르면 바로 메일·전화가 열린다 — 휴대폰에서 옮겨 적지 않게 */}
             <a
               href={`mailto:${SITE.contact.email}`}
-              className="hover:text-ink hover:underline"
+              className="text-[#CBD5E1] hover:text-white hover:underline"
             >
               {SITE.contact.email}
             </a>
             <a
               href={`tel:${SITE.contact.phone.replace(/-/g, '')}`}
-              className="hover:text-ink hover:underline"
+              className="text-[#CBD5E1] hover:text-white hover:underline"
             >
               {SITE.contact.phone}
             </a>

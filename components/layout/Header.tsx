@@ -70,7 +70,7 @@ export default function Header() {
     // 불투명으로 바꿨었는데, 그때는 블러 없이 95% 였고 그마저 var() 색이라 CSS 로 안 나가
     // **완전 투명**이었다. 지금은 토큰이 R G B 라 `/85` 가 통하고 블러가 뒤를 뭉개므로 읽힌다.
     // 그래도 겹쳐 보이면 `bg-surface backdrop-blur-none` 으로 되돌린다.
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-surface/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-line/70 bg-surface/85 backdrop-blur-md backdrop-saturate-150">
       <div className="container-page">
         {/* 1단: 로고 + 계정 영역 */}
         <div className="flex h-16 items-center justify-between gap-4">
@@ -215,7 +215,7 @@ export default function Header() {
               className={
                 'relative px-4 py-3 text-sm font-medium transition-colors ' +
                 (isActive(item.href)
-                  ? 'text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-accent'
+                  ? 'font-bold text-theme-strong after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-theme'
                   : 'text-ink-muted hover:text-brand-600 dark:hover:text-brand-300')
               }
             >
@@ -250,7 +250,7 @@ export default function Header() {
                 className={
                   'flex items-center rounded-lg px-3 py-3 text-base font-medium ' +
                   (isActive(item.href)
-                    ? 'border-l-4 border-accent bg-accent-soft text-ink'
+                    ? 'border-l-4 border-theme bg-theme-tint font-bold text-theme-strong'
                     : 'text-ink-muted')
                 }
               >

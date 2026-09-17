@@ -8,6 +8,8 @@ import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
+import ThemeSync from '@/components/layout/ThemeSync'
+import { THEME_BOOT_SCRIPT } from '@/lib/theme'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { SITE } from '@/lib/config/site'
 
@@ -40,8 +42,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className="flex min-h-screen flex-col">
+      {/* data-theme 는 메뉴별 테마(D-82) — 하이드레이션 전 스크립트가 붙이고 ThemeSync 가 따라간다 */}
+      <body className="flex min-h-screen flex-col" data-theme="home">
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <AuthProvider>
+          <ThemeSync />
           <a href="#main" className="skip-link">
             본문 바로가기
           </a>
