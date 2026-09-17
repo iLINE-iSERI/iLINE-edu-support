@@ -24,6 +24,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { getDb, COL, getStorageClient } from './config'
 import { UserFacingError } from './errors'
+import { preparePoster } from '@/lib/ui/resizePoster'
 import { applicationKeyId } from './applications'
 import {
   APPLICATION_STATUS_LABEL,
@@ -232,12 +233,20 @@ export function posterRejectReason(file: File): string | null {
 export async function uploadProgramPoster(programId: string, file: File): Promise<ProgramPoster> {
   const reason = posterRejectReason(file)
   if (reason) throw new UserFacingError(reason)
-  const ext = file.name.split('.').pop()!.toLowerCase()
+  // D-86: 저장 직전에 긴 변 2400px · WebP 로 줄인다 (lib/ui/resizePoster 머리 주석).
+  // 이미 작은 파일은 null 이 와서 원본 그대로 간다. 줄이기가 실패해도 원본으로 올린다.
+  const prepared = await preparePoster(file).catch((e) => {
+    console.warn('[iLINE] 포스터 줄이기 실패 — 원본으로 올림:', e)
+    return null
+  })
+  const ext = prepared ? prepared.ext : file.name.split('.').pop()!.toLowerCase()
+  const body: Blob = prepared ? prepared.blob : file
   const path = `support/public/programs/${programId}/poster_${Date.now()}.${ext}`
   const r = ref(getStorageClient(), path)
-  await uploadBytes(r, file, { contentType: POSTER_TYPES[ext] })
+  await uploadBytes(r, body, { contentType: POSTER_TYPES[ext] })
   const url = await getDownloadURL(r)
-  return { path, url, fileName: file.name, size: file.size }
+  // fileName 은 담당자가 고른 이름 그대로(화면에서 "무엇을 올렸나" 확인용), size 는 실제 저장 크기
+  return { path, url, fileName: file.name, size: body.size }
 }
 
 /** 옛 포스터 파일 지우기 — 실패해도 저장은 이미 끝난 뒤라 로그만 남긴다 */

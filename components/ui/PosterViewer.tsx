@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import PosterImage from '@/components/ui/PosterImage'
 
 /**
  * 포스터 뷰어 (D-81 · 09-18) — 3:4 칸에 contain 으로 보여 주고, 누르면 원본을 띄운다.
@@ -12,6 +13,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  *   [−] [+] 25% 단위, 50%~250% · 휠로도 · 100% 넘으면 끌어서 이동(pan) · [↺] 맞춤으로.
  *   그림은 `transform: translate() scale()` 하나로 움직인다 — 레이아웃을 다시 계산하지 않아
  *   부드럽다. 휠은 모달 안에서만 잡으므로 페이지 스크롤과 안 섞인다.
+ *
+ * D-86 (09-18): 본문 그림은 `PosterImage`(next/image · 표시 폭만큼) 로, **원본은 뷰어를
+ * 여는 순간에 처음** 받는다 — 250% 확대까지 있어 여기만 원본이 맞고, 상세를 여는 모두가
+ * 원본을 받을 이유는 없다. 원본이 오는 동안 "불러오는 중" 을 띄운다.
  */
 
 const MIN = 0.5
@@ -44,8 +49,13 @@ export default function PosterViewer({
       return next
     })
 
+  /** 뷰어를 한 번이라도 열었나 — 그때부터 원본 <img> 를 그린다 (그 전엔 요청도 없음) */
+  const [opened, setOpened] = useState(false)
+  const [origLoaded, setOrigLoaded] = useState(false)
+
   const open = () => {
     reset()
+    setOpened(true)
     ref.current?.showModal()
   }
   const close = () => ref.current?.close()
@@ -94,7 +104,15 @@ export default function PosterViewer({
         }
         aria-label={`${title} 포스터 크게 보기`}
       >
-        <img src={url} alt={`${title} 포스터`} className="aspect-[3/4] w-full object-contain" />
+        {/* 본문 폭: max-w-sm(24rem) — 큰 모니터의 18px 루트에서도 432px 이 최대 */}
+        <PosterImage
+          url={url}
+          alt={`${title} 포스터`}
+          sizes="(max-width: 640px) 88vw, 432px"
+          quality={80}
+          priority
+          className="w-full"
+        />
         <span
           aria-hidden="true"
           className="absolute bottom-3 right-3 rounded-lg bg-ink/70 px-2.5 py-1 text-xs font-bold text-white opacity-80 transition group-hover:opacity-100"
@@ -144,16 +162,26 @@ export default function PosterViewer({
         {/* 무대 — 그림이 여기 안에서 커지고 움직인다. 넘치는 부분은 잘리고 끌어서 본다 */}
         <div
           ref={stageRef}
-          className="flex h-full w-full items-center justify-center overflow-hidden p-4 pt-16"
+          className="relative flex h-full w-full items-center justify-center overflow-hidden p-4 pt-16"
           onClick={(e) => {
             // 무대(빈 곳)를 눌러도 닫히게 — 그림 위는 제외
             if (e.target === stageRef.current) close()
           }}
         >
+          {opened && !origLoaded && (
+            <p
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-ink/70 px-3 py-2 text-sm font-semibold text-white"
+              role="status"
+            >
+              원본을 불러오는 중…
+            </p>
+          )}
+          {opened && (
           <img
             src={url}
             alt={`${title} 포스터`}
             draggable={false}
+            onLoad={() => setOrigLoaded(true)}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -164,8 +192,12 @@ export default function PosterViewer({
               cursor: scale > 1 ? (drag.current ? 'grabbing' : 'grab') : 'zoom-in',
               transition: drag.current ? 'none' : 'transform 120ms ease-out',
             }}
-            className="max-h-full max-w-full select-none rounded-xl object-contain shadow-2xl"
+            className={
+              'max-h-full max-w-full select-none rounded-xl object-contain shadow-2xl ' +
+              (origLoaded ? '' : 'opacity-0')
+            }
           />
+          )}
         </div>
       </dialog>
     </>

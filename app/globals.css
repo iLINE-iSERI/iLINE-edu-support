@@ -313,6 +313,24 @@ body[data-theme='notice']  { --theme-accent: 15 118 110; --theme-accent-strong: 
     @apply hidden lg:sticky lg:top-[7rem] lg:flex lg:h-[calc(100vh-7rem)] lg:flex-col lg:justify-start;
   }
 
+  /* ── 포스터 자리 (D-86) — 도착 전 테마색 6% 단색, 도착하면 200ms 페이드인. shimmer 없음
+     (카드가 쌓이면 화면 전체가 번쩍인다). components/ui/PosterImage */
+  .poster-skeleton {
+    background: rgb(var(--theme-accent) / 0.06);
+  }
+  .poster-img {
+    opacity: 0;
+    transition: opacity 200ms ease-out;
+  }
+  .poster-img.is-loaded {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .poster-img {
+      transition: none;
+    }
+  }
+
   /* ── 빈 상태 카드 (D-84) — 흰 카드 · 왼쪽 정렬 · 테마 색 아이콘 칩. components/ui/EmptyState */
   .empty-card {
     @apply rounded-2xl border border-line bg-surface text-left;

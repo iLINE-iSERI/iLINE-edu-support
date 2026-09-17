@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import PosterImage from '@/components/ui/PosterImage'
 import {
   getProgramPhase,
   PHASE_LABEL,
@@ -38,11 +39,13 @@ export default function ProgramCard({ program }: { program: Program }) {
           className="group relative block shrink-0 bg-subtle sm:w-[30%] sm:max-w-[260px]"
           aria-label={`${program.title} 포스터 — 자세히 보기`}
         >
-          <img
-            src={poster}
+          {/* D-86: next/image — 칸 폭(휴대폰 240 · PC 30%≤260)에 맞는 WebP 만 받는다.
+              priority 없음 = lazy 그대로. 배경 자리는 PosterImage 가 그린다 */}
+          <PosterImage
+            url={poster}
             alt=""
-            className="mx-auto aspect-[3/4] w-full max-w-[240px] object-contain sm:max-w-none"
-            loading="lazy"
+            sizes="(max-width: 640px) 240px, 260px"
+            className="mx-auto w-full max-w-[240px] sm:max-w-none"
           />
           {/* 올리면 살짝 어두워지며 힌트 */}
           <span
