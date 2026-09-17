@@ -24,10 +24,14 @@ import { SITE } from '@/lib/config/site'
  * 시설 예약 — 09-10 추가 (D-56). 매주 들어오는 화면이라 대메뉴에 둔다.
  *   회원 전용이지만 메뉴는 누구에게나 보인다 — 누르면 로그인·회원 등록으로
  *   안내되며, 공부실이 가입 유인이 되기도 한다 (설계 §2-1).
+ * 산출물 제출 — 09-17 추가 (D-76). 선정자가 활동 기간 내내 드나드는 화면이라
+ *   마이페이지 하위(D-19)가 아니라 대메뉴 (iSERI · 교수님 동의). 참여 흐름 순서로
+ *   「프로그램 신청」 바로 뒤. 로그인 전에는 안내 화면.
  */
 const NAV = [
   { href: '/about', label: '사업소개' },
   { href: '/apply', label: '프로그램 신청' },
+  { href: '/outputs', label: '산출물 제출' },
   { href: '/reserve', label: '시설 예약' },
   { href: '/gallery', label: '갤러리' },
   { href: '/notice', label: '알림마당' },
@@ -208,7 +212,7 @@ export default function Header() {
                 'relative px-4 py-3 text-sm font-medium transition-colors ' +
                 (isActive(item.href)
                   ? 'text-brand-600 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-brand-600 dark:text-brand-300 dark:after:bg-brand-300'
-                  : 'text-ink-muted hover:text-ink')
+                  : 'text-ink-muted hover:text-brand-600 dark:hover:text-brand-300')
               }
             >
               {item.label}

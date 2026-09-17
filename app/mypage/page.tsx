@@ -233,6 +233,19 @@ function MypageContent() {
                       />
                     )}
 
+                    {/* 산출물 제출 (D-76) — 대메뉴 화면으로 보낸다. 여기서는 링크만 */}
+                    {a.status === 'approved' && (
+                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-line bg-subtle p-4">
+                        <p className="min-w-0 flex-1 text-sm leading-relaxed text-ink-muted">
+                          <strong className="text-ink">산출물 제출</strong> — 활동 산출물과 사진은
+                          「산출물 제출」 메뉴에서 올립니다.
+                        </p>
+                        <Button variant="secondary" href="/outputs">
+                          산출물 제출 →
+                        </Button>
+                      </div>
+                    )}
+
                     {/* 마감 전 본인 수정 (D-73) — 조건은 취소와 같다 */}
                     {canEditMyself(
                       a,

@@ -51,11 +51,22 @@ service firebase.storage {
       allow delete: if isOwner(uid) || isStaff();
     }
 
-    // 갤러리 제출물 — 공개 승인 여부와 무관하게 읽기는 로그인 사용자로 제한.
-    // 공개 노출은 앱이 Firestore의 approved 플래그를 보고 판단한다.
+    // 산출물 (D-76) — 지도안·발표자료·활동 사진·영상. 신청 서류보다 크고 종류가 많다.
+    // 읽기는 로그인 사용자 — 공유 여부는 Firestore 규칙이 문서 단위로 판정하고,
+    // 파일 주소는 문서를 읽은 사람만 얻는다.
+    // 형식은 lib/firebase/outputs.ts 의 OUTPUT_FILE_TYPES 와 같은 목록 — 화면이
+    // 확장자로 contentType 을 정해 올리므로 octet-stream 은 받지 않는다(실행 파일 차단).
+    function isOutputType() {
+      return request.resource.contentType.matches('image/(jpeg|png|gif|webp|heic|heif)')
+          || request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('application/(msword|vnd\\.ms-powerpoint|vnd\\.ms-excel|x-hwp|x-hwpx|zip)')
+          || request.resource.contentType.matches('application/vnd\\.openxmlformats-officedocument\\..*')
+          || request.resource.contentType.matches('video/(mp4|quicktime)');
+    }
     match /support/outputs/{uid}/{allPaths=**} {
       allow read: if isSignedIn();
-      allow write: if isOwner(uid) && isUnderSizeLimit();
+      allow write: if isOwner(uid) && isOutputType()
+        && request.resource.size < 50 * 1024 * 1024;   // 50MB — 발표 영상·pptx
       allow delete: if isOwner(uid) || isStaff();
     }
 

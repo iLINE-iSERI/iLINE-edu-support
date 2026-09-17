@@ -195,6 +195,11 @@ export interface ProgramInput {
   attachmentRequired?: boolean
   /** 이 프로그램 전용 신청 항목의 이름 (D-50). 빈 값이면 기본 신청서 */
   formType?: string
+  /** 산출물 제출 (D-76) — 전부 선택. 기한을 비우면 활동 기간을 따른다 */
+  outputVisibility?: Program['outputVisibility']
+  outputOpensAt?: Date
+  outputClosesAt?: Date
+  outputGuide?: string
   published: boolean
 }
 
@@ -227,6 +232,12 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   // '기본 신청서'를 고르면 빈 문자열이 오고, put 이 걸러 낸다.
   // 위의 setDoc 이 문서를 통째로 덮어쓰므로 **전용 양식이 실제로 떨어진다.**
   put('formType', input.formType?.trim())
+
+  // 산출물 제출 (D-76). 'private' 는 기본값이라 저장하지 않는다 — 옛 문서와 같은 모양
+  if (input.outputVisibility === 'members') out.outputVisibility = 'members'
+  put('outputOpensAt', input.outputOpensAt)
+  put('outputClosesAt', input.outputClosesAt)
+  put('outputGuide', input.outputGuide?.trim())
 
   // 단체 프로그램이 아니면 인원 제한은 의미가 없다
   if (input.participationType === 'group') put('maxTeamSize', input.maxTeamSize)

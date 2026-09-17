@@ -31,12 +31,15 @@ const VARIANT: Record<ButtonVariant, string> = {
   primary:
     'touch-target px-6 bg-brand-600 text-white hover:bg-brand-700 ' +
     'dark:bg-brand-300 dark:text-brand-900 dark:hover:bg-brand-200',
+  // hover 는 **색이 바뀌게** (iSERI 09-17) — 테두리·글자가 주색으로, 바탕은 옅은 주색
   secondary:
-    'touch-target px-6 border border-line-strong bg-surface text-ink hover:bg-subtle',
+    'touch-target px-6 border border-line-strong bg-surface text-ink ' +
+    'hover:border-brand-600 hover:bg-brand-soft hover:text-brand-600 dark:hover:border-brand-300 dark:hover:text-brand-300',
   danger:
     'touch-target px-5 border border-status-revision text-status-revision hover:bg-status-revision/10',
   text:
-    'min-h-0 rounded-none px-1 text-sm font-semibold text-ink-muted underline underline-offset-[3px] hover:text-ink',
+    'min-h-0 rounded-none px-1 text-sm font-semibold text-ink-muted underline underline-offset-[3px] ' +
+    'hover:text-brand-600 dark:hover:text-brand-300',
 }
 
 type Common = {

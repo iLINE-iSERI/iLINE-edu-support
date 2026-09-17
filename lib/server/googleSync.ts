@@ -18,10 +18,12 @@ import {
   APPLICATION_STATUS_LABEL,
   MEMBER_TYPE_LABEL,
   SETTLEMENT_STATUS_LABEL,
+  OUTPUT_STATUS_LABEL,
   memberTypeOf,
   identityLine,
   type Application,
   type Settlement,
+  type Output,
 } from '@/lib/types'
 
 const SCOPES = [
@@ -1003,4 +1005,136 @@ export async function syncSettlement(
   }
 
   return { sheetRow: rowNo, driveUrl: person.url, uploaded }
+}
+
+/* =====================================================================
+   산출물 — 시트 「산출물」 탭 한 줄 (D-76 · 09-17)
+
+   **파일은 나가지 않는다.** 산출물은 사진·영상이라 크고, 나가는 개인정보가
+   늘고, 담당자가 사이트에서 바로 볼 수 있다. 시트에는 현황 한 줄만 —
+   누가·언제·몇 개·무슨 상태. 이름 대신 **팀명(개인이면 소속)** 을 적는다
+   (반출 범위 문서 참고). 「사이트에서 열기」 링크는 담당자가 로그인해야 열린다.
+   ===================================================================== */
+
+const OUTPUT_SHEET = '산출물'
+const OUTPUT_FIXED_WIDTHS: ColumnWidths = { 3: 260 }
+const OUTPUT_LINK_COL = 8
+
+const OUTPUT_HEADERS = [
+  '제출번호',       // A
+  '프로그램',       // B
+  '팀 · 소속',      // C — 이름은 넣지 않는다
+  '제목',           // D
+  '제출 일시',      // E
+  '수정',           // F — 'n회 · 마지막 시각'
+  '파일 수',        // G
+  '상태',           // H — 제출됨 / 추가 요청 / 내려짐
+  '사이트에서 열기', // I
+]
+
+/** 「산출물」 탭이 없으면 만들고, 머리글이 비어 있으면 넣는다 */
+async function ensureOutputSheet(
+  sheets: ReturnType<typeof google.sheets>,
+  sheetId: string
+): Promise<number> {
+  const info = await sheetInfo(sheets, sheetId, OUTPUT_SHEET)
+  let gid = info.gid
+  if (!info.exists) {
+    const created = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { requests: [{ addSheet: { properties: { title: OUTPUT_SHEET } } }] },
+    })
+    gid = created.data.replies?.[0]?.addSheet?.properties?.sheetId ?? 0
+  }
+  const head = await sheets.spreadsheets.values.get({
+    spreadsheetId: sheetId,
+    range: `'${OUTPUT_SHEET}'!A1:I1`,
+  })
+  if (!head.data.values?.[0]?.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `'${OUTPUT_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [OUTPUT_HEADERS] },
+    })
+  }
+  await setupHeader(sheets, sheetId, gid, OUTPUT_HEADERS.length)
+  return gid
+}
+
+export interface OutputSyncResult {
+  skipped?: true
+  sheetRow?: number
+}
+
+/**
+ * 산출물 1건을 시트 「산출물」 탭에 반영한다. 몇 번 돌려도 결과가 같다 —
+ * 줄이 있으면 그 줄을 고친다(다시 제출·추가 요청·내리기가 같은 줄에).
+ * @param openUrl 담당자 화면 주소 — 로그인해야 열린다
+ */
+export async function syncOutput(o: Output, openUrl: string): Promise<OutputSyncResult> {
+  const c = clients()
+  if (!c) return { skipped: true }
+  const { cfg, sheets } = c
+
+  const gid = await step('시트 「산출물」 탭 · SHEET_ID 확인', () =>
+    ensureOutputSheet(sheets, cfg.sheetId)
+  )
+
+  const edited = o.editCount ?? 0
+  const status = o.hiddenByStaff ? '내려짐' : OUTPUT_STATUS_LABEL[o.status] ?? o.status
+  const row = [
+    o.id,
+    o.programTitle || o.programId,
+    o.teamName ? `${o.teamName} 팀` : o.authorAffiliation || '',
+    o.title,
+    seoulStamp(o.submittedAt?.toDate?.()),
+    edited > 0 ? `${edited}회 · ${seoulStamp(o.lastEditedAt?.toDate?.())}` : '',
+    String(o.files?.length ?? 0),
+    status,
+    openUrl,
+  ]
+
+  const existing = Number(o.sheetRowId) || 0
+  const muted = Boolean(o.hiddenByStaff)
+  if (existing > 1) {
+    await step('시트 줄 갱신', () =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId: cfg.sheetId,
+        range: `'${OUTPUT_SHEET}'!A${existing}:I${existing}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      })
+    )
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, existing, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS, muted)
+    )
+    await step('링크', () => linkCell(sheets, cfg.sheetId, gid, existing, OUTPUT_LINK_COL, openUrl, '사이트에서 열기'))
+    await step('열 너비 맞춤', () =>
+      fitColumns(sheets, cfg.sheetId, gid, OUTPUT_SHEET, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS)
+    )
+    return { sheetRow: existing }
+  }
+
+  const appended = await step('시트에 줄 추가', () =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId: cfg.sheetId,
+      range: `'${OUTPUT_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    })
+  )
+  const updated = appended.data.updates?.updatedRange || ''
+  const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
+  if (rowNo) {
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, rowNo, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS, muted)
+    )
+    await step('링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, OUTPUT_LINK_COL, openUrl, '사이트에서 열기'))
+    await step('열 너비 맞춤', () =>
+      fitColumns(sheets, cfg.sheetId, gid, OUTPUT_SHEET, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS)
+    )
+  }
+  return { sheetRow: rowNo }
 }

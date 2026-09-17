@@ -183,6 +183,22 @@ export interface Program {
    */
   formType?: string
 
+  /* ── 산출물 제출 (D-76 · 09-17) — 전부 선택 ─────────────────
+     선정된 참여자가 활동 기간 중 산출물·활동 사진을 올린다(/outputs).
+     **제출 항목 이름은 두지 않는다**(iSERI 09-17: "명칭 붙여서 그것만 낼 수
+     있는 화면인 느낌 주지 말고 그냥 제출창"). 담당자는 안내 한 문단만 적는다. */
+
+  /** 누가 보나 — 없으면 'private'(본인 + 담당자). 'members' 면 로그인 회원 누구나 */
+  outputVisibility?: OutputVisibility
+  /**
+   * 제출 기간 — 없으면 **활동 기간을 따른다**(activityStart ~ activityEnd 그날까지).
+   * 그것도 없으면 선정 뒤 언제든. 평소엔 비워 두면 된다.
+   */
+  outputOpensAt?: Timestamp
+  outputClosesAt?: Timestamp
+  /** 제출 안내 — "지도안과 발표자료를 올려 주세요" 같은 한 문단 */
+  outputGuide?: string
+
   /** 공개 여부 — 준비 중인 프로그램은 감춘다 */
   published: boolean
   createdAt: Timestamp
@@ -472,6 +488,113 @@ export interface Application {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   산출물 — support_outputs/{outputId}   (D-76 · 09-17)
+
+   선정된 참여자가 활동 기간 중 올리는 산출물·활동 사진. **정산을 본떴다** —
+   신청 건에 붙고(applicationId), 선정(approved)된 건에만 열리고, 담당자가
+   본다. 다른 점은 하나: 정산은 신청 건당 1건인데 산출물은 **여러 건**이다.
+
+   · 제출창은 항상 **제목 · 내용 · 파일** 세 줄 — 양식을 박지 않는다
+   · 제출하면 그 자리에서 반영된다. **승인 단계가 없다**(iSERI 09-17:
+     "프로그램 진행될 때 일일이 승인 처리하고 그럴 수 없어요")
+   · 담당자는 「추가 요청」만 할 수 있다 — 반려·승인 없음. 요청 글은
+     참여자에게 **보인다**(D-46 은 선정 결과에 대한 결정이고, 이건 작업 지시)
+   · 팀은 신청서의 팀명으로만 묶인다 — 제출은 팀원 누구나, 보기는 팀 단위
+   · 삭제는 없다. 담당자 「내리기」(hiddenByStaff)는 감추는 것이지 지우는 게 아니다
+   ───────────────────────────────────────────────────────────── */
+
+/** 누가 보나 — 프로그램 단위로 담당자가 정한다 */
+export type OutputVisibility = 'private' | 'members'
+
+export const OUTPUT_VISIBILITY_LABEL: Record<OutputVisibility, string> = {
+  private: '비공개 (본인 + 담당자)',
+  members: '참여자 공유 (로그인한 회원 누구나)',
+}
+
+/** 값이 없는 옛 프로그램은 비공개로 본다 */
+export function outputVisibilityOf(p: Pick<Program, 'outputVisibility'>): OutputVisibility {
+  return p.outputVisibility ?? 'private'
+}
+
+/**
+ * 산출물 상태 — 둘뿐이다.
+ *   submitted  제출됨. 낸 순간 이 상태이고, 담당자가 볼 수 있다
+ *   revision   추가 요청. 담당자가 요청 글을 달면 이 상태. 참여자가 고쳐서
+ *              다시 내면 submitted 로 돌아간다
+ */
+export type OutputStatus = 'submitted' | 'revision'
+
+export const OUTPUT_STATUS_LABEL: Record<OutputStatus, string> = {
+  submitted: '제출됨',
+  revision: '추가 요청',
+}
+
+export interface Output {
+  id: string
+  /** 어느 신청 건의 산출물인가 — 선정된 건에만 붙는다 */
+  applicationId: string
+  uid: string
+  status: OutputStatus
+
+  /** 신청 당시 정보 사본 — 프로그램이 바뀌어도 이력은 남는다 */
+  programId: string
+  programTitle?: string
+  /** 제출 시점 이름 사본 — 담당자 화면용. 공유 화면에는 쓰지 않는다 */
+  authorName: string
+  /** 신청서의 팀명 사본 — 팀 프로그램에서 묶어 보는 기준. 개인이면 없음 */
+  teamName?: string
+  /** 공유 화면에 이름 대신 띄우는 소속·전공 — '제주대 · 국어교육' */
+  authorAffiliation?: string
+
+  /** 한 줄 제목 — 목록에 뜨는 이름 */
+  title: string
+  /** 본문 — 자유롭게. 없어도 된다 */
+  text?: string
+  /** 첨부 — 기존 AttachedFile 그대로 (type: 'output') */
+  files: AttachedFile[]
+
+  /** 담당자의 추가 요청 글 — **참여자에게 보인다.** 다시 내면 비운다 */
+  reviewNote?: string
+  reviewedBy?: string
+  reviewedAt?: Timestamp
+
+  /**
+   * 담당자가 내렸는가 — 사후 비상구. 사진 속 다른 사람이 빼 달라고 할 때 쓴다.
+   * 감추는 것이지 지우는 게 아니라 본인·담당자는 계속 본다. 항상 값이 있다
+   * (공유 목록 질의가 `== false` 로 걸러야 해서).
+   */
+  hiddenByStaff: boolean
+  hiddenAt?: Timestamp
+
+  /** 몇 번 고쳤나 (없으면 0) — 「다시 제출하기」 흔적 */
+  editCount?: number
+  lastEditedAt?: Timestamp
+
+  /* 시트 반영 — 「산출물」 탭 한 줄. 파일은 나가지 않는다 */
+  sheetRowId?: number | null
+  sheetSyncedAt?: Timestamp
+  sheetSyncError?: string
+
+  submittedAt?: Timestamp
+  createdAt: Timestamp
+  updatedAt: Timestamp
+}
+
+/**
+ * 이 신청 건의 팀명 — 없으면 undefined (개인).
+ *
+ * 두 곳에 있을 수 있다: 단체 프로그램의 `teamName`, 전용 양식(AI-EDU)의
+ * `formValues.teamName`. 실제로는 후자뿐이다 — 신청서에 팀원 명단 칸이 없어
+ * 모든 신청이 한 사람 한 건이고, 팀은 양식의 팀명으로만 묶인다(09-17 확인).
+ */
+export function teamNameOf(
+  app: Pick<Application, 'teamName' | 'formValues'> | null | undefined
+): string | undefined {
+  const t = app?.teamName?.trim() || app?.formValues?.teamName?.trim()
+  return t || undefined
+}
+
+/* ─────────────────────────────────────────────────────────────
    정산 — support_settlements/{id}
    신청 1건 : 정산 1건 (v0.11). 팀이어도 각자 신청하므로 개인 단위.
    팀 공동 경비는 다루지 않는다 (D-18).
@@ -562,53 +685,9 @@ export interface Settlement {
   updatedAt: Timestamp
 }
 
-/* ─────────────────────────────────────────────────────────────
-   갤러리 — support_outputs/{id}   (D-12 / D-15 / D-17)
-   산출물 / 활동사진 2뎁스. 팀은 텍스트 표기만 (J1).
-   담당자가 승인한 것만 공개된다.
-   ───────────────────────────────────────────────────────────── */
-
-export type OutputCategory = 'output' | 'photo'
-export type OutputType = 'lesson-plan' | 'video' | 'case' | 'etc'
-export type Visibility = 'public' | 'member' | 'selected'
-
-export interface Contributor {
-  name: string
-  affiliation?: string
-}
-
-export interface Output {
-  id: string
-  applicationId?: string
-  submittedByUid: string
-
-  category: OutputCategory
-  type: OutputType
-
-  /** 'individual' | 'team' (D-17) */
-  activityType: 'individual' | 'team'
-  /** 팀 활동일 때. 자유 입력 + 자동완성 */
-  teamName?: string
-  /** 갤러리 표기용 — 팀명 또는 개인명 */
-  ownerName: string
-  contributors: Contributor[]
-
-  title: string
-  description?: string
-  tags: string[]
-  files: AttachedFile[]
-  /** YouTube 임베드 URL — Storage 직접 서빙 금지 (§6-2 ④) */
-  videoUrl?: string
-
-  /** 담당자 공개 승인 (§4-3) — 승인 전에는 갤러리에 노출되지 않는다 */
-  approved: boolean
-  approvedBy?: string
-  approvedAt?: Timestamp
-  visibility: Visibility
-
-  createdAt: Timestamp
-  updatedAt: Timestamp
-}
+/* 갤러리용 옛 Output 타입(D-12/D-15/D-17 · 승인·카테고리·기여자)은 어디서도
+   쓰이지 않아 09-17 D-76 산출물 타입으로 대체하며 지웠다. 갤러리(전체 공개)는
+   나중에 산출물 문서에 공개 단계를 하나 더 얹는 방식으로 만든다. */
 
 /* ─────────────────────────────────────────────────────────────
    알림마당 — support_notices / support_resources

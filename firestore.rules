@@ -232,25 +232,77 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── 갤러리(산출물) ───────────────────────────────────────────────────
+    // ── 산출물 (D-76 · 09-17) ────────────────────────────────────────────
+    //
+    // 정산을 본떴다 — 신청 건에 붙고, 선정된 건에만, 담당자가 본다. 다른 점은
+    // 여러 건이라는 것과 **승인 단계가 없다**는 것(제출 즉시 반영, 담당자는
+    // 「추가 요청」만). 팀은 신청서 팀명으로만 묶이는데, "내가 그 팀인가"는
+    // 다른 사람 신청서를 읽어야 알 수 있어 규칙으로 판정하지 않는다 —
+    // 팀 목록은 서버(/api/outputs/team)가 확인해서 돌려준다.
     match /support_outputs/{id} {
-      // 승인된 것만 공개. 본인 것과 담당자는 승인 전에도 볼 수 있다. (§4-3)
-      allow read: if resource.data.approved == true
-        || (isSignedIn() && resource.data.submittedByUid == request.auth.uid)
-        || isStaff();
 
-      // 제출 시 스스로 승인 상태로 만들 수 없다
+      // 이 문서가 속한 프로그램
+      function outputProgram() {
+        return get(/databases/$(database)/documents/support_programs/$(resource.data.programId)).data;
+      }
+
+      // 참여자 공유 프로그램의 내려지지 않은 제출물인가 — 로그인 회원 누구나 본다
+      function sharedNow() {
+        return resource.data.hiddenByStaff == false
+          && outputProgram().outputVisibility == 'members';
+      }
+
+      // 지금 이 프로그램에 산출물을 낼 수 있는가.
+      // lib/firebase/outputs.ts 의 outputWindow 와 같은 계산이어야 한다:
+      //   제출 기한이 있으면 그것 → 없으면 활동 기간(종료일은 그날 끝까지) → 없으면 제한 없음
+      function outputWindowOpen(programId) {
+        let p = get(/databases/$(database)/documents/support_programs/$(programId)).data;
+        return p.published == true
+          && (('outputOpensAt' in p)
+                ? request.time >= p.outputOpensAt
+                : (!('activityStart' in p) || request.time >= p.activityStart))
+          && (('outputClosesAt' in p)
+                ? request.time <= p.outputClosesAt
+                : (!('activityEnd' in p) || request.time < p.activityEnd + duration.value(1, 'd')));
+      }
+
+      // 이 신청 건이 본인 것이고 선정된 건인가
+      function ownsApprovedApplication(appId) {
+        let a = get(/databases/$(database)/documents/support_applications/$(appId)).data;
+        return a.uid == request.auth.uid && a.status == 'approved';
+      }
+
+      allow get: if isMember()
+        && (resource.data.uid == request.auth.uid || isStaff() || sharedNow());
+
+      // 질의 셋 — 본인 것(uid ==) · 담당자 · 공유 목록(programId == && hiddenByStaff == false).
+      // 공유 목록 질의는 hiddenByStaff 조건을 **꼭 붙여야** 통과한다.
+      allow list: if isStaff()
+        || (isMember() && resource.data.uid == request.auth.uid)
+        || (isMember() && sharedNow());
+
+      // 제출 — 본인 · 선정된 자기 신청 건 · 제출 기간 안 · 처음부터 '제출됨' · 내려지지 않음
       allow create: if isMember()
-        && request.resource.data.submittedByUid == request.auth.uid
-        && request.resource.data.approved == false;
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'submitted'
+        && request.resource.data.hiddenByStaff == false
+        && ownsApprovedApplication(request.resource.data.applicationId)
+        && outputWindowOpen(request.resource.data.programId);
 
-      // 공개 승인은 담당자만
+      // 다시 제출하기 — 본인이 바꿀 수 있는 칸을 못 박는다 (D-73 방식).
+      // 상태는 '제출됨'으로만 돌아간다(추가 요청을 스스로 만들 수 없다).
+      // 내리기·요청 글·신청자 사본·팀명은 여기 없으므로 못 건드린다.
       allow update: if isStaff()
         || (isMember()
-            && resource.data.submittedByUid == request.auth.uid
-            && request.resource.data.approved == resource.data.approved);
+            && resource.data.uid == request.auth.uid
+            && request.resource.data.status == 'submitted'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['title', 'text', 'files', 'status', 'reviewNote',
+                           'editCount', 'lastEditedAt', 'updatedAt'])
+            && outputWindowOpen(resource.data.programId));
 
-      allow delete: if isStaff();
+      // 지우지 않는다 — 내리기(hiddenByStaff)로 감춘다
+      allow delete: if false;
     }
 
     // ── 공지 · 서식 자료실 ───────────────────────────────────────────────

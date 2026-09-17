@@ -87,6 +87,11 @@ interface FormState {
   noteRequired: boolean
   attachmentGuide: string
   attachmentRequired: boolean
+  /** 산출물 제출 (D-76) */
+  outputVisibility: 'private' | 'members'
+  outputOpensAt: string
+  outputClosesAt: string
+  outputGuide: string
   published: boolean
 }
 
@@ -109,6 +114,10 @@ const EMPTY: FormState = {
   noteRequired: false,
   attachmentGuide: '',
   attachmentRequired: false,
+  outputVisibility: 'private',
+  outputOpensAt: '',
+  outputClosesAt: '',
+  outputGuide: '',
   // 새 공고는 항상 비공개로 시작한다. 미리보기가 없으므로,
   // 공개로 시작하면 작성 중인 내용이 그대로 학생에게 보인다.
   published: false,
@@ -131,6 +140,10 @@ function toForm(p: Program): FormState {
     noteRequired: Boolean(p.noteRequired),
     attachmentGuide: p.attachmentGuide ?? '',
     attachmentRequired: Boolean(p.attachmentRequired),
+    outputVisibility: p.outputVisibility === 'members' ? 'members' : 'private',
+    outputOpensAt: toInputValue(p.outputOpensAt),
+    outputClosesAt: toInputValue(p.outputClosesAt),
+    outputGuide: p.outputGuide ?? '',
     published: Boolean(p.published),
   }
 }
@@ -235,6 +248,10 @@ function StaffProgramsContent() {
       noteRequired: f.noteRequired,
       attachmentGuide: f.attachmentGuide,
       attachmentRequired: f.attachmentRequired,
+      outputVisibility: f.outputVisibility,
+      outputOpensAt: fromInputValue(f.outputOpensAt),
+      outputClosesAt: fromInputValue(f.outputClosesAt),
+      outputGuide: f.outputGuide,
       published: f.published,
     }
   }
@@ -267,7 +284,7 @@ function StaffProgramsContent() {
   function reject(found: FieldErrors) {
     setErrors(found)
 
-    const ORDER: (keyof FormState)[] = ['id', 'title', 'year', 'opensAt', 'closesAt', 'activityStart', 'activityEnd']
+    const ORDER: (keyof FormState)[] = ['id', 'title', 'year', 'opensAt', 'closesAt', 'activityStart', 'activityEnd', 'outputClosesAt']
     const first = ORDER.find((k) => found[k])
     if (!first) return
 
@@ -309,6 +326,12 @@ function StaffProgramsContent() {
     const aEnd = fromDateInput(form.activityEnd)
     if (aStart && aEnd && aStart > aEnd) {
       found.activityEnd = '활동 시작보다 빠릅니다'
+    }
+
+    const oOpens = fromInputValue(form.outputOpensAt)
+    const oCloses = fromInputValue(form.outputClosesAt)
+    if (oOpens && oCloses && oOpens >= oCloses) {
+      found.outputClosesAt = '제출 시작보다 빠릅니다'
     }
 
     /* 중복 ID 확인도 **여기서 함께** 한다.
@@ -581,7 +604,7 @@ function StaffProgramsContent() {
                 id="activityEnd"
                 label="활동 종료일"
                 error={errors.activityEnd}
-                hint="선택. 산출물 제출 마감 등은 공고 본문에 적어 주세요."
+                hint="선택. 산출물 제출 기한을 따로 두지 않으면 이 날까지 받습니다."
               >
                 <input
                   id="pf-activityEnd"
@@ -647,6 +670,80 @@ function StaffProgramsContent() {
                   label="첨부를 필수로"
                 />
               )}
+            </div>
+
+            {/* ── 산출물 제출 (D-76) ─────────────────────── */}
+            <div className="space-y-5 rounded-xl bg-subtle p-4">
+              <div>
+                <h3 className="font-bold">산출물 제출</h3>
+                <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
+                  선정된 참여자가 「산출물 제출」 메뉴에서 활동 산출물·사진을
+                  올립니다. 제출창은 항상 <strong>제목 · 내용 · 파일</strong>이고,
+                  낸 것은 바로 반영됩니다(승인 없음). 전부 비워 두어도 됩니다.
+                </p>
+              </div>
+
+              <Field
+                id="outputVisibility"
+                label="올린 것을 누가 보나"
+                hint="비공개면 본인과 담당자만. 참여자 공유면 로그인한 회원 누구나 「참여자 자료실」에서 봅니다 — 이름은 안 보이고 팀명(또는 소속)만 보입니다."
+              >
+                <select
+                  id="pf-outputVisibility"
+                  value={form.outputVisibility}
+                  onChange={(e) => set('outputVisibility', e.target.value as 'private' | 'members')}
+                  className={inputCls()}
+                >
+                  <option value="private">비공개 — 본인 + 담당자</option>
+                  <option value="members">참여자 공유 — 로그인한 회원 누구나</option>
+                </select>
+              </Field>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field
+                  id="outputOpensAt"
+                  label="제출 시작"
+                  hint="비우면 활동 시작일부터 (그것도 없으면 선정 뒤 언제든)."
+                >
+                  <input
+                    id="pf-outputOpensAt"
+                    type="datetime-local"
+                    value={form.outputOpensAt}
+                    onChange={(e) => set('outputOpensAt', e.target.value)}
+                    className={inputCls()}
+                  />
+                </Field>
+                <Field
+                  id="outputClosesAt"
+                  label="제출 마감"
+                  error={errors.outputClosesAt}
+                  hint="비우면 활동 종료일 밤까지 (그것도 없으면 제한 없음)."
+                >
+                  <input
+                    id="pf-outputClosesAt"
+                    type="datetime-local"
+                    value={form.outputClosesAt}
+                    onChange={(e) => set('outputClosesAt', e.target.value)}
+                    className={inputCls(errors.outputClosesAt)}
+                    aria-invalid={Boolean(errors.outputClosesAt)}
+                  />
+                </Field>
+              </div>
+
+              <Field
+                id="outputGuide"
+                label="제출 안내 (선택)"
+                hint="무엇을 올리라는 것인지 한 문단. 제출창 위에 그대로 보입니다."
+              >
+                <textarea
+                  id="pf-outputGuide"
+                  rows={3}
+                  value={form.outputGuide}
+                  onChange={(e) => set('outputGuide', e.target.value)}
+                  placeholder="활동이 끝나면 수업 지도안(PDF)과 발표자료를 올려 주세요. 활동 사진은 있는 대로 함께 올리셔도 됩니다."
+                  className={inputCls()}
+                />
+              </Field>
             </div>
 
             <Check

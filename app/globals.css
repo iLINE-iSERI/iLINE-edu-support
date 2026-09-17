@@ -126,6 +126,27 @@
     @apply min-h-touch min-w-touch;
   }
 
+  /* ── 누를 수 있는 것은 올리면 색이 바뀐다 (iSERI 09-17 · D-76) ──────────
+     화면마다 흩어진 인라인 버튼(테두리형)에 한 번에 hover 를 준다.
+     Tailwind v3 는 @layer 를 파일 순서로만 정리하므로 이 규칙(.touch-target:hover,
+     특이도 0,2,0)은 평범한 유틸리티(0,1,0)를 이기고, `hover:` 유틸리티(0,2,0 · 뒤에
+     옴)에는 진다 — 즉 **hover 를 따로 적어 둔 곳은 그대로, 안 적은 곳만** 바뀐다.
+     채움형(bg-brand-600 · text-white)은 글자색이 바뀌면 안 되므로 따로 다룬다. */
+  a.touch-target,
+  button.touch-target {
+    @apply transition-colors;
+  }
+  a.touch-target:not(.text-white):not(.bg-brand-600):hover,
+  button.touch-target:not(.text-white):not(.bg-brand-600):not(:disabled):hover {
+    border-color: var(--brand);
+    color: var(--brand);
+    background-color: var(--brand-soft);
+  }
+  a.touch-target.bg-brand-600:hover,
+  button.touch-target.bg-brand-600:not(:disabled):hover {
+    background-color: var(--brand-strong);
+  }
+
   /* 넓은 표는 이 컨테이너로 감싼다 — 본문이 가로로 밀리지 않게 */
   .table-scroll {
     @apply -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0;
