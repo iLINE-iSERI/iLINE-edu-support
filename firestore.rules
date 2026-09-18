@@ -316,6 +316,45 @@ service cloud.firestore {
       allow update, delete: if isStaff();
     }
 
+    // ── 1:1 문의 (D-93 · 09-18) ──────────────────────────────────────────
+    // 비공개 — 쓴 사람과 담당자만. 회원만 쓴다(비회원은 메일·전화).
+    // 회원은 만들 때 본인 uid · status 'open' · 정해진 칸만. 만든 뒤에는 「답변 봤음」 시각만
+    // 바꿀 수 있다 — 글을 고치거나 답을 스스로 달 수 없다. 담당자는 답·상태만 바꾼다.
+    // 시트 반영 칸(sheet*)은 서버(Admin)가 쓴다. 지우지 않는다(문의 이력).
+    match /support_inquiries/{id} {
+      allow get, list: if isSignedIn()
+        && (resource.data.uid == request.auth.uid || isStaff());
+
+      allow create: if isMember()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 3000
+        && request.resource.data.keys().hasOnly(
+             ['uid', 'authorName', 'authorEmail', 'title', 'body', 'status',
+              'createdAt', 'updatedAt']);
+
+      allow update: if isSignedIn()
+        && (
+          // 본인 — 답변을 열어 본 시각만
+          (resource.data.uid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['answerSeenAt']))
+          ||
+          // 담당자 — 답변·상태·답변 시각·답한 사람
+          (isStaff()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['answer', 'status', 'answeredAt', 'answeredBy', 'updatedAt'])
+            && request.resource.data.status in ['open', 'answered', 'closed'])
+        );
+
+      allow delete: if false;
+    }
+
     match /support_resources/{id} {
       allow read: if true;              // 공개 (공고문·서식 배포)
       allow write: if isStaff();

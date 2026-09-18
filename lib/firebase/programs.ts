@@ -119,6 +119,18 @@ export function formatDate(ts?: Timestamp): string {
   })
 }
 
+/** 날짜+시각 표기 — '2026. 9. 18. 오후 3:20' (문의·답변 시각 등) */
+export function formatDateTime(ts?: Timestamp): string {
+  if (!ts) return ''
+  return ts.toDate().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 /** 기간 표기 — '2026. 9. 1. ~ 9. 18.' */
 export function formatPeriod(from?: Timestamp, to?: Timestamp): string {
   if (!from && !to) return '상시'

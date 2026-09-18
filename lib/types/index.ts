@@ -534,6 +534,42 @@ export function outputVisibilityOf(p: Pick<Program, 'outputVisibility'>): Output
   return p.outputVisibility ?? 'private'
 }
 
+/* ── 1:1 문의 (D-93 · 09-18) ─────────────────────────────────────────
+   회원이 사이트에서 문의를 쓰고 담당자가 답을 단다. 쓴 사람과 담당자만 본다(비공개).
+   한 문의에 답 하나 — 더 물을 것이 있으면 새 문의. 메일은 안 보낸다(사이트 안 표시만).
+   담당자 알림은 관리 화면 배지 + 시트 「문의」 탭(기존 연동 재사용). */
+
+export type InquiryStatus = 'open' | 'answered' | 'closed'
+
+export const INQUIRY_STATUS_LABEL: Record<InquiryStatus, string> = {
+  open: '답변 대기',
+  answered: '답변 완료',
+  closed: '종료',
+}
+
+export interface Inquiry {
+  id: string
+  uid: string
+  /** 쓴 사람 — 회원 문서에서 복사(담당자 화면 표시용). 시트에는 서버가 회원 문서를 다시 읽어 적는다 */
+  authorName: string
+  authorEmail: string
+  title: string
+  body: string
+  status: InquiryStatus
+  answer?: string
+  answeredAt?: Timestamp
+  /** 답한 담당자 uid */
+  answeredBy?: string
+  /** 회원이 답변을 열어 본 시각 — 마이페이지 「새 답변」 표시용 */
+  answerSeenAt?: Timestamp
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  /* 시트 반영 (googleSync.syncInquiry) */
+  sheetRowId?: number | null
+  sheetSyncedAt?: Timestamp
+  sheetSyncError?: string
+}
+
 /**
  * 산출물 상태 — 둘뿐이다.
  *   submitted  제출됨. 낸 순간 이 상태이고, 담당자가 볼 수 있다

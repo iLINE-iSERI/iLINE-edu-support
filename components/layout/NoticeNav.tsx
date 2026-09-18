@@ -5,6 +5,7 @@ export const NOTICE_NAV = [
   { href: '/notice', label: '공지사항' },
   { href: '/notice/resources', label: '서식 자료실' },
   { href: '/notice/faq', label: 'FAQ · 문의' },
+  { href: '/notice/inquiry', label: '1:1 문의' },
 ] as const
 
 export default function NoticeNav() {

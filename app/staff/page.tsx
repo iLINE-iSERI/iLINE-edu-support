@@ -24,6 +24,7 @@ import {
 } from '@/lib/firebase/staff'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { fileUrl, requestSync } from '@/lib/firebase/applications'
+import { countOpenInquiries } from '@/lib/firebase/inquiries'
 import { firestoreErrorMessage, actionErrorMessage } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
@@ -76,6 +77,11 @@ function StaffContent() {
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('')
   const [apps, setApps] = useState<Application[] | null>(null)
   const [error, setError] = useState('')
+  /** 답변 대기 문의 수 — 「문의 관리」 버튼 배지 (D-93). 실패해도 화면은 그대로 */
+  const [openInquiries, setOpenInquiries] = useState(0)
+  useEffect(() => {
+    countOpenInquiries().then(setOpenInquiries).catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     setError('')
@@ -147,6 +153,20 @@ function StaffContent() {
             className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
           >
             예약 관리 →
+          </Link>
+          <Link
+            href="/staff/inquiries"
+            className={
+              'touch-target inline-flex items-center justify-center gap-2 rounded-lg border px-5 text-sm font-semibold ' +
+              (openInquiries > 0 ? 'border-warn bg-warn-soft text-warn-ink' : 'border-line-strong')
+            }
+          >
+            문의 관리 →
+            {openInquiries > 0 && (
+              <span className="rounded-full bg-warn px-2 py-0.5 text-xs font-bold text-white">
+                {openInquiries}
+              </span>
+            )}
           </Link>
         </div>
 

@@ -83,6 +83,8 @@ export const COL = {
   settlements: 'support_settlements',
   outputs: 'support_outputs',
   notices: 'support_notices',
+  /** 1:1 문의 (D-93) */
+  inquiries: 'support_inquiries',
   resources: 'support_resources',
 
   /* ── 시설 예약 (D-52~55) ── */

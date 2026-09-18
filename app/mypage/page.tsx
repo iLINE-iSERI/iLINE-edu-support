@@ -18,6 +18,8 @@ import Button from '@/components/ui/Button'
 import Badge, { type BadgeTone } from '@/components/ui/Badge'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { listMySettlements } from '@/lib/firebase/settlements'
+import { listMyInquiries, hasUnseenAnswer } from '@/lib/firebase/inquiries'
+import Link from 'next/link'
 import SettlementSection from '@/components/settlement/SettlementSection'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
@@ -68,6 +70,15 @@ function MypageContent() {
    */
   const [programs, setPrograms] = useState<Program[]>([])
   const [error, setError] = useState('')
+  /** 1:1 문의 요약 (D-93) — 새 답변이 있으면 눈에 띄게. 실패해도 마이페이지는 그대로 */
+  const [inquiry, setInquiry] = useState<{ total: number; unseen: number } | null>(null)
+  useEffect(() => {
+    if (!member) return
+    listMyInquiries(member.uid)
+      .then((list) => setInquiry({ total: list.length, unseen: list.filter(hasUnseenAnswer).length }))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member?.uid])
 
   const load = useCallback(async () => {
     if (!user) return
@@ -293,6 +304,36 @@ function MypageContent() {
             )}
           </div>
         </section>
+
+        {/* ── 1:1 문의 (D-93) — 새 답변이 있을 때만 눈에 띄고, 없으면 한 줄 */}
+        {inquiry && (inquiry.unseen > 0 || inquiry.total > 0) && (
+          <section>
+            <Link
+              href="/notice/inquiry"
+              className={
+                'card-link flex items-center justify-between gap-3 p-5 ' +
+                (inquiry.unseen > 0 ? 'border-warn' : '')
+              }
+            >
+              <div>
+                <p className="font-bold">
+                  1:1 문의
+                  {inquiry.unseen > 0 && (
+                    <span className="ml-2 rounded-full bg-warn px-2 py-0.5 text-xs font-bold text-white">
+                      새 답변 {inquiry.unseen}
+                    </span>
+                  )}
+                </p>
+                <p className="mt-1 text-sm text-ink-muted">
+                  {inquiry.unseen > 0
+                    ? '담당자 답변이 달렸습니다. 눌러서 확인하세요.'
+                    : `남긴 문의 ${inquiry.total}건`}
+                </p>
+              </div>
+              <span aria-hidden="true" className="text-ink-subtle">→</span>
+            </Link>
+          </section>
+        )}
 
         {/* ── 내 정보 ──────────────────────────────────────── */}
         {member && (

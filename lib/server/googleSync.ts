@@ -19,11 +19,13 @@ import {
   MEMBER_TYPE_LABEL,
   SETTLEMENT_STATUS_LABEL,
   OUTPUT_STATUS_LABEL,
+  INQUIRY_STATUS_LABEL,
   memberTypeOf,
   identityLine,
   type Application,
   type Settlement,
   type Output,
+  type Inquiry,
 } from '@/lib/types'
 
 const SCOPES = [
@@ -1147,6 +1149,134 @@ export async function syncOutput(o: Output, openUrl: string): Promise<OutputSync
     await step('링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, OUTPUT_LINK_COL, openUrl, '사이트에서 열기'))
     await step('열 너비 맞춤', () =>
       fitColumns(sheets, cfg.sheetId, gid, OUTPUT_SHEET, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS)
+    )
+  }
+  return { sheetRow: rowNo }
+}
+
+/* =====================================================================
+   1:1 문의 → 시트 「문의」 탭 (D-93 · 09-18)
+
+   담당자 알림 수단이다 — 사이트는 메일을 안 보내므로, 시트의 알림 규칙(도구 → 알림 설정)을
+   켜 두면 새 줄이 들어올 때 담당자가 메일로 안다. 이름·이메일은 회원 문서에서 서버가 읽어
+   적는다(문의 문서의 복사본이 아니라 원본). 답이 달리면 같은 줄을 고친다.
+   ===================================================================== */
+
+const INQUIRY_SHEET = '문의'
+const INQUIRY_FIXED_WIDTHS: ColumnWidths = { 4: 320, 7: 320 }
+const INQUIRY_LINK_COL = 8
+
+const INQUIRY_HEADERS = [
+  '문의번호',       // A
+  '이름',           // B
+  '이메일',         // C
+  '제목',           // D
+  '내용',           // E
+  '문의 일시',      // F
+  '상태',           // G — 답변 대기 / 답변 완료 / 종료
+  '답변',           // H
+  '사이트에서 열기', // I
+]
+
+async function ensureInquirySheet(sheets: Sheets, sheetId: string): Promise<number> {
+  const info = await sheetInfo(sheets, sheetId, INQUIRY_SHEET)
+  let gid = info.gid
+  if (!info.exists) {
+    const created = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { requests: [{ addSheet: { properties: { title: INQUIRY_SHEET } } }] },
+    })
+    gid = created.data.replies?.[0]?.addSheet?.properties?.sheetId ?? 0
+  }
+  const head = await sheets.spreadsheets.values.get({
+    spreadsheetId: sheetId,
+    range: `'${INQUIRY_SHEET}'!A1:I1`,
+  })
+  if (!head.data.values?.[0]?.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `'${INQUIRY_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [INQUIRY_HEADERS] },
+    })
+  }
+  await setupHeader(sheets, sheetId, gid, INQUIRY_HEADERS.length)
+  return gid
+}
+
+export interface InquirySyncResult {
+  skipped?: true
+  sheetRow?: number
+}
+
+/**
+ * 문의 1건을 「문의」 탭에 반영한다. 줄이 있으면 그 줄을 고친다(답변·상태가 같은 줄에).
+ * @param who 회원 문서에서 읽은 이름·이메일 (서버가 넘긴다)
+ */
+export async function syncInquiry(
+  i: Inquiry,
+  who: { name: string; email: string },
+  openUrl: string
+): Promise<InquirySyncResult> {
+  const c = clients()
+  if (!c) return { skipped: true }
+  const { cfg, sheets } = c
+
+  const gid = await step('시트 「문의」 탭 · SHEET_ID 확인', () =>
+    ensureInquirySheet(sheets, cfg.sheetId)
+  )
+
+  const row = [
+    i.id,
+    who.name,
+    who.email,
+    i.title,
+    i.body,
+    seoulStamp(i.createdAt?.toDate?.()),
+    INQUIRY_STATUS_LABEL[i.status] ?? i.status,
+    i.answer ? `${i.answer}\n(${seoulStamp(i.answeredAt?.toDate?.())})` : '',
+    openUrl,
+  ]
+
+  const muted = i.status === 'closed'
+  const existing = Number(i.sheetRowId) || 0
+  if (existing > 1) {
+    await step('시트 줄 갱신', () =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId: cfg.sheetId,
+        range: `'${INQUIRY_SHEET}'!A${existing}:I${existing}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      })
+    )
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, existing, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS, muted)
+    )
+    await step('링크', () => linkCell(sheets, cfg.sheetId, gid, existing, INQUIRY_LINK_COL, openUrl, '사이트에서 열기'))
+    await step('열 너비 맞춤', () =>
+      fitColumns(sheets, cfg.sheetId, gid, INQUIRY_SHEET, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS)
+    )
+    return { sheetRow: existing }
+  }
+
+  const appended = await step('시트에 줄 추가', () =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId: cfg.sheetId,
+      range: `'${INQUIRY_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      insertDataOption: 'OVERWRITE', // D-92 — 헤더 서식을 물려받지 않게
+      requestBody: { values: [row] },
+    })
+  )
+  const updated = appended.data.updates?.updatedRange || ''
+  const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
+  if (rowNo) {
+    await step('시트 줄 서식', () =>
+      formatRow(sheets, cfg.sheetId, gid, rowNo, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS, muted)
+    )
+    await step('링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, INQUIRY_LINK_COL, openUrl, '사이트에서 열기'))
+    await step('열 너비 맞춤', () =>
+      fitColumns(sheets, cfg.sheetId, gid, INQUIRY_SHEET, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS)
     )
   }
   return { sheetRow: rowNo }

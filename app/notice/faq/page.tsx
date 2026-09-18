@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import NoticeNav from '@/components/layout/NoticeNav'
 import { SITE } from '@/lib/config/site'
@@ -122,6 +123,15 @@ export default function FaqPage() {
 
         <section>
           <h2 className="section-title">문의하기</h2>
+          {/* D-93: 회원은 사이트 안에서 1:1 문의 — 답이 사이트에 달리고 기록이 남는다 */}
+          <p className="mt-4 text-sm leading-relaxed text-ink-muted">
+            회원이시면{' '}
+            <Link href="/notice/inquiry" className="font-semibold text-theme-strong underline underline-offset-2">
+              1:1 문의
+            </Link>
+            에 남겨 주세요 — 담당자 답변이 사이트에 달리고 마이페이지에서 확인할 수 있습니다.
+            회원이 아니거나 급한 일은 아래 연락처로.
+          </p>
           <dl className="mt-4 grid gap-4 rounded-2xl border border-line bg-surface shadow-card p-5 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-ink-subtle">운영 기관</dt>
