@@ -34,6 +34,24 @@ export type FormValues = Record<string, string>
 export interface ProgramForm {
   /** 담당자 화면에서 고를 때 보이는 이름 */
   label: string
+  /**
+   * 단체 프로그램 공고 화면에 나갈 안내 — **양식이 스스로 말한다** (D-95).
+   *
+   * 없으면 공고 화면이 기본 문구(대표자 일괄 제출)를 쓴다. 그 기본값은
+   * 기본 신청서 기준이라, **전용 양식이 다른 방식을 쓰면 여기에 적어야 한다.**
+   *
+   * 왜 양식이 가지나: 공고 화면은 "단체면 대표자가 일괄 제출할 것"이라고
+   * **짐작**해서 문구를 냈는데, AI-EDU 전용 양식은 「팀원 각자 신청」이었다.
+   * 그래서 로그인 전 공고에는 "대표자가 낸다", 로그인 뒤 신청서에는
+   * "각자 낸다" 가 같이 떠 있었다. 짐작하는 쪽이 말하면 언젠가 어긋난다 —
+   * 규칙을 아는 쪽(양식)이 말하면 갈라질 자리가 없다.
+   */
+  groupNotice?: {
+    /** 요약 카드 「신청 방식」 한 줄. `maxTeamSize` 는 화면이 뒤에 붙인다 */
+    howToApply: string
+    /** 「단체 프로그램 신청 안내」 상자 본문 */
+    body: string
+  }
   Component: ComponentType<{
     value: FormValues
     onChange: (key: string, val: string) => void
@@ -51,6 +69,13 @@ export interface ProgramForm {
 export const PROGRAM_FORMS: Record<string, ProgramForm> = {
   [AI_EDU_2026]: {
     label: 'AI-EDU 연구반 (2026)',
+    groupNotice: {
+      howToApply: '팀원이 각자 신청 · 같은 팀명으로 묶임',
+      body:
+        '팀장 한 분이 팀 전체를 신청하는 것이 아니라, 팀원 모두가 따로 이 신청서를 냅니다. ' +
+        '팀원 모두가 똑같은 팀명을 적어야 한 팀으로 묶이니, 팀명을 미리 정해 두세요. ' +
+        '띄어쓰기 하나만 달라도 다른 팀으로 보입니다.',
+    },
     Component: AiEdu2026Form,
     validate: validateAiEdu2026,
     toRows: toRowsAiEdu2026,

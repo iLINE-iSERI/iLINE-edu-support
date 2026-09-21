@@ -17,6 +17,7 @@ import {
   formatPeriod,
   formatDate,
 } from '@/lib/firebase/programs'
+import { formFor } from '@/lib/forms'
 import { SITE } from '@/lib/config/site'
 import { APPLICATION_STATUS_LABEL } from '@/lib/types'
 import type { Program, Application, SupportUser } from '@/lib/types'
@@ -51,6 +52,17 @@ export default function ProgramDetailView({
   const phase = getProgramPhase(program)
   const dday = phase === 'open' ? daysUntilClose(program) : null
   const isGroup = program.participationType === 'group'
+
+  /**
+   * 단체 신청 안내는 **양식에서 가져온다** (D-95). 양식이 없거나 안 적어 두었으면
+   * 기본 신청서 기준인 아래 문구 — 공고 화면이 방식을 짐작하지 않는다.
+   */
+  const groupNotice = formFor(program.formType)?.groupNotice ?? {
+    howToApply: '대표자가 팀원 명단과 함께',
+    body:
+      '대표자 한 분이 팀원의 이름·학번·전공·학년·연락처를 함께 제출합니다. ' +
+      '팀원 전원에게 미리 동의를 받은 뒤 입력해 주세요. 신청서에서 동의 여부를 확인합니다.',
+  }
 
   /**
    * 고정 카드·하단 바의 버튼 하나 — 상태에 따라 글과 행선지가 다르다.
@@ -125,11 +137,7 @@ export default function ProgramDetailView({
             <p className="font-bold text-status-revision">
               단체 프로그램 신청 안내
             </p>
-            <p className="mt-1.5 text-ink-muted">
-              대표자 한 분이 팀원의 이름·학번·전공·학년·연락처를 함께
-              제출합니다. <strong>팀원 전원에게 미리 동의를 받은 뒤</strong>{' '}
-              입력해 주세요. 신청서에서 동의 여부를 확인합니다.
-            </p>
+            <p className="mt-1.5 text-ink-muted">{groupNotice.body}</p>
           </div>
         )}
 
@@ -272,7 +280,7 @@ export default function ProgramDetailView({
               <dt className="text-ink-subtle">신청 방식</dt>
               <dd className="mt-0.5 font-medium">
                 {isGroup
-                  ? `대표자가 팀원 명단과 함께${program.maxTeamSize ? ` · 최대 ${program.maxTeamSize}명` : ''}`
+                  ? `${groupNotice.howToApply}${program.maxTeamSize ? ` · 최대 ${program.maxTeamSize}명` : ''}`
                   : '개인별 신청 (팀 활동이어도 각자)'}
               </dd>
             </div>
