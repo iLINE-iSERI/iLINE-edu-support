@@ -138,6 +138,14 @@ function Content() {
           </div>
         </fieldset>
 
+        {/* 그 공간만의 이용 제약 (D-94) — 회원 화면은 09~18 로 막혀 있지만 여기는 0~24 라
+            실제로 겹칠 수 있는 곳이 이 화면뿐이다. 문구는 lib/config/venues.ts 한 곳에서 온다 */}
+        {venue.notice && (
+          <p className="rounded-lg border-l-4 border-warn bg-warn-soft px-3 py-2 text-sm text-warn-ink">
+            {venue.notice}
+          </p>
+        )}
+
         {/* 날짜·시간 */}
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-sm">

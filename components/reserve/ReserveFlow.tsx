@@ -344,6 +344,12 @@ export default function ReserveFlow() {
           <span aria-hidden>📍</span> <strong>{BUILDING} {venue.room} {venue.name}</strong>
           <span className="text-ink-muted"> · {venue.description}</span>
         </p>
+        {/* 그 공간만의 이용 제약 (D-94) — 용도 줄과 섞지 않고 아래에 따로 */}
+        {venue.notice && (
+          <p className="mt-2 rounded-lg border-l-4 border-warn bg-warn-soft px-3 py-2 text-sm text-warn-ink">
+            {venue.notice}
+          </p>
+        )}
       </section>
 
       {/* 단체대관용은 사이트에서 예약받지 않는다 — 문의 안내로 끝 (D-53 · D-66) */}

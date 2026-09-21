@@ -50,6 +50,15 @@ export interface Venue {
   mapColumns?: number
   summary: string
   description: string
+  /**
+   * 그 공간에만 있는 이용 제약 — 예약 화면과 담당자 「직접 예약 추가」가 **같은 문자열**을 쓴다
+   * (09-21 · D-94). 예약 가능 시간(09~18) 밖의 일이라 예약을 막지는 않는다.
+   *
+   * `description`(용도)에 이어 붙이지 않는다 — 성격이 다른 정보가 한 줄에 섞이고,
+   * 나중에 제약만 고치려다 용도 설명까지 건드리게 된다.
+   * 사실만 적고, 사정이 바뀌면 **이 한 줄만** 고친다.
+   */
+  notice?: string
   /** 회원 화면에 안 보이고 담당자 「직접 추가」로만 잡는 공간 (단체대관용) */
   staffOnly?: boolean
 }
@@ -71,6 +80,8 @@ export const VENUES: Venue[] = [
     mapColumns: 4,
     summary: '좌석 12개 · 1인',
     description: '개인 학습, 집중 작업',
+    // 교수님 09-21 요청 5 — 예약 시간(09~18)과 안 겹치므로 막을 것은 없고 안내만 한다
+    notice: '매주 화요일 18:30~21:00은 사범대학 수업으로 사용 중입니다.',
   },
   {
     code: 'ML',
