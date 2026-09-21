@@ -14,9 +14,11 @@
  * ── 양식을 하나 더 만들 때 ───────────────────────────────
  *   ① `components/apply/forms/<이름>.tsx` 를 만든다
  *      (기본 내보내기 = 화면, `validate`, `toRows`)
- *   ② 아래 표에 한 줄 추가한다
- *   ③ 담당자 화면(`app/staff/programs`)의 선택지에 한 줄 추가한다
- *   **`ApplicationForm` 은 건드리지 않는다.**
+ *   ② 아래 표에 한 줄 추가한다 — **끝이다.**
+ *      담당자 화면의 선택지(`FORM_OPTIONS`)는 이 표에서 자동으로 만들어진다.
+ *      `ApplicationForm` 도 담당자 화면도 건드리지 않는다.
+ *      (예전 주석은 담당자 화면에도 한 줄 넣으라고 했으나, `FORM_OPTIONS` 가
+ *       생기면서 필요 없어졌다 — 09-22 확인.)
  *
  * 양식이 서너 개 쌓이고 공통점이 눈에 보이면 그때 묶어도 늦지 않다.
  * 지금 미리 추상화하면 틀린 추상화가 된다.
@@ -28,6 +30,11 @@ import AiEdu2026Form, {
   validate as validateAiEdu2026,
   toRows as toRowsAiEdu2026,
 } from '@/components/apply/forms/AiEdu2026Form'
+import Hackathon2026Form, {
+  HACKATHON_2026,
+  validate as validateHackathon2026,
+  toRows as toRowsHackathon2026,
+} from '@/components/apply/forms/Hackathon2026Form'
 
 export type FormValues = Record<string, string>
 
@@ -79,6 +86,20 @@ export const PROGRAM_FORMS: Record<string, ProgramForm> = {
     Component: AiEdu2026Form,
     validate: validateAiEdu2026,
     toRows: toRowsAiEdu2026,
+  },
+  [HACKATHON_2026]: {
+    label: 'AI-EDU Next Class 해커톤 (2026)',
+    groupNotice: {
+      howToApply: '팀원이 각자 신청 · 같은 팀명으로 묶임',
+      body:
+        '2인 1팀으로 참가하며, 대표자 한 분이 팀 전체를 신청하는 것이 아니라 ' +
+        '두 사람 모두 따로 이 신청서를 냅니다. 두 사람이 똑같은 팀명을 적어야 ' +
+        '한 팀으로 묶이니, 팀명을 미리 정해 두세요. 띄어쓰기 하나만 달라도 ' +
+        '다른 팀으로 보입니다. 지원 트랙·과제와 제출 서류는 대표자만 작성합니다.',
+    },
+    Component: Hackathon2026Form,
+    validate: validateHackathon2026,
+    toRows: toRowsHackathon2026,
   },
 }
 
