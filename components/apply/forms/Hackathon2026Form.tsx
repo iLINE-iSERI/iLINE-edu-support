@@ -18,6 +18,12 @@
  * ④ **1차시 수업설계안(PDF)은 이 양식이 아니라 기본 첨부로 받는다.**
  *    공고 등록 때 「첨부 필수」를 켜면 신청서 아래에 첨부란이 생긴다.
  *    양식이 파일을 따로 다루면 첨부 경로가 둘이 되어 D-73 수정 흐름이 깨진다.
+ * ⑤ **개인정보 수집·이용 동의를 받지 않는다.** 원본에 체크란이 있지만 그건
+ *    종이가 혼자 서 있기 때문이다. 이 사이트는 **가입 때 한 번** 받아
+ *    문구 버전·시각까지 남기고(`SupportUser.consents`), 신청서 위 「신청자
+ *    정보」에 「O (동의)」로 **확인만** 한다. 여기서 또 물으면 위아래가
+ *    모순되고, 이미 동의한 사람이 체크를 빠뜨리면 제출이 막힌다.
+ *    신청 단계에서 다시 받는 동의는 **초상권뿐**이다 (D-44).
  *
  * ── 트랙·과제 ────────────────────────────────────────────
  * 과제는 **고른 트랙의 것만** 보인다. 트랙을 바꾸면 고른 과제를 지운다 —
@@ -112,10 +118,6 @@ export function toRows(v: Values): { label: string; value: string }[] {
     )
   }
 
-  rows.push({
-    label: '개인정보 수집·이용 동의',
-    value: v.agreePrivacy === 'y' ? '동의함' : '',
-  })
   if (NOTICE_TEXT) {
     rows.push({
       label: '참가 유의사항 확인',
@@ -163,7 +165,6 @@ export function validate(v: Values): string | null {
     }
   }
 
-  if (v.agreePrivacy !== 'y') return '개인정보 수집·이용에 동의해 주세요.'
   if (NOTICE_TEXT && v.agreeNotice !== 'y') return '참가 유의사항을 확인해 주세요.'
   return null
 }
@@ -384,37 +385,34 @@ export default function Hackathon2026Form({
         </section>
       )}
 
-      {/* ── 5. 동의 ──────────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
-        <h2 className="font-bold">동의 사항</h2>
+      {/* ── 5. 참가 유의사항 ─────────────────────────────────
+          **개인정보 수집·이용 동의는 여기서 받지 않는다.** 가입 때 이미 받아
+          `SupportUser.consents` 에 문구 버전·시각까지 남아 있고, 신청서 위
+          「신청자 정보」에 「O (동의)」로 확인된다. 여기서 또 물으면 ① 위아래가
+          모순되고 ② 체크를 안 한 사람은 **이미 동의했는데도** 제출이 막히며
+          ③ `formData` 에 「동의함」 글자만 남아 가입 기록보다 근거가 약해진다.
+          신청 단계에서 다시 받는 것은 **초상권뿐**이다 (D-44 — 프로그램마다
+          사진을 찍는지가 달라서). 그 동의는 기본 신청서가 아래에서 받는다.
 
-        <div className="mt-4 space-y-2">
-          <Check
-            id="h-privacy"
-            checked={v.agreePrivacy === 'y'}
-            onChange={(b) => onChange('agreePrivacy', b ? 'y' : '')}
-          >
-            <strong>개인정보 수집·이용</strong>에 동의합니다.
-          </Check>
-
-          {/* 유의사항 문구가 오기 전에는 체크를 띄우지 않는다 — 내용 없는
-              동의는 나중에 근거가 되지 못한다 (교수님께 여쭐 것 ⑥) */}
-          {NOTICE_TEXT && (
-            <>
-              <div className="rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
-                {NOTICE_TEXT}
-              </div>
-              <Check
-                id="h-notice"
-                checked={v.agreeNotice === 'y'}
-                onChange={(b) => onChange('agreeNotice', b ? 'y' : '')}
-              >
-                위 <strong>참가 유의사항</strong>을 확인하였습니다.
-              </Check>
-            </>
-          )}
-        </div>
-      </section>
+          유의사항 문구가 오기 전에는 이 구획 자체를 띄우지 않는다 — 내용 없는
+          동의는 나중에 근거가 되지 못한다 (교수님께 여쭐 것 ⑥). */}
+      {NOTICE_TEXT && (
+        <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
+          <h2 className="font-bold">참가 유의사항</h2>
+          <div className="mt-4 rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
+            {NOTICE_TEXT}
+          </div>
+          <div className="mt-2">
+            <Check
+              id="h-notice"
+              checked={v.agreeNotice === 'y'}
+              onChange={(b) => onChange('agreeNotice', b ? 'y' : '')}
+            >
+              위 <strong>참가 유의사항</strong>을 확인하였습니다.
+            </Check>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
