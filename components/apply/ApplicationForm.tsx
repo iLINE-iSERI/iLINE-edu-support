@@ -116,8 +116,24 @@ export default function ApplicationForm({
 
   const wantsNote = Boolean(program.noteLabel)
   const wantsFiles = Boolean(program.attachmentGuide)
+  /** 참가 유의사항 (D-98) — 담당자가 공고에 적어 두었을 때만 나온다 */
+  const wantsCaution = Boolean(program.cautionText?.trim())
+  const [cautionOk, setCautionOk] = useState(false)
   /** 이 프로그램 전용 신청 항목 — 없으면 지금까지처럼 기본 신청서만 나온다 */
   const form = formFor(program.formType)
+
+  /**
+   * 신청서에 저장할 `{라벨, 값}` 줄 — 전용 양식의 답 + 유의사항 동의.
+   * PDF·시트·담당자 화면이 **이 한 벌**을 함께 나른다. 유의사항 동의만
+   * 따로 두면 세 곳을 다 고쳐야 하므로 같은 줄에 태운다.
+   */
+  const rowsToSave = () => {
+    const rows = form ? form.toRows(extra) : []
+    return wantsCaution
+      ? [...rows, { label: '참가 유의사항 확인', value: '확인함' }]
+      : rows
+  }
+  const savedRows = rowsToSave()
 
   const consent = (purpose: string) =>
     member.consents.some((c) => c.purpose === purpose && c.agreed)
@@ -182,6 +198,12 @@ export default function ApplicationForm({
       )
       return
     }
+    // 참가 유의사항 (D-98) — 담당자가 적어 둔 공고에서만. 수정 모드에서는
+    // 제출 당시 이미 확인한 것이라 다시 묻지 않는다.
+    if (wantsCaution && !cautionOk && !isEdit) {
+      setError('참가 유의사항을 확인하고 체크해 주세요.')
+      return
+    }
     // 초상권은 '선택' 항목이지만 **답은 반드시 골라야** 한다 (D-44).
     // 거부도 기록해야 하므로, 안 고른 채 넘어가면 기록상 거부와 구분되지 않는다.
     if (portrait === null) {
@@ -208,7 +230,7 @@ export default function ApplicationForm({
         await updateMyApplication({
           app: editing,
           program,
-          formData: form ? form.toRows(extra) : undefined,
+          formData: savedRows.length ? savedRows : undefined,
           formValues: form ? extra : undefined,
           note,
           pdf,
@@ -225,7 +247,7 @@ export default function ApplicationForm({
         member,
         uid,
         portraitConsent: portrait,
-        formData: form ? form.toRows(extra) : undefined,
+        formData: savedRows.length ? savedRows : undefined,
         formValues: form ? extra : undefined,
         note,
         files,
@@ -275,7 +297,7 @@ export default function ApplicationForm({
           editing ? (editing.files ?? []).map((f) => f.fileName) : files.map((f) => f.name)
         }
         portraitConsent={portrait}
-        formRows={form ? form.toRows(extra) : undefined}
+        formRows={savedRows.length ? savedRows : undefined}
         edit={
           editing
             ? {
@@ -466,6 +488,46 @@ export default function ApplicationForm({
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+      )}
+
+      {/* ── 참가 유의사항 (D-98) ────────────────────────────
+          담당자가 공고에 적어 두었을 때만 나온다. 글은 **공고에서 오므로**
+          담당자가 화면에서 고칠 수 있다 — 코드에 박아 두면 문구 한 줄
+          바꾸는 데 배포가 필요하다. 동의 기록은 `formData` 한 줄로 남는다. */}
+      {wantsCaution && (
+        <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
+          <h2 className="font-bold">참가 유의사항</h2>
+          <p className="mt-3 whitespace-pre-line break-keep rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
+            {program.cautionText}
+          </p>
+
+          {isEdit ? (
+            <p className="mt-3 rounded-lg bg-subtle px-3 py-2 text-sm">
+              제출 당시 <strong>확인함</strong>
+              <span className="text-ink-subtle"> — 수정할 수 없습니다</span>
+            </p>
+          ) : (
+            <label
+              htmlFor="caution-ok"
+              data-field-required="true"
+              className={
+                'mt-4 flex cursor-pointer gap-3 rounded-xl border p-3 text-sm leading-relaxed ' +
+                (cautionOk ? 'border-brand-600 bg-brand-soft' : 'border-line-strong')
+              }
+            >
+              <input
+                id="caution-ok"
+                type="checkbox"
+                checked={cautionOk}
+                onChange={(e) => setCautionOk(e.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-brand-600"
+              />
+              <span>
+                위 <strong>참가 유의사항</strong>을 확인하였습니다.
+              </span>
+            </label>
           )}
         </section>
       )}

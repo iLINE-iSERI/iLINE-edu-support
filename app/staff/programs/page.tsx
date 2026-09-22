@@ -90,6 +90,7 @@ interface FormState {
   noteLabel: string
   noteRequired: boolean
   attachmentGuide: string
+  cautionText: string
   attachmentRequired: boolean
   /** 산출물 제출 (D-76) */
   outputVisibility: 'private' | 'members'
@@ -119,6 +120,7 @@ const EMPTY: FormState = {
   noteLabel: '',
   noteRequired: false,
   attachmentGuide: '',
+  cautionText: '',
   attachmentRequired: false,
   outputVisibility: 'private',
   outputOpensAt: '',
@@ -146,6 +148,7 @@ function toForm(p: Program): FormState {
     noteLabel: p.noteLabel ?? '',
     noteRequired: Boolean(p.noteRequired),
     attachmentGuide: p.attachmentGuide ?? '',
+    cautionText: p.cautionText ?? '',
     attachmentRequired: Boolean(p.attachmentRequired),
     outputVisibility: p.outputVisibility === 'members' ? 'members' : 'private',
     outputOpensAt: toInputValue(p.outputOpensAt),
@@ -275,6 +278,7 @@ function StaffProgramsContent() {
       noteLabel: f.noteLabel,
       noteRequired: f.noteRequired,
       attachmentGuide: f.attachmentGuide,
+      cautionText: f.cautionText,
       attachmentRequired: f.attachmentRequired,
       outputVisibility: f.outputVisibility,
       outputOpensAt: fromInputValue(f.outputOpensAt),
@@ -768,6 +772,27 @@ function StaffProgramsContent() {
                   label="첨부를 필수로"
                 />
               )}
+
+              {/* 참가 유의사항 (D-98) — 신청자가 읽고 동의하는 글.
+                  코드가 아니라 여기 있어야 담당자가 배포 없이 고친다 */}
+              <Field
+                id="cautionText"
+                label="참가 유의사항 (선택)"
+                hint="적으면 신청서에 그대로 펼쳐지고 「확인하였습니다」 체크가 필수로 붙습니다. 비우면 나오지 않습니다."
+              >
+                <textarea
+                  id="pf-cautionText"
+                  rows={5}
+                  value={form.cautionText}
+                  onChange={(e) => set('cautionText', e.target.value)}
+                  placeholder={
+                    '참가 확정 후 중도 포기 시 처리, 일정 참석 의무, 결과물 활용 범위처럼\n' +
+                    '나중에 다툼이 생겼을 때 근거가 되는 내용을 적어 주세요.\n' +
+                    '줄을 바꾸면 신청서에도 그대로 줄이 바뀝니다.'
+                  }
+                  className={inputCls()}
+                />
+              </Field>
             </div>
 
             {/* ── 산출물 제출 (D-76) ─────────────────────── */}

@@ -196,6 +196,8 @@ export interface ProgramInput {
   noteRequired?: boolean
   attachmentGuide?: string
   attachmentRequired?: boolean
+  /** 참가 유의사항 (D-98) — 비면 신청서에 구획이 안 나온다 */
+  cautionText?: string
   /** 이 프로그램 전용 신청 항목의 이름 (D-50). 빈 값이면 기본 신청서 */
   formType?: string
   /** 산출물 제출 (D-76) — 전부 선택. 기한을 비우면 활동 기간을 따른다 */
@@ -282,6 +284,7 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   put('activityEnd', input.activityEnd)
   put('noteLabel', input.noteLabel?.trim())
   put('attachmentGuide', input.attachmentGuide?.trim())
+  put('cautionText', input.cautionText?.trim())
   // '기본 신청서'를 고르면 빈 문자열이 오고, put 이 걸러 낸다.
   // 위의 setDoc 이 문서를 통째로 덮어쓰므로 **전용 양식이 실제로 떨어진다.**
   put('formType', input.formType?.trim())

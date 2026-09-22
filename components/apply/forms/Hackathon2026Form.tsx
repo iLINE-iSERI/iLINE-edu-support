@@ -34,9 +34,10 @@
  * 작성한다(AI-EDU 의 팀장 방식과 같다). 두 사람이 각각 다른 과제를 적으면
  * 어느 것이 팀의 지원 과제인지 알 수 없다.
  *
- * 🔴 **「참가 유의사항」 문구가 아직 없다** — 교수님께 여쭙는 중
- *    (`docs/3-할일/03-교수님께-여쭐-것-한장.md` ⑥). 문구가 오면 아래
- *    NOTICE_TEXT 를 채우고 동의 체크를 살린다.
+ * ── 참가 유의사항은 여기 없다 (D-98) ─────────────────────
+ * 공고의 `cautionText` 칸에서 온다. 담당자가 화면에서 쓰고 고치며, 글과
+ * 동의 체크는 **기본 신청서**가 그린다. 코드 상수로 두면 문구 한 줄 바꾸는
+ * 데 배포가 필요하다 — 유의사항은 회차마다 달라지는 운영 문구다.
  */
 
 import Field from '@/components/ui/Field'
@@ -74,11 +75,14 @@ export const REASON_MAX = 500
 export const MOTIVE_MAX = 300
 
 /**
- * 🔴 참가 유의사항 본문 — 교수님 답을 받으면 채운다.
- * 비어 있는 동안에는 동의 체크를 **띄우지 않는다**: 내용 없는 체크를 받아 두면
- * 나중에 중도 포기 건이 생겼을 때 "무엇에 동의한 것인지" 근거가 없다.
+ * 참가 유의사항은 **이 파일에 없다** (D-98).
+ *
+ * 09-22 에 잠깐 `NOTICE_TEXT` 라는 상수를 뒀었는데, 그러면 문구를 고칠 때마다
+ * 개발자가 배포해야 한다. 유의사항은 사업마다·회차마다 달라지는 **운영 문구**라
+ * 담당자가 화면에서 고쳐야 맞다. → 공고의 `cautionText` 칸으로 옮겼고,
+ * 글과 동의 체크는 **기본 신청서**(`ApplicationForm`)가 그린다.
+ * 그래서 이 양식은 해커톤 고유의 질문(트랙·과제·제출 서류)만 갖는다.
  */
-const NOTICE_TEXT = ''
 
 /* ── 저장 형태로 바꾸기 ───────────────────────────────────── */
 
@@ -116,13 +120,6 @@ export function toRows(v: Values): { label: string; value: string }[] {
       { label: '이 트랙과 과제를 선택한 이유', value: v.reason ?? '' },
       { label: '지원 동기', value: v.motive ?? '' }
     )
-  }
-
-  if (NOTICE_TEXT) {
-    rows.push({
-      label: '참가 유의사항 확인',
-      value: v.agreeNotice === 'y' ? '확인함' : '',
-    })
   }
 
   return rows
@@ -165,7 +162,6 @@ export function validate(v: Values): string | null {
     }
   }
 
-  if (NOTICE_TEXT && v.agreeNotice !== 'y') return '참가 유의사항을 확인해 주세요.'
   return null
 }
 
@@ -394,25 +390,8 @@ export default function Hackathon2026Form({
           신청 단계에서 다시 받는 것은 **초상권뿐**이다 (D-44 — 프로그램마다
           사진을 찍는지가 달라서). 그 동의는 기본 신청서가 아래에서 받는다.
 
-          유의사항 문구가 오기 전에는 이 구획 자체를 띄우지 않는다 — 내용 없는
-          동의는 나중에 근거가 되지 못한다 (교수님께 여쭐 것 ⑥). */}
-      {NOTICE_TEXT && (
-        <section className="rounded-2xl border border-line bg-surface shadow-card p-5">
-          <h2 className="font-bold">참가 유의사항</h2>
-          <div className="mt-4 rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
-            {NOTICE_TEXT}
-          </div>
-          <div className="mt-2">
-            <Check
-              id="h-notice"
-              checked={v.agreeNotice === 'y'}
-              onChange={(b) => onChange('agreeNotice', b ? 'y' : '')}
-            >
-              위 <strong>참가 유의사항</strong>을 확인하였습니다.
-            </Check>
-          </div>
-        </section>
-      )}
+          **참가 유의사항**도 여기서 그리지 않는다 (D-98) — 공고의 `cautionText`
+          칸에서 오고, 글과 동의 체크는 기본 신청서가 아래에서 그린다. */}
     </div>
   )
 }
@@ -492,38 +471,6 @@ function Counted({
         </p>
       </div>
     </div>
-  )
-}
-
-function Check({
-  id,
-  checked,
-  onChange,
-  children,
-}: {
-  id: string
-  checked: boolean
-  onChange: (b: boolean) => void
-  children: React.ReactNode
-}) {
-  return (
-    <label
-      htmlFor={id}
-      data-field-required="true"
-      className={
-        'flex cursor-pointer gap-3 rounded-xl border p-3 text-sm leading-relaxed ' +
-        (checked ? 'border-brand-600 bg-brand-soft' : 'border-line-strong')
-      }
-    >
-      <input
-        id={id}
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 size-4 shrink-0 accent-brand-600"
-      />
-      <span>{children}</span>
-    </label>
   )
 }
 
