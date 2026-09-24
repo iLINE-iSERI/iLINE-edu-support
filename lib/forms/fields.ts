@@ -35,17 +35,34 @@ import type {
  * 기본 신청서처럼 **아는 주체가 없을 때** 담당자가 고른 값으로 쓴다.
  * 문구를 화면에 흩어 두지 않는 이유는 D-95 와 같다 — 두 곳에 두면 갈라진다.
  */
-export const GROUP_NOTICE: Record<
-  GroupEntry,
-  { howToApply: string; body: string }
-> = {
+/**
+ * 단체 신청 안내 한 벌. **전용 양식도 이 모양을 쓴다**(`lib/forms/index.ts`) —
+ * 타입을 공유해야 새 양식이 `short` 를 빠뜨리면 **컴파일이 막힌다.**
+ * 09-25 에 `short` 를 더할 때 이걸 안 했더니, 전용 양식 둘이 조용히 빠져
+ * 해커톤 카드가 계속 「팀 단위」로 나왔다.
+ */
+export type GroupNotice = {
+  /** 목록·홈 카드의 「신청」 한 마디 */
+  short: string
+  /** 상세 요약의 「신청 방식」 한 줄. `maxTeamSize` 는 화면이 뒤에 붙인다 */
+  howToApply: string
+  /** 「단체 프로그램 신청 안내」 상자 본문 */
+  body: string
+}
+
+export const GROUP_NOTICE: Record<GroupEntry, GroupNotice> = {
   leader: {
+    // `short` 는 **목록 카드용** (09-25). 카드가 「팀 단위」로 박아 두는 바람에
+    // 목록에서는 *"대표자만 내면 되나 보다"*, 상세에서는 *"각자 내라"* 로
+    // **같은 공고가 두 말을 하고** 있었다. 실제로 데이터 디깅에서 났다.
+    short: '팀 단위',
     howToApply: '대표자가 팀원 명단과 함께',
     body:
       '대표자 한 분이 팀원의 이름·학번·전공·학년·연락처를 함께 제출합니다. ' +
       '팀원 전원에게 미리 동의를 받은 뒤 입력해 주세요. 신청서에서 동의 여부를 확인합니다.',
   },
   each: {
+    short: '팀원이 각자',
     howToApply: '팀원이 각자 신청 · 같은 팀명으로 묶임',
     body:
       '대표자 한 분이 팀 전체를 신청하는 것이 아니라, 팀원 모두가 따로 이 신청서를 냅니다. ' +
@@ -54,9 +71,18 @@ export const GROUP_NOTICE: Record<
   },
 }
 
-/** 공고가 고른 방식 — 없으면 지금까지의 동작(대표자 일괄) */
+/**
+ * 공고가 고른 방식 — 없거나 모르는 값이면 지금까지의 동작(대표자 일괄).
+ *
+ * ⚠️ **`GroupEntry` 에 값을 더하면 여기도 자동으로 따라간다.** 예전에는
+ *    `=== 'each' ? 'each' : 'leader'` 였는데, 그러면 셋째 값을 더해도
+ *    **조용히 `leader` 로 뭉개진다**(컴파일러도 안 잡는다). `GROUP_NOTICE` 는
+ *    `Record<GroupEntry, …>` 라 새 값을 넣으면 문구를 **반드시** 적게 되므로,
+ *    그 목록에 있는지로 판정하면 한 곳만 고쳐도 끝난다 (09-25).
+ */
 export function groupEntryOf(p: Pick<Program, 'groupEntry'>): GroupEntry {
-  return p.groupEntry === 'each' ? 'each' : 'leader'
+  const v = p.groupEntry
+  return v && v in GROUP_NOTICE ? v : 'leader'
 }
 
 /** 동의 본문 스냅샷의 키 꼬리표 */

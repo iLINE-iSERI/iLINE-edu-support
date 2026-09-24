@@ -3,6 +3,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import PosterImage from '@/components/ui/PosterImage'
 import { cardText, CARD_TEXT } from '@/lib/ui/programCardText'
+import { groupNoticeOf } from '@/lib/forms'
 import {
   getProgramPhase,
   PHASE_LABEL,
@@ -133,7 +134,9 @@ export default function ProgramCard({ program }: { program: Program }) {
             <dt className="shrink-0 text-ink-subtle">신청</dt>
             <dd className="font-medium">
               {isGroup
-                ? `팀 단위${program.maxTeamSize ? ` · 최대 ${program.maxTeamSize}명` : ''}`
+                ? `${groupNoticeOf(program).short}${
+                    program.maxTeamSize ? ` · 최대 ${program.maxTeamSize}명` : ''
+                  }`
                 : '개인'}
             </dd>
           </div>

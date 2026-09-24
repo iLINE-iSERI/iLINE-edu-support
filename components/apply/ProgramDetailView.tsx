@@ -17,8 +17,7 @@ import {
   formatPeriod,
   formatDate,
 } from '@/lib/firebase/programs'
-import { formFor } from '@/lib/forms'
-import { GROUP_NOTICE, groupEntryOf } from '@/lib/forms/fields'
+import { groupNoticeOf } from '@/lib/forms'
 import { SITE } from '@/lib/config/site'
 import { APPLICANT_STATUS_LABEL } from '@/lib/types'
 import type { Program, Application, SupportUser } from '@/lib/types'
@@ -61,8 +60,7 @@ export default function ProgramDetailView({
    *   ② 없으면(기본 신청서) 공고에서 담당자가 고른 「신청 방법」
    * 공고 화면이 방식을 **짐작하지 않는다** — 이 화면은 아무것도 안다고 가정하지 않는다.
    */
-  const groupNotice =
-    formFor(program.formType)?.groupNotice ?? GROUP_NOTICE[groupEntryOf(program)]
+  const groupNotice = groupNoticeOf(program)
 
   /**
    * 고정 카드·하단 바의 버튼 하나 — 상태에 따라 글과 행선지가 다르다.

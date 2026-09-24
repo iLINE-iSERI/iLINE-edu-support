@@ -24,6 +24,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
+import { groupNoticeOf } from '@/lib/forms'
 import {
   listPublishedPrograms,
   getProgramPhase,
@@ -201,7 +202,8 @@ function ProgramHeroCard({
     <p className="mt-2 break-keep text-sm leading-relaxed text-ink-muted">
       <b className="font-semibold text-ink">접수</b> {formatPeriodShort(p.opensAt, p.closesAt)}
       {' · '}
-      <b className="font-semibold text-ink">신청</b> {isGroup ? '팀 단위' : '개인'}
+      <b className="font-semibold text-ink">신청</b>{' '}
+      {isGroup ? groupNoticeOf(p).short : '개인'}
       {size !== 'compact' && (p.activityStart || p.activityEnd) && (
         <>
           {' · '}

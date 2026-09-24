@@ -36,6 +36,9 @@ import Hackathon2026Form, {
   toRows as toRowsHackathon2026,
 } from '@/components/apply/forms/Hackathon2026Form'
 
+import { GROUP_NOTICE, groupEntryOf, type GroupNotice } from './fields'
+import type { Program } from '@/lib/types'
+
 export type FormValues = Record<string, string>
 
 export interface ProgramForm {
@@ -53,12 +56,7 @@ export interface ProgramForm {
    * "각자 낸다" 가 같이 떠 있었다. 짐작하는 쪽이 말하면 언젠가 어긋난다 —
    * 규칙을 아는 쪽(양식)이 말하면 갈라질 자리가 없다.
    */
-  groupNotice?: {
-    /** 요약 카드 「신청 방식」 한 줄. `maxTeamSize` 는 화면이 뒤에 붙인다 */
-    howToApply: string
-    /** 「단체 프로그램 신청 안내」 상자 본문 */
-    body: string
-  }
+  groupNotice?: GroupNotice
   Component: ComponentType<{
     value: FormValues
     onChange: (key: string, val: string) => void
@@ -73,10 +71,17 @@ export interface ProgramForm {
   toRows: (v: FormValues) => { label: string; value: string }[]
 }
 
+/**
+ * 양식 등록소. **새 양식을 더할 때 채워야 하는 것은
+ * `docs/4-기록/01-신청서-설계.md` 「새 전용 양식을 더할 때 채워야 하는 것」에
+ * 있다** — 특히 단체 프로그램용이면 `groupNotice` 세 항목을 반드시 넣는다.
+ * 빠뜨리면 목록 카드가 상세와 **다른 말을 한다**(D-101 에서 실제로 났다).
+ */
 export const PROGRAM_FORMS: Record<string, ProgramForm> = {
   [AI_EDU_2026]: {
     label: 'AI-EDU 연구반 (2026)',
     groupNotice: {
+      short: '팀원이 각자',
       howToApply: '팀원이 각자 신청 · 같은 팀명으로 묶임',
       body:
         '팀장 한 분이 팀 전체를 신청하는 것이 아니라, 팀원 모두가 따로 이 신청서를 냅니다. ' +
@@ -90,6 +95,7 @@ export const PROGRAM_FORMS: Record<string, ProgramForm> = {
   [HACKATHON_2026]: {
     label: 'AI-EDU Next Class 해커톤 (2026)',
     groupNotice: {
+      short: '팀원이 각자',
       howToApply: '팀원이 각자 신청 · 같은 팀명으로 묶임',
       body:
         '2인 1팀으로 참가하며, 대표자 한 분이 팀 전체를 신청하는 것이 아니라 ' +
@@ -104,6 +110,40 @@ export const PROGRAM_FORMS: Record<string, ProgramForm> = {
 }
 
 /** 프로그램에 걸린 전용 양식 — 없거나 모르는 이름이면 undefined */
+/**
+ * 이 공고의 단체 신청 안내 — **순서가 있다** (D-95 → D-99′ → 09-25).
+ *   ① 전용 양식이 자기 문구를 갖고 있으면 **그게 이긴다.** 양식은 자기 방식을
+ *      알고 있고, 담당자가 고른 값은 틀릴 수 있다
+ *   ② 없으면(기본 신청서) 공고에서 담당자가 고른 「신청은 누가 하나」
+ *
+ * 🔴 **목록 카드·홈 카드·상세가 모두 이 함수를 쓴다.** 예전에는 상세만 이
+ *    순서를 알고 카드는 「팀 단위」를 박아 둬서, **같은 공고가 목록과 상세에서
+ *    다른 말을 했다**(09-25 iSERI 발견 — 데이터 디깅). 화면마다 짐작하면
+ *    설정이 하나 늘 때마다 그 수만큼 갈라진다.
+ */
+export function groupNoticeOf(
+  p: Pick<Program, 'formType' | 'participationType' | 'groupEntry'>
+): GroupNotice {
+  const own = formFor(p.formType)?.groupNotice
+  if (own) return own
+
+  // ⚠️ **남은 구멍** — `groupNotice` 는 선택 항목이다(개인 프로그램용 양식은
+  //    필요 없으니까). 그래서 **단체 프로그램용 전용 양식을 만들면서 이걸
+  //    빠뜨리면**, 담당자가 고른 값으로 조용히 되돌아간다. 담당자가 기본값
+  //    (`leader`)을 그대로 뒀으면 **양식은 각자 신청인데 화면은 「팀 단위」** 가
+  //    된다 — 09-25 에 카드에서 났던 바로 그 종류의 거짓말이다.
+  //    타입으로는 못 막으니(개인용 양식까지 쓰게 만들 수는 없다) **개발 중에
+  //    눈에 띄게** 한다. 새 양식을 만들면 로컬에서 바로 보인다.
+  if (process.env.NODE_ENV !== 'production' && p.formType && p.participationType === 'group') {
+    console.warn(
+      `[iLINE] 전용 양식 '${p.formType}' 에 groupNotice 가 없습니다. ` +
+        '단체 프로그램용 양식이면 lib/forms/index.ts 의 PROGRAM_FORMS 에 ' +
+        'groupNotice(short·howToApply·body)를 넣어 주세요.'
+    )
+  }
+  return GROUP_NOTICE[groupEntryOf(p)]
+}
+
 export function formFor(formType?: string): ProgramForm | undefined {
   if (!formType) return undefined
   const found = PROGRAM_FORMS[formType]
