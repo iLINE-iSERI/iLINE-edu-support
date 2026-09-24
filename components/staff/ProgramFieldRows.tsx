@@ -66,7 +66,13 @@ export default function ProgramFieldRows({
         const isText = f.kind === 'text'
         const isConsent = f.kind === 'consent'
         const isChoice = f.kind === 'choice'
-        const opts = optionsOf(f)
+        /**
+         * 🔴 **편집 중에는 다듬지 않은 값을 쓴다.** `optionsOf` 는 `trim` 하므로
+         *    입력칸의 value 로 쓰면 **끝에 띄어쓰기를 치는 순간 지워진다** —
+         *    「동의하지 않음」의 공백을 넘어갈 수 없다(09-25 iSERI 발견).
+         *    다듬기는 저장할 때(`cleanFields`)와 검사할 때(`fieldProblems`)만.
+         */
+        const opts: [string, string] = [f.options?.[0] ?? '', f.options?.[1] ?? '']
         return (
           <div
             key={f.fid}
@@ -217,7 +223,7 @@ export default function ProgramFieldRows({
                 필수를 끄면 <strong>안 고르고도 제출할 수 있습니다.</strong> 그러면
                 신청 내역에 그 줄이 아예 없어서, 담당자는 <strong>거부한 것인지 그냥
                 지나친 것인지 알 수 없습니다.</strong> 「
-                {opts[1] || '동의하지 않음'}」 같은 선택지를 두셨다면{' '}
+                {optionsOf(f)[1] || '동의하지 않음'}」 같은 선택지를 두셨다면{' '}
                 <strong>필수로 두는 쪽</strong>을 권합니다.
               </p>
             )}
