@@ -14,6 +14,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
+import Badge from '@/components/ui/Badge'
+import { APPLICATION_TONE } from '@/lib/ui/statusTone'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
 import {
@@ -214,13 +216,13 @@ function StaffContent() {
         {/* 상태별 건수 */}
         {apps && apps.length > 0 && (
           <div className="flex flex-wrap gap-2 text-sm">
+            {/* 아래 목록의 배지와 **같은 색**을 쓴다 — 「선정 3」을 보고 목록에서
+                그 색을 찾을 수 있어야 한다. 0건은 흐리게 (D-97 · 09-24) */}
             {counts.map(({ status, n }) => (
-              <span
-                key={status}
-                className="rounded-full bg-subtle px-3 py-1.5"
-              >
-                {APPLICATION_STATUS_LABEL[status]}{' '}
-                <strong className={n > 0 ? '' : 'text-ink-subtle'}>{n}</strong>
+              <span key={status} className={n > 0 ? '' : 'opacity-45'}>
+                <Badge tone={APPLICATION_TONE[status]}>
+                  {APPLICATION_STATUS_LABEL[status]} {n}
+                </Badge>
               </span>
             ))}
           </div>
@@ -325,9 +327,11 @@ function ApplicationRow({
   return (
     <li className="rounded-2xl border border-line bg-surface shadow-card p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-subtle px-2.5 py-1 text-xs font-bold">
+        {/* 09-24: 회색 알약 하나로 찍고 있어서 「전체 상태 보기」에서 구분이 안 됐다.
+            색 규칙은 lib/ui/statusTone.ts 한 곳에서 온다 (D-97) */}
+        <Badge tone={APPLICATION_TONE[app.status]}>
           {APPLICATION_STATUS_LABEL[app.status]}
-        </span>
+        </Badge>
         <span className="text-xs text-ink-subtle">
           {app.submittedAt?.toDate().toLocaleString('ko-KR')} 제출
         </span>

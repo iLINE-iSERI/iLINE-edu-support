@@ -15,7 +15,7 @@ import {
   requestSync,
 } from '@/lib/firebase/applications'
 import Button from '@/components/ui/Button'
-import Badge, { type BadgeTone } from '@/components/ui/Badge'
+import Badge from '@/components/ui/Badge'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { listMySettlements } from '@/lib/firebase/settlements'
 import { listMyInquiries, hasUnseenAnswer } from '@/lib/firebase/inquiries'
@@ -24,24 +24,13 @@ import SettlementSection from '@/components/settlement/SettlementSection'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
 import {
-  APPLICATION_STATUS_LABEL,
+  APPLICANT_STATUS_LABEL,
   profileRows,
   type Application,
-  type ApplicationStatus,
   type Program,
   type Settlement,
 } from '@/lib/types'
-
-/** 신청 상태 → 배지 색 (Badge 의 뜻 그대로) */
-const STATUS_TONE: Record<ApplicationStatus, BadgeTone> = {
-  draft: 'neutral',
-  submitted: 'upcoming',
-  reviewing: 'upcoming',
-  revision: 'warn',
-  approved: 'open',
-  rejected: 'closed',
-  cancelled: 'closed',
-}
+import { APPLICATION_TONE } from '@/lib/ui/statusTone'
 
 export default function MypagePage() {
   return (
@@ -191,9 +180,10 @@ function MypageContent() {
                     className="rounded-2xl border border-line shadow-card bg-surface p-5"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* 상태 색 — 색 하나에 뜻 하나(디자인 규칙 §2): 보완 요청 귤색 · 선정 청록 ·
-                          제출·검토 슬레이트 · 미선정·취소 회색. 09-18 이전엔 전부 회색 알약이었다 */}
-                      <Badge tone={STATUS_TONE[a.status]}>{APPLICATION_STATUS_LABEL[a.status]}</Badge>
+                      {/* 상태 색 — 매핑은 `lib/ui/statusTone.ts` 하나뿐이다 (D-97).
+                          여기에 표를 다시 적지 않는다: 그렇게 흩어져서 「선정」이
+                          「접수중」과 같은 청록이 되어 있었다 */}
+                      <Badge tone={APPLICATION_TONE[a.status]}>{APPLICANT_STATUS_LABEL[a.status]}</Badge>
                       {a.submittedAt && (
                         <span className="text-xs text-ink-subtle">
                           {a.submittedAt.toDate().toLocaleDateString('ko-KR')}{' '}

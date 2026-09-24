@@ -11,14 +11,8 @@
 import { seatLabel, venueLabel, hourLabel } from '@/lib/config/venues'
 import { longDate, shortDate } from '@/lib/reservations/window'
 import { RESERVATION_STATUS_LABEL, type Reservation } from '@/lib/types'
-import Badge, { type BadgeTone } from '@/components/ui/Badge'
-
-/** 접수됨 = 기다림(슬레이트) · 확정됨 = 긍정(청록) · 취소 = 끝(회색) — Badge 의 뜻 그대로 */
-const TONE: Record<Reservation['status'], BadgeTone> = {
-  received: 'upcoming',
-  confirmed: 'open',
-  cancelled: 'closed',
-}
+import Badge from '@/components/ui/Badge'
+import { RESERVATION_TONE } from '@/lib/ui/statusTone'
 
 export function timeRange(r: Reservation): string {
   return `${hourLabel(r.startHour)} ~ ${hourLabel(r.startHour + r.hours)} (${r.hours}시간)`
@@ -44,7 +38,7 @@ export default function ReservationCard({
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={TONE[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
+        <Badge tone={RESERVATION_TONE[r.status]}>{RESERVATION_STATUS_LABEL[r.status]}</Badge>
         <span className="font-mono text-xs text-ink-subtle">{r.code}</span>
       </div>
 

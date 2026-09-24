@@ -46,6 +46,12 @@ const config: Config = {
           ink: 'rgb(var(--warn-ink) / <alpha-value>)',
           soft: 'rgb(var(--warn-soft) / <alpha-value>)',
         },
+        // 최종 긍정 종착점 (D-97) — 면(DEFAULT)과 글자(on)가 **한 쌍**이다.
+        // 다크에서 둘이 같이 뒤집히므로 따로 떼어 쓰지 않는다
+        success: {
+          DEFAULT: 'rgb(var(--success-fill) / <alpha-value>)',
+          on: 'rgb(var(--success-on) / <alpha-value>)',
+        },
         wait: {
           DEFAULT: 'rgb(var(--wait) / <alpha-value>)',
           soft: 'rgb(var(--wait-soft) / <alpha-value>)',

@@ -28,11 +28,7 @@ import { formatDateTime } from '@/lib/firebase/programs'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { INQUIRY_STATUS_LABEL, type Inquiry, type InquiryStatus } from '@/lib/types'
 
-const TONE: Record<InquiryStatus, 'upcoming' | 'open' | 'neutral'> = {
-  open: 'upcoming',
-  answered: 'open',
-  closed: 'neutral',
-}
+import { INQUIRY_TONE } from '@/lib/ui/statusTone'
 
 export default function StaffInquiriesPage() {
   return (
@@ -198,7 +194,7 @@ function InquiryRow({
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={TONE[i.status]}>{INQUIRY_STATUS_LABEL[i.status]}</Badge>
+            <Badge tone={INQUIRY_TONE[i.status]}>{INQUIRY_STATUS_LABEL[i.status]}</Badge>
             <span className="text-sm font-semibold">{i.authorName}</span>
             <span className="text-xs text-ink-subtle">{i.authorEmail}</span>
             <span className="text-xs text-ink-subtle">· {formatDateTime(i.createdAt)}</span>

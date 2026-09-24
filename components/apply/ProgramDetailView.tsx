@@ -20,7 +20,7 @@ import {
 import { formFor } from '@/lib/forms'
 import { GROUP_NOTICE, groupEntryOf } from '@/lib/forms/fields'
 import { SITE } from '@/lib/config/site'
-import { APPLICATION_STATUS_LABEL } from '@/lib/types'
+import { APPLICANT_STATUS_LABEL } from '@/lib/types'
 import type { Program, Application, SupportUser } from '@/lib/types'
 import type { User } from 'firebase/auth'
 import type { AuthStatus } from '@/components/auth/AuthProvider'
@@ -188,7 +188,7 @@ export default function ProgramDetailView({
                 <p className="text-sm font-bold">이미 신청하셨습니다</p>
                 <p className="mt-1 text-sm text-ink-muted">
                   현재 상태 ·{' '}
-                  <strong>{APPLICATION_STATUS_LABEL[mine.status]}</strong>
+                  <strong>{APPLICANT_STATUS_LABEL[mine.status]}</strong>
                   {(mine.editCount ?? 0) > 0 && (
                     <span className="text-ink-subtle">
                       {' '}

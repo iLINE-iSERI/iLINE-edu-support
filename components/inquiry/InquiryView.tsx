@@ -18,6 +18,7 @@ import {
 } from '@/lib/firebase/inquiries'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { INQUIRY_STATUS_LABEL, type Inquiry } from '@/lib/types'
+import { INQUIRY_TONE } from '@/lib/ui/statusTone'
 import { formatDateTime } from '@/lib/firebase/programs'
 
 /**
@@ -27,11 +28,6 @@ import { formatDateTime } from '@/lib/firebase/programs'
  *               아직 안 본 답변은 「새 답변」 표시 → 펼치면 봤음으로 기록
  * 한 문의에 답 하나. 고치기·지우기 없음 — 더 물을 게 있으면 새 문의.
  */
-const TONE: Record<Inquiry['status'], 'upcoming' | 'open' | 'neutral'> = {
-  open: 'upcoming',
-  answered: 'open',
-  closed: 'neutral',
-}
 
 export default function InquiryView() {
   const { status, member } = useAuth()
@@ -239,7 +235,7 @@ function InquiryCard({ inquiry: i, onSeen }: { inquiry: Inquiry; onSeen: () => P
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={TONE[i.status]}>{INQUIRY_STATUS_LABEL[i.status]}</Badge>
+            <Badge tone={INQUIRY_TONE[i.status]}>{INQUIRY_STATUS_LABEL[i.status]}</Badge>
             {unseen && (
               <span className="text-[13px] font-bold text-warn-ink">새 답변</span>
             )}

@@ -16,6 +16,7 @@ import Badge from '@/components/ui/Badge'
 import { FileLink } from './OutputForm'
 import { outputOwnerLabel } from '@/lib/firebase/outputs'
 import { OUTPUT_STATUS_LABEL, type Output } from '@/lib/types'
+import { OUTPUT_TONE } from '@/lib/ui/statusTone'
 
 function shortDate(o: Output): string {
   const d = (o.lastEditedAt ?? o.submittedAt)?.toDate()
@@ -58,7 +59,7 @@ export default function OutputCard({
               </Badge>
             )}
             {o.status === 'revision' && who !== 'shared' && (
-              <Badge tone="warn">{OUTPUT_STATUS_LABEL.revision}</Badge>
+              <Badge tone={OUTPUT_TONE[o.status]}>{OUTPUT_STATUS_LABEL.revision}</Badge>
             )}
             {o.hiddenByStaff && <Badge tone="closed">내려짐</Badge>}
           </div>
