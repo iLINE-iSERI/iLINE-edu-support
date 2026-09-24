@@ -95,6 +95,25 @@ export function fieldTitle(f: ProgramField): string {
   return f.kind === 'attachment' ? '첨부 서류' : (f.label ?? '').trim()
 }
 
+/** 고르기의 두 갈래 — 없으면 빈 두 칸 */
+export function optionsOf(f: ProgramField): [string, string] {
+  const o = f.options ?? ['', '']
+  return [(o[0] ?? '').trim(), (o[1] ?? '').trim()]
+}
+
+/**
+ * 신청자가 **읽고 답한 글 전체** — 이 글자가 달라지면 다시 물어야 한다.
+ *
+ * 🔴 **동의(`consent`)의 결과를 절대 바꾸면 안 된다.** 이미 제출된 신청서에는
+ *    `f.body` 만 보관돼 있다. 여기에 뭘 더 이어 붙이면 **기존 동의 전부가
+ *    「본문이 바뀐 것」으로 판정되어**, 낸 사람 모두가 다시 체크해야 한다.
+ *    고르기는 D-100 에서 새로 생겼으므로 옛 기록이 없어 자유롭다.
+ */
+function sealText(f: ProgramField): string {
+  if (f.kind === 'choice') return [f.body ?? '', ...optionsOf(f)].join('\n')
+  return f.body ?? ''
+}
+
 /* ── 저장용 다듬기 ──────────────────────────────────────────── */
 
 /**
@@ -111,7 +130,9 @@ export function cleanFields(rows: ProgramField[]): ProgramField[] {
   for (const r of rows) {
     const label = (r.label ?? '').trim()
     const body = (r.body ?? '').trim()
-    if (!label && !body) continue
+    // 고르기는 선택지만 적어 둔 줄도 살린다 — 버리면 담당자가 적은 것이 사라진다
+    const filled = label || body || (r.kind === 'choice' && optionsOf(r).some(Boolean))
+    if (!filled) continue
     if (r.kind === 'attachment') {
       if (sawAttachment) continue
       sawAttachment = true
@@ -121,6 +142,9 @@ export function cleanFields(rows: ProgramField[]): ProgramField[] {
     if (label && r.kind !== 'attachment') f.label = label
     if (body) f.body = body
     if (r.multiline && r.kind === 'text') f.multiline = true
+    // 고르기는 **선택지가 답의 뜻을 정하므로** 비어도 키를 남긴다.
+    // 여기서 지우면 담당자 화면이 「두 갈래가 없는 고르기」를 그리게 된다.
+    if (r.kind === 'choice') f.options = optionsOf(r)
     if (r.required) f.required = true
     out.push(f)
   }
@@ -163,6 +187,12 @@ export function fieldProblems(
     if (r.kind === 'consent' && !body) {
       bad[key] = '신청자가 읽을 본문을 적어 주세요.'
     }
+    if (r.kind === 'choice') {
+      const [a, b] = optionsOf(r)
+      // 하나만 적힌 경우를 먼저 잡는다 — 「고를 것이 하나」는 고르기가 아니다
+      if (!a || !b) bad[key] = '고를 것을 두 개 다 적어 주세요.'
+      else if (a === b) bad[key] = '고를 것 두 개가 같습니다.'
+    }
   }
 
   // 이름 중복 — 미관 문제가 아니다. 담당자 신청 상세가 `formData` 를 라벨로
@@ -186,6 +216,15 @@ export function isAgreed(v: Values, f: ProgramField): boolean {
 }
 
 /**
+ * 고르기에서 **고른 값** — 아직 안 골랐거나, 담당자가 선택지를 고쳐
+ * 옛 답이 어느 쪽도 아니게 되었으면 빈 문자열.
+ */
+export function pickedOf(v: Values, f: ProgramField): string {
+  const val = (v[f.fid] ?? '').trim()
+  return val && optionsOf(f).includes(val) ? val : ''
+}
+
+/**
  * 이 동의 칸을 **다시 물어야 하는가** (D-98 결함 ② 수정).
  *
  * 보관된 본문이 지금 공고 본문과 다르거나 아예 없으면 다시 묻는다.
@@ -193,16 +232,16 @@ export function isAgreed(v: Values, f: ProgramField): boolean {
  * 수정 저장하는 순간 **읽은 적 없는 동의가 기록된다.**
  */
 export function isStale(v: Values, f: ProgramField): boolean {
-  if (f.kind !== 'consent') return false
+  if (f.kind !== 'consent' && f.kind !== 'choice') return false
   const kept = v[bodyKey(f.fid)]
-  return kept === undefined || kept !== (f.body ?? '')
+  return kept === undefined || kept !== sealText(f)
 }
 
 /** 수정 화면을 **열 때** 한 번 — 본문이 달라진 동의는 답과 스냅샷을 비운다 */
 export function clearStale(fields: ProgramField[], v: Values): Values {
   const out = { ...v }
   for (const f of fields) {
-    if (f.kind === 'consent' && isStale(v, f)) {
+    if ((f.kind === 'consent' || f.kind === 'choice') && isStale(v, f)) {
       delete out[f.fid]
       delete out[bodyKey(f.fid)]
     }
@@ -211,16 +250,25 @@ export function clearStale(fields: ProgramField[], v: Values): Values {
 }
 
 /**
- * 제출 직전 한 번 — 보여 준 동의 칸의 **본문을 그 시점 값으로 확정**한다.
+ * 제출 직전 한 번 — 신청자가 **읽은 글을 그 시점 값으로 확정**한다 (동의·고르기).
  * ⚠️ **거부한 동의의 본문도 남긴다.** `Consent` 주석의 "거부도 반드시 기록한다"와
  *    같은 이유 — 기록이 없는 것과 거부한 것은 다르다.
+ *
+ * 🔴 **고르기에는 답을 대신 채워 넣지 않는다** (D-100). 동의는 체크박스 하나라
+ *    안 누른 것을 `'n'`(거부)으로 적을 수밖에 없었는데, 그 때문에 **선택 동의에서
+ *    「그냥 지나친 사람」이 「거부한 사람」으로 기록되는** 문제가 있었다. 고르기는
+ *    두 갈래를 다 적어 두므로 **안 고르면 답이 없는 채로** 둔다 — 답이 없으면
+ *    신청서에 줄도 생기지 않는다(「묻지 않은 항목은 줄을 만들지 않는다」).
+ *    거부를 반드시 남겨야 하는 항목이면 **필수로 두고 「동의하지 않음」을 고르게** 한다.
  */
-export function sealConsents(fields: ProgramField[], v: Values): Values {
+export function sealBodies(fields: ProgramField[], v: Values): Values {
   const out = { ...v }
   for (const f of fields) {
-    if (f.kind !== 'consent') continue
-    if (out[bodyKey(f.fid)] === undefined) out[bodyKey(f.fid)] = f.body ?? ''
-    if (out[f.fid] === undefined) out[f.fid] = 'n'
+    if (f.kind !== 'consent' && f.kind !== 'choice') continue
+    // 안 고른 고르기도 본문은 얼린다 — 안 그러면 다음 수정 화면에서
+    // 「내용이 바뀌었습니다」 경고가 뜬다(바뀐 게 없는데도)
+    if (out[bodyKey(f.fid)] === undefined) out[bodyKey(f.fid)] = sealText(f)
+    if (f.kind === 'consent' && out[f.fid] === undefined) out[f.fid] = 'n'
   }
   return out
 }
@@ -244,6 +292,12 @@ export function firstProblem(
       // 수정 모드에서는 첨부를 못 바꾸므로 묻지 않는다
       if (f.required && !ctx.isEdit && ctx.fileCount === 0) {
         return '첨부 서류를 올려 주세요.'
+      }
+    } else if (f.kind === 'choice') {
+      // 고르기 — 필수면 골라야 하고, 보여 준 글이 바뀌었으면 수정 중에도 다시 묻는다
+      const must = f.required && (!ctx.isEdit || isStale(v, f))
+      if (must && !pickedOf(v, f)) {
+        return `「${name}」에서 하나를 골라 주세요.`
       }
     } else {
       // 동의 — 필수면 체크해야 하고, 본문이 바뀌었으면 수정 중에도 다시 묻는다
@@ -274,6 +328,10 @@ export function rowsForFields(
     if (f.kind === 'consent') {
       if (v[f.fid] === undefined) continue
       rows.push({ label, value: isAgreed(v, f) ? '확인함' : '확인하지 않음' })
+    } else if (f.kind === 'choice') {
+      // 고른 글자를 그대로 — 안 골랐으면 줄을 만들지 않는다
+      const picked = pickedOf(v, f)
+      if (picked) rows.push({ label, value: picked })
     } else {
       const val = (v[f.fid] ?? '').trim()
       if (val) rows.push({ label, value: val })
@@ -283,25 +341,54 @@ export function rowsForFields(
 }
 
 /**
- * PDF 「동의한 내용」에 그릴 것 — **본문 전문까지.**
- * 공고를 나중에 고쳐도 이 PDF 는 그때의 본문을 들고 있다.
+ * PDF 「동의·선택한 내용」에 그릴 것 — **읽은 글 전문까지.**
+ * 공고를 나중에 고쳐도 이 PDF 는 그때의 글을 들고 있다.
+ *
+ * 고르기도 함께 넣는다 — 「동의함 / 동의하지 않음」을 고르게 한 항목은
+ * **무엇을 보고 골랐는지**가 동의와 똑같이 근거가 된다 (D-100).
  */
-export function consentSnapshots(
+export function answerSnapshots(
   fields: ProgramField[],
   v: Values
-): { label: string; body: string; agreed: boolean }[] {
-  return fields
-    .filter((f) => f.kind === 'consent' && v[f.fid] !== undefined)
-    .map((f) => ({
-      label: fieldTitle(f),
-      body: v[bodyKey(f.fid)] ?? f.body ?? '',
-      agreed: isAgreed(v, f),
-    }))
+): { label: string; body: string; answer: string }[] {
+  const out: { label: string; body: string; answer: string }[] = []
+  for (const f of fields) {
+    const kept = v[bodyKey(f.fid)] ?? f.body ?? ''
+    if (f.kind === 'consent') {
+      if (v[f.fid] === undefined) continue
+      out.push({
+        label: fieldTitle(f),
+        body: kept,
+        answer: isAgreed(v, f) ? '확인함' : '확인하지 않음',
+      })
+    } else if (f.kind === 'choice') {
+      const picked = pickedOf(v, f)
+      if (!picked) continue
+      // 얼려 둔 글에는 선택지도 이어져 있다 — 본문만 떼어 낸다
+      const body = choiceBody(kept)
+      // 읽을 글이 없으면 이 상자에 넣지 않는다 — 「신청 내용」 표에 이미
+      // `라벨: 답` 으로 있어서, 넣으면 PDF 에 **같은 것이 두 번** 나온다.
+      // 동의는 본문이 근거라 표와 상자에 둘 다 있는 것이 맞다(D-99).
+      if (!body.trim()) continue
+      out.push({ label: fieldTitle(f), body, answer: picked })
+    }
+  }
+  return out
+}
+
+/** 얼려 둔 고르기 글에서 **본문만** — 뒤 두 줄은 선택지다 (`sealText` 의 짝) */
+function choiceBody(kept: string): string {
+  const lines = kept.split('\n')
+  return lines.length > 2 ? lines.slice(0, -2).join('\n') : ''
 }
 
 /** 담당자 화면의 「+ 글 상자」 등이 만드는 빈 줄 */
 export function blankField(kind: ProgramFieldKind): ProgramField {
-  return kind === 'text'
-    ? { fid: newFieldId(), kind, multiline: true }
-    : { fid: newFieldId(), kind }
+  if (kind === 'text') return { fid: newFieldId(), kind, multiline: true }
+  // 고르기는 **필수가 기본**이다. 두 갈래를 다 적어 두는 칸에서 「안 고름」을
+  // 허용하면, 그 답이 무슨 뜻인지 담당자도 알 수 없다 (D-100).
+  if (kind === 'choice') {
+    return { fid: newFieldId(), kind, options: ['', ''], required: true }
+  }
+  return { fid: newFieldId(), kind }
 }

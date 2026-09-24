@@ -14,6 +14,7 @@ export default function ConsentBlock({
   id,
   title,
   required,
+  answerRequired,
   value,
   onChange,
   children,
@@ -21,6 +22,12 @@ export default function ConsentBlock({
   id: string
   title: string
   required?: boolean
+  /**
+   * 표시는 「선택」이지만 **답은 반드시 골라야** 하는 동의 (초상권 — D-44).
+   * 「필수」 배지는 안 붙이고, 찾아가기(`lib/ui/formSeek`)에만 필수로 알린다.
+   * 이것이 없으면 제출이 막히는데도 「다 채웠다」로 보여 제출 버튼으로 간다.
+   */
+  answerRequired?: boolean
   /** null = 아직 선택하지 않음 */
   value: boolean | null
   onChange: (v: boolean) => void
@@ -28,9 +35,12 @@ export default function ConsentBlock({
   children: ReactNode
 }) {
   return (
+    /* `data-field-filled` — 라디오 두 개라 네이티브로는 「안 골랐음」을
+       알 수 없다. 찾아가기(`lib/ui/formSeek`)에 상태로 알려 준다. */
     <fieldset
       className="rounded-xl border border-line bg-surface shadow-card p-4"
-      data-field-required={required ? 'true' : undefined}
+      data-field-required={required || answerRequired ? 'true' : undefined}
+      data-field-filled={value !== null ? 'true' : 'false'}
     >
       <legend className="px-1 text-sm font-bold">
         {title}

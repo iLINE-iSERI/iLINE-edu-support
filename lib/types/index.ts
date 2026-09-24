@@ -157,12 +157,18 @@ export type GroupEntry = 'leader' | 'each'
  * 담당자가 공고 화면에서 만드는 신청서 칸 한 줄 (D-99).
  * 규칙·검증·저장 조립은 전부 `lib/forms/fields.ts` 한 곳에 있다.
  */
-export type ProgramFieldKind = 'text' | 'attachment' | 'consent'
+export type ProgramFieldKind = 'text' | 'attachment' | 'consent' | 'choice'
 
 export const FIELD_KIND_LABEL: Record<ProgramFieldKind, string> = {
   text: '글 상자',
   attachment: '첨부',
-  consent: '동의',
+  // 09-25 iSERI: '동의' → '동의·확인'. 이 칸으로 만드는 것의 대부분이 **확인**이다
+  // (참가 유의사항·수료 기준 확인·팀 구성 요건 확인). 신청자 화면은 처음부터
+  // 「확인하였습니다」로 쓰는데 담당자 버튼만 「동의」라서, 담당자가 유의사항을
+  // 만들려다 「동의」를 못 찾는다. **진짜 동의(찬반이 갈리는 것)는 `choice` 로**
+  // 「동의함 / 동의하지 않음」을 두는 쪽이 맞다(D-100).
+  consent: '동의·확인',
+  choice: '고르기',
 }
 
 export interface ProgramField {
@@ -184,6 +190,21 @@ export interface ProgramField {
   body?: string
   /** 글 상자만 — 참이면 여러 줄 상자 */
   multiline?: boolean
+  /**
+   * 고르기만 — **두 갈래 중 하나** (D-100). 예: `['팀 대표자', '팀원']`,
+   * `['동의함', '동의하지 않음']`.
+   *
+   * ⚠️ **왜 개수를 두 개로 못 박았나.** 목록을 자유롭게 늘리면 담당자 화면에
+   *    「선택지 추가/삭제」가 또 필요해진다 — 칸을 만드는 화면 안에 목록을 만드는
+   *    화면이 생기는 꼴이다. 실제로 필요했던 두 사례(팀 대표자/팀원,
+   *    동의함/동의하지 않음)가 모두 두 갈래였다. **셋이 필요한 사례가 나오면**
+   *    그때 늘린다(D-99 의 「사례가 두 번 나오면 다시 논의」와 같은 규칙).
+   *
+   * ⚠️ **답으로는 고른 「글자」를 저장한다**(index 가 아니다). 담당자가 선택지
+   *    이름을 고치면 옛 답이 **어느 쪽도 아니게 되어** 다시 고르게 된다 —
+   *    index 를 쓰면 고친 순간 옛 답의 뜻이 **조용히 바뀐다.**
+   */
+  options?: [string, string]
   /** 필수 여부. **참일 때만 저장한다**(값이 없으면 칸도 없다) */
   required?: boolean
 }

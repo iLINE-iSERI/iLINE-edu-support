@@ -41,7 +41,7 @@ const ApplicationSheet = forwardRef<
      * 「신청 내용」 표에는 「확인함」 한 줄만 가므로, 공고를 나중에 고치면
      * 무엇에 동의했는지 알 수 없게 된다. 그래서 PDF 에 본문을 박아 둔다.
      */
-    consents?: { label: string; body: string; agreed: boolean }[]
+    sealed?: { label: string; body: string; answer: string }[]
     /**
      * 수정 모드 (D-73) — 제출 당시의 신청자 사본과 최초 제출일.
      * 회원 문서가 아니라 **신청서에 박힌 값**으로 찍어야 원본과 같다.
@@ -54,7 +54,7 @@ const ApplicationSheet = forwardRef<
     }
   }
 >(function ApplicationSheet(
-  { program, member, note, fileNames, portraitConsent, formRows, consents, edit },
+  { program, member, note, fileNames, portraitConsent, formRows, sealed, edit },
   ref
 ) {
   const consent = (purpose: string) =>
@@ -160,9 +160,9 @@ const ApplicationSheet = forwardRef<
       {/* 동의한 내용 (D-99) — **본문 전문.** 표 한 칸이 아니라 note 와 같은 상자로
           그린다: 여러 장에 걸쳐도 글줄 사이에서만 잘려 읽는 데 지장이 없다
           (data-pdf-keep 을 일부러 안 단다 — 붙이면 한 장보다 길 때 통째로 잘린다) */}
-      {consents && consents.length > 0 && (
-        <Section title="동의한 내용">
-          {consents.map((c, i) => (
+      {sealed && sealed.length > 0 && (
+        <Section title="동의·선택한 내용">
+          {sealed.map((c, i) => (
             <div
               key={`${c.label}-${i}`}
               style={{
@@ -172,11 +172,14 @@ const ApplicationSheet = forwardRef<
               }}
             >
               <p style={{ fontWeight: 700, marginBottom: '6px' }}>
-                {c.label} — {c.agreed ? '확인함' : '확인하지 않음'}
+                {c.label} — {c.answer}
               </p>
-              <p style={{ whiteSpace: 'pre-wrap', fontSize: '13px', color: '#333' }}>
-                {c.body}
-              </p>
+              {/* 고르기에 읽을 글이 없으면 본문이 빈다 — 빈 상자를 만들지 않는다 */}
+              {c.body.trim() && (
+                <p style={{ whiteSpace: 'pre-wrap', fontSize: '13px', color: '#333' }}>
+                  {c.body}
+                </p>
+              )}
             </div>
           ))}
         </Section>

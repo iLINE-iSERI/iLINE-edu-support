@@ -24,13 +24,20 @@ import { formFor, type FormValues } from '@/lib/forms'
 import {
   fieldsOf,
   clearStale,
-  sealConsents,
+  sealBodies,
   isStale,
   firstProblem,
   rowsForFields,
-  consentSnapshots,
+  answerSnapshots,
 } from '@/lib/forms/fields'
 import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
+import {
+  collectFields,
+  fieldGroup,
+  isFilled,
+  isRequired,
+  scrollToTarget,
+} from '@/lib/ui/formSeek'
 import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
 import {
   profileRows,
@@ -127,6 +134,9 @@ export default function ApplicationForm({
   const [rejected, setRejected] = useState<{ name: string; why: string }[]>([])
   /** PDF로 뜰 인쇄본 — 화면 밖에 그려둔다 */
   const sheetRef = useRef<HTMLDivElement>(null)
+  /** 제출이 막혔을 때 **문제가 된 칸까지 데려가려고** 필요하다 (09-25) */
+  const formRef = useRef<HTMLFormElement>(null)
+  const errorRef = useRef<HTMLParagraphElement>(null)
 
   const wantsNote = Boolean(program.noteLabel)
   const wantsFiles = Boolean(program.attachmentGuide)
@@ -272,6 +282,38 @@ export default function ApplicationForm({
     )
   }
 
+  /**
+   * 제출을 막고 **그 칸까지 데려간다** (09-25 iSERI — *"역할 칸으로 이동 안 함"*).
+   *
+   * 지금까지는 오류 문구만 띄웠다. 제출 버튼 바로 위에 뜨므로 **글 상자 하나뿐인
+   * 신청서에서는 충분**했는데, 담당자가 칸을 열두 개까지 만들 수 있게 되면서
+   * (D-99·D-100) *"「팀에서의 역할」을 골라 주세요"* 를 읽고도 **그게 화면
+   * 어디인지 모르는** 상태가 된다.
+   *
+   * 찾는 방법은 [신청서 작성하러 가기 ↓]와 **같은 것을 쓴다**(`lib/ui/formSeek`).
+   * 검증 순서(`firstProblem`)가 아니라 **DOM 순서**로 첫 빈 필수 칸을 찾는다 —
+   * 둘은 같아야 하지만, 어긋나도 **신청자가 보는 순서**가 옳다.
+   * 못 찾으면(걸러진 파일처럼 칸이 아닌 문제) 오류 문구로라도 데려간다.
+   */
+  function failWith(msg: string) {
+    setError(msg)
+    window.setTimeout(() => {
+      const root = formRef.current
+      const missing = root
+        ? collectFields(root).find((f) => isRequired(f) && !isFilled(f))
+        : undefined
+      if (missing) {
+        scrollToTarget(fieldGroup(missing), {
+          pulse: 'field-seek-target',
+          focus: missing,
+          announce: msg,
+        })
+      } else if (errorRef.current) {
+        scrollToTarget(errorRef.current, { pulse: 'field-seek-target' })
+      }
+    }, 0)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -281,23 +323,23 @@ export default function ApplicationForm({
     if (form) {
       const bad = form.validate(extra)
       if (bad) {
-        setError(bad)
+        failWith(bad)
         return
       }
     }
 
     if (program.noteRequired && !note.trim()) {
-      setError(`${program.noteLabel}을(를) 입력해 주세요.`)
+      failWith(`${program.noteLabel}을(를) 입력해 주세요.`)
       return
     }
     if (program.attachmentRequired && files.length === 0 && !isEdit) {
-      setError('첨부 서류를 올려 주세요.')
+      failWith('첨부 서류를 올려 주세요.')
       return
     }
     // 걸러진 파일이 남아 있으면 제출을 막는다.
     // 그대로 보내면 신청자는 첨부한 줄 알고, 담당자는 서류가 없다고 본다.
     if (rejected.length > 0) {
-      setError(
+      failWith(
         '첨부하지 못한 파일이 있습니다. 아래 안내를 확인하고 다시 올리시거나, ' +
           '그대로 제출하시려면 [무시하고 계속]을 눌러 주세요.'
       )
@@ -306,27 +348,27 @@ export default function ApplicationForm({
     // 참가 유의사항 (D-98) — 담당자가 적어 둔 공고에서만. 수정 모드에서는
     // 제출 당시 이미 확인한 것이라 다시 묻지 않는다.
     if (wantsCaution && !cautionOk && !isEdit) {
-      setError('참가 유의사항을 확인하고 체크해 주세요.')
+      failWith('참가 유의사항을 확인하고 체크해 주세요.')
       return
     }
     // 담당자가 만든 칸 (D-99) — 배열 순서대로 = 화면 순서대로 본다.
     // 규칙은 lib/forms/fields.ts 한 곳에 있고 여기서는 부르기만 한다.
     const fieldBad = firstProblem(fields, extra, { isEdit, fileCount: files.length })
     if (fieldBad) {
-      setError(fieldBad)
+      failWith(fieldBad)
       return
     }
 
     // 초상권은 '선택' 항목이지만 **답은 반드시 골라야** 한다 (D-44).
     // 거부도 기록해야 하므로, 안 고른 채 넘어가면 기록상 거부와 구분되지 않는다.
     if (portrait === null) {
-      setError('초상권 활용 동의 여부를 선택해 주세요. 동의하지 않으셔도 신청하실 수 있습니다.')
+      failWith('초상권 활용 동의 여부를 선택해 주세요. 동의하지 않으셔도 신청하실 수 있습니다.')
       return
     }
 
     // 동의 본문을 **그 시점 값으로 확정**한다 (D-99 §4). 공고를 나중에 고쳐도
     // "무엇에 동의했는가"가 신청서에 남는다. 거부한 동의의 본문도 남긴다.
-    const sealed = sealConsents(fields, extra)
+    const sealed = sealBodies(fields, extra)
     if (sealed !== extra) setExtra(sealed)
 
     setBusy(true)
@@ -404,7 +446,7 @@ export default function ApplicationForm({
           체크박스·라디오·첨부는 `required` 로 표현되지 않으므로,
           검사 순서를 우리가 쥐고 있어야 화면 순서와 일치한다.
        필수 표시(*)와 스크린리더 안내는 `required` 속성이 그대로 맡는다. */
-    <form onSubmit={handleSubmit} noValidate className="space-y-6">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-6">
       {/* PDF 원본 — 화면에는 보이지 않는다 */}
       <ApplicationSheet
         ref={sheetRef}
@@ -416,7 +458,7 @@ export default function ApplicationForm({
         }
         portraitConsent={portrait}
         formRows={savedRows.length ? savedRows : undefined}
-        consents={consentSnapshots(fields, extra)}
+        sealed={answerSnapshots(fields, extra)}
         edit={
           editing
             ? {
@@ -432,9 +474,18 @@ export default function ApplicationForm({
         <div className="rounded-xl border border-brand-200 bg-brand-soft p-4 text-sm leading-relaxed dark:border-brand-800 dark:bg-brand-900/20">
           <p className="font-bold">제출한 신청서를 수정합니다</p>
           <p className="mt-1 text-ink-muted">
-            접수 마감 전까지 <strong>신청 내용</strong>(프로그램별 항목·기재란)을 고칠 수
-            있습니다. 신청자 정보·첨부 파일·초상권 동의는 제출 당시 그대로이며, 바꾸시려면
-            마이페이지에서 취소한 뒤 다시 신청해 주세요.
+            접수 마감 전까지 <strong>글로 적는 항목</strong>(프로그램별 항목·기재란)을
+            고칠 수 있습니다. <strong>신청자 정보·첨부 파일·동의·고르기</strong>는 제출
+            당시 답이 그대로 남습니다 — 한 번 한 동의를 나중에 덧칠하지 않으려는
+            것입니다.
+            <br />
+            그 항목을 바꾸셔야 하면, <strong>접수 마감 전까지</strong>는 마이페이지에서{' '}
+            <strong>취소한 뒤 다시 신청</strong>하시면 됩니다(같은 프로그램에 다시 신청할
+            수 있습니다). 마감이 가까우면 재신청할 시간이 없을 수 있으니{' '}
+            <Link href="/notice/inquiry" className="underline underline-offset-2">
+              1:1 문의
+            </Link>
+            로 먼저 알려 주세요.
           </p>
         </div>
       )}
@@ -517,7 +568,14 @@ export default function ApplicationForm({
       {isEdit && (editing?.files?.length ?? 0) > 0 && (
         <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
           <h2 className="font-bold">첨부 서류</h2>
-          <p className="mt-1 text-xs text-ink-subtle">제출 당시 올린 파일입니다. 수정할 수 없습니다.</p>
+          <p className="mt-1 text-xs text-ink-subtle">
+            제출 당시 올린 파일입니다. 수정할 수 없습니다 — 바꾸셔야 하면 아래 안내를
+            보시거나{' '}
+            <Link href="/notice/inquiry" className="underline underline-offset-2">
+              1:1 문의
+            </Link>
+            로 알려 주세요.
+          </p>
           <ul className="mt-3 space-y-2">
             {editing!.files!.map((f) => (
               <li key={f.storagePath} className="rounded-lg bg-subtle px-3 py-2 text-sm">
@@ -561,7 +619,13 @@ export default function ApplicationForm({
           {isEdit ? (
             <p className="mt-3 rounded-lg bg-subtle px-3 py-2 text-sm">
               제출 당시 <strong>확인함</strong>
-              <span className="text-ink-subtle"> — 수정할 수 없습니다</span>
+              <span className="text-ink-subtle">
+              {' '}— 수정할 수 없습니다. 반드시 바꿔야 하면{' '}
+              <Link href="/notice/inquiry" className="underline underline-offset-2">
+                1:1 문의
+              </Link>
+              로 알려 주세요.
+            </span>
             </p>
           ) : (
             <label
@@ -612,7 +676,13 @@ export default function ApplicationForm({
         {isEdit ? (
           <p className="mt-3 rounded-lg bg-subtle px-3 py-2 text-sm">
             제출 당시 답 · <strong>{portrait ? '동의함' : '동의하지 않음'}</strong>
-            <span className="text-ink-subtle"> — 수정할 수 없습니다</span>
+            <span className="text-ink-subtle">
+              {' '}— 수정할 수 없습니다. 반드시 바꿔야 하면{' '}
+              <Link href="/notice/inquiry" className="underline underline-offset-2">
+                1:1 문의
+              </Link>
+              로 알려 주세요.
+            </span>
           </p>
         ) : (
           <div className="mt-4">
@@ -623,6 +693,7 @@ export default function ApplicationForm({
 
       {error && (
         <p
+          ref={errorRef}
           role="alert"
           className="rounded-lg bg-status-revision/10 px-3 py-2 text-sm leading-relaxed text-status-revision"
         >

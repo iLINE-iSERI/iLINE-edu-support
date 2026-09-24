@@ -30,6 +30,7 @@ export default function PortraitConsent({
     <ConsentBlock
       id="consent-portrait"
       title="사진·영상 촬영 및 초상권 활용 동의서"
+      answerRequired
       value={value}
       onChange={onChange}
     >

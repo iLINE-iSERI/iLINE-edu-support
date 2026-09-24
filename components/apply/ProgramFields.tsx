@@ -14,8 +14,9 @@
  *    파일 상태(`files`·`rejected`)를 이 컴포넌트로 내리면 상태가 두 곳으로 갈린다.
  */
 
+import Link from 'next/link'
 import type { ProgramField } from '@/lib/types'
-import { fieldTitle, isAgreed } from '@/lib/forms/fields'
+import { fieldTitle, isAgreed, optionsOf, pickedOf } from '@/lib/forms/fields'
 
 export default function ProgramFields({
   fields,
@@ -64,6 +65,82 @@ export default function ProgramFields({
           )
         }
 
+        if (f.kind === 'choice') {
+          const opts = optionsOf(f)
+          const picked = pickedOf(values, f)
+          const mustAskAgain = isEdit && staleIds.has(f.fid)
+          return (
+            <section key={f.fid} className="card p-5">
+              <h2 className="font-bold">
+                {title}
+                {star}
+              </h2>
+
+              {mustAskAgain && (
+                <p
+                  role="alert"
+                  className="mt-2 rounded-lg border-l-4 border-warn bg-warn-soft px-3 py-2 text-sm leading-relaxed text-warn-ink"
+                >
+                  내용이 바뀌었습니다. 다시 확인하고 골라 주세요.
+                </p>
+              )}
+
+              {f.body && (
+                <p className="mt-3 whitespace-pre-line break-keep rounded-xl bg-subtle p-4 text-sm leading-relaxed text-ink-muted">
+                  {f.body}
+                </p>
+              )}
+
+              {isEdit && !mustAskAgain ? (
+                <p className="mt-3 rounded-lg bg-subtle px-3 py-2 text-sm">
+                  제출 당시 <strong>{picked || '고르지 않음'}</strong>
+                  <span className="text-ink-subtle">
+                    {' '}— 수정할 수 없습니다. 반드시 바꿔야 하면{' '}
+                    <Link href="/notice/inquiry" className="underline underline-offset-2">
+                      1:1 문의
+                    </Link>
+                    로 알려 주세요.
+                  </span>
+                </p>
+              ) : (
+                /* fieldset 에 표시를 단다 — 라디오는 `required` 로 표현되지 않아
+                   「신청서 작성하러 가기 ↓」가 못 찾는다 (해커톤 양식과 같은 방식) */
+                <fieldset
+                  className="mt-4"
+                  data-field-required={f.required ? 'true' : undefined}
+                  data-field-filled={picked ? 'true' : 'false'}
+                >
+                  <legend className="sr-only">{title}</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {opts.map((o, n) =>
+                      o ? (
+                        <label
+                          key={`${f.fid}-${n}`}
+                          className={
+                            'flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-3 text-sm leading-relaxed ' +
+                            (picked === o
+                              ? 'border-brand-600 bg-brand-soft font-semibold'
+                              : 'border-line-strong text-ink-muted')
+                          }
+                        >
+                          <input
+                            type="radio"
+                            name={`fld-${f.fid}`}
+                            checked={picked === o}
+                            onChange={() => onChange(f.fid, o)}
+                            className="size-4 shrink-0 accent-brand-600"
+                          />
+                          {o}
+                        </label>
+                      ) : null
+                    )}
+                  </div>
+                </fieldset>
+              )}
+            </section>
+          )
+        }
+
         if (f.kind === 'consent') {
           const agreed = isAgreed(values, f)
           const mustAskAgain = isEdit && staleIds.has(f.fid)
@@ -92,7 +169,13 @@ export default function ProgramFields({
               {isEdit && !mustAskAgain ? (
                 <p className="mt-3 rounded-lg bg-subtle px-3 py-2 text-sm">
                   제출 당시 <strong>{agreed ? '확인함' : '확인하지 않음'}</strong>
-                  <span className="text-ink-subtle"> — 수정할 수 없습니다</span>
+                  <span className="text-ink-subtle">
+                    {' '}— 수정할 수 없습니다. 반드시 바꿔야 하면{' '}
+                    <Link href="/notice/inquiry" className="underline underline-offset-2">
+                      1:1 문의
+                    </Link>
+                    로 알려 주세요.
+                  </span>
                 </p>
               ) : (
                 <label

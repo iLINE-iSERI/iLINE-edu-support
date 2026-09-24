@@ -18,7 +18,7 @@
  */
 
 import { FIELD_KIND_LABEL, type ProgramField, type ProgramFieldKind } from '@/lib/types'
-import { MAX_FIELDS, fieldTitle } from '@/lib/forms/fields'
+import { MAX_FIELDS, fieldTitle, optionsOf } from '@/lib/forms/fields'
 
 /** 담당자 폼과 같은 입력칸 모양 — page.tsx 의 것을 일부러 복사했다.
  *  두 곳뿐이라 아직 묶지 않는다(셋째가 생기면 그때 — D-50 주석의 판단). */
@@ -29,13 +29,17 @@ function inputCls(error?: string): string {
   )
 }
 
-const ADDABLE: ProgramFieldKind[] = ['text', 'attachment', 'consent']
+const ADDABLE: ProgramFieldKind[] = ['text', 'attachment', 'consent', 'choice']
 
 const HINT: Record<ProgramFieldKind, string> = {
   text: '신청자가 글을 쓰는 칸입니다.',
   attachment: '신청자가 파일을 올리는 칸입니다. 공고당 하나만 둘 수 있습니다.',
-  consent: '신청자가 읽고 「확인하였습니다」에 체크하는 글입니다.',
+  consent: '신청자가 읽고 「확인하였습니다」에 체크하는 글입니다. 유의사항·수료 기준처럼 「읽었다」를 받을 때.',
+  choice: '신청자가 두 갈래 중 하나를 고릅니다. 「동의 / 비동의」처럼 거부도 남겨야 할 때 쓰세요.',
 }
+
+/** 고르기 선택지의 예 — 담당자가 무엇을 적는 칸인지 바로 알게 한다 */
+const OPTION_EG: [string, string] = ['동의함', '동의하지 않음']
 
 export default function ProgramFieldRows({
   rows,
@@ -61,6 +65,8 @@ export default function ProgramFieldRows({
         const err = errors[`row-${f.fid}`]
         const isText = f.kind === 'text'
         const isConsent = f.kind === 'consent'
+        const isChoice = f.kind === 'choice'
+        const opts = optionsOf(f)
         return (
           <div
             key={f.fid}
@@ -107,7 +113,9 @@ export default function ProgramFieldRows({
                   id={`pf-row-${f.fid}`}
                   value={f.label ?? ''}
                   onChange={(e) => onChange(f.fid, { label: e.target.value })}
-                  placeholder={isConsent ? '참가 유의사항' : '활동 계획'}
+                  placeholder={
+                    isConsent ? '참가 유의사항' : isChoice ? '팀에서의 역할' : '활동 계획'
+                  }
                   className={inputCls(err)}
                 />
               </label>
@@ -115,19 +123,27 @@ export default function ProgramFieldRows({
 
             <label className="mt-3 block text-sm">
               <span className="font-semibold">
-                {isConsent ? '신청자가 읽을 본문' : isText ? '안내 (선택)' : '안내 문구'}
+                {isConsent
+                  ? '신청자가 읽을 본문'
+                  : isChoice
+                    ? '고르기 전에 읽을 글 (선택)'
+                    : isText
+                      ? '안내 (선택)'
+                      : '안내 문구'}
               </span>
               <textarea
                 id={f.kind === 'attachment' ? `pf-row-${f.fid}` : undefined}
-                rows={isConsent ? 5 : 2}
+                rows={isConsent ? 5 : isChoice ? 3 : 2}
                 value={f.body ?? ''}
                 onChange={(e) => onChange(f.fid, { body: e.target.value })}
                 placeholder={
                   isConsent
                     ? '중도 포기 시 처리, 참석 의무처럼 나중에 근거가 되는 내용'
-                    : f.kind === 'attachment'
-                      ? '1차시 수업설계안을 PDF 로 올려 주세요.'
-                      : '무엇을 어떻게 적어야 하는지'
+                    : isChoice
+                      ? '무엇을 고르는 것인지, 고르면 어떻게 되는지'
+                      : f.kind === 'attachment'
+                        ? '1차시 수업설계안을 PDF 로 올려 주세요.'
+                        : '무엇을 어떻게 적어야 하는지'
                 }
                 className={inputCls(f.kind === 'attachment' ? err : undefined)}
               />
@@ -153,6 +169,32 @@ export default function ProgramFieldRows({
               </fieldset>
             )}
 
+            {isChoice && (
+              <fieldset className="mt-3">
+                <legend className="text-sm font-semibold">고를 것 (두 개)</legend>
+                <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                  {([0, 1] as const).map((n) => (
+                    <input
+                      key={n}
+                      aria-label={`고를 것 ${n + 1}`}
+                      value={opts[n]}
+                      onChange={(e) => {
+                        const next: [string, string] = [opts[0], opts[1]]
+                        next[n] = e.target.value
+                        onChange(f.fid, { options: next })
+                      }}
+                      placeholder={OPTION_EG[n]}
+                      className={inputCls(err)}
+                    />
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-ink-subtle">
+                  신청자에게 <strong>버튼 두 개</strong>로 보입니다. 적으신 글자가
+                  그대로 답으로 저장됩니다.
+                </p>
+              </fieldset>
+            )}
+
             <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -161,9 +203,24 @@ export default function ProgramFieldRows({
                 className="size-4 accent-brand-600"
               />
               <span className="font-semibold">
-                {isConsent ? '체크해야 제출할 수 있게' : '이 칸을 필수로'}
+                {isConsent
+                  ? '체크해야 제출할 수 있게'
+                  : isChoice
+                    ? '골라야 제출할 수 있게'
+                    : '이 칸을 필수로'}
               </span>
             </label>
+
+            {/* 🔴 여기서 막지 않으면 「안 고름」이 무슨 뜻인지 아무도 모른다 */}
+            {isChoice && !f.required && (
+              <p className="mt-2 rounded-lg border-l-4 border-warn bg-warn-soft px-3 py-2 text-xs leading-relaxed text-warn-ink">
+                필수를 끄면 <strong>안 고르고도 제출할 수 있습니다.</strong> 그러면
+                신청 내역에 그 줄이 아예 없어서, 담당자는 <strong>거부한 것인지 그냥
+                지나친 것인지 알 수 없습니다.</strong> 「
+                {opts[1] || '동의하지 않음'}」 같은 선택지를 두셨다면{' '}
+                <strong>필수로 두는 쪽</strong>을 권합니다.
+              </p>
+            )}
 
             {err && (
               <p className="mt-2 text-xs font-semibold text-status-revision">{err}</p>
@@ -212,11 +269,11 @@ export default function ProgramFieldRows({
         </p>
       )}
 
-      {/* 기대를 여기서 잘라 둔다 — 없으면 "선택지도 되나요"가 반드시 온다 */}
+      {/* 기대를 여기서 잘라 둔다 — 선(D-100)이 어디까지인지 담당자가 알아야 한다 */}
       <p className="text-xs leading-relaxed text-ink-subtle">
-        고르는 항목(라디오·체크박스 목록), 「이걸 고르면 저게 나오기」, 숫자·날짜
-        형식 검사는 <strong>여기서 만들 수 없습니다.</strong> 그런 신청서가
-        필요하면 개발자에게 말씀해 주세요 — 프로그램 전용 양식으로 만듭니다.
+        고르기는 <strong>두 갈래까지</strong>입니다. 셋 이상 고르기, 「이걸 고르면
+        저게 나오기」, 숫자·날짜 형식 검사는 <strong>여기서 만들 수 없습니다.</strong>{' '}
+        그런 신청서가 필요하면 개발자에게 말씀해 주세요.
       </p>
     </div>
   )
