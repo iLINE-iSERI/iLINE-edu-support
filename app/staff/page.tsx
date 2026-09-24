@@ -364,8 +364,10 @@ function ApplicationRow({
           <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
             {app.formData
               .filter((r) => r.value)
-              .map((r) => (
-                <Item key={r.label} k={r.label} v={r.value} />
+              .map((r, i) => (
+                // 라벨이 겹칠 수 있다(담당자가 칸 이름을 같게 지은 옛 문서) —
+                // 인덱스를 붙여 React 중복 key 를 막는다 (D-99)
+                <Item key={`${r.label}-${i}`} k={r.label} v={r.value} />
               ))}
           </dl>
         </div>

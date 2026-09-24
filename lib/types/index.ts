@@ -137,6 +137,57 @@ export function hasPortraitConsent(
  */
 export type ParticipationType = 'individual' | 'group'
 
+/**
+ * 단체 프로그램에서 **신청을 누가 내는가** (D-99′ · 09-24).
+ *
+ *   leader — 대표자 한 분이 팀원 명단까지 함께 낸다 (지금까지의 기본값)
+ *   each   — 팀원이 **각자** 내고 **같은 팀명**으로 묶는다
+ *
+ * ⚠️ `participationType` 과 **다른 축이다.** 저것은 「혼자냐 팀이냐」, 이것은
+ *    「누가 내느냐」다. 한 칸으로 겸하게 두었더니 AI-EDU 가 「단체인데 각자
+ *    신청」이라 어느 쪽을 골라도 반쪽만 맞았다(D-95 에서 드러난 문제).
+ *
+ * 🔵 **전용 양식이 있으면 그 양식의 말이 이긴다** — 양식은 자기 방식을 알고
+ *    있고, 담당자가 고르는 값은 틀릴 수 있다. 이 칸은 **기본 신청서**처럼
+ *    아는 주체가 없을 때만 본다.
+ */
+export type GroupEntry = 'leader' | 'each'
+
+/**
+ * 담당자가 공고 화면에서 만드는 신청서 칸 한 줄 (D-99).
+ * 규칙·검증·저장 조립은 전부 `lib/forms/fields.ts` 한 곳에 있다.
+ */
+export type ProgramFieldKind = 'text' | 'attachment' | 'consent'
+
+export const FIELD_KIND_LABEL: Record<ProgramFieldKind, string> = {
+  text: '글 상자',
+  attachment: '첨부',
+  consent: '동의',
+}
+
+export interface ProgramField {
+  /**
+   * 이 줄의 이름표 — 만들 때 한 번 정하고 **절대 바뀌지 않는다.**
+   *
+   * 인덱스를 쓰면 네 군데가 고장난다:
+   *   ① React key — 순서를 바꾸면 DOM 을 재사용해 **한글 입력 중 글자가 떨어진다**
+   *   ② DOM id — 줄을 지우면 `pf-row-1` 이 **다른 질문**을 가리킨다
+   *   ③ 오류 키 — 줄이 움직이면 오류가 엉뚱한 줄에 붙는다
+   *   ④ 답의 열쇠 — `formValues[fid]`. 담당자가 **칸 이름을 고쳐도 답이 남는다**
+   *      (라벨은 `formData` 에 사본으로 따로 — D-50 원칙)
+   */
+  fid: string
+  kind: ProgramFieldKind
+  /** 칸 이름 — 글 상자·동의만. 첨부는 제목이 「첨부 서류」로 고정 */
+  label?: string
+  /** 글 상자: 안내 한 줄 · 첨부: 안내 문구 · 동의: 신청자가 읽을 본문 */
+  body?: string
+  /** 글 상자만 — 참이면 여러 줄 상자 */
+  multiline?: boolean
+  /** 필수 여부. **참일 때만 저장한다**(값이 없으면 칸도 없다) */
+  required?: boolean
+}
+
 export interface Program {
   id: string
   year: number
@@ -144,6 +195,11 @@ export interface Program {
   participationType: ParticipationType
   /** 단체 프로그램일 때 최대 인원 (대표자 포함) */
   maxTeamSize?: number
+  /**
+   * 단체 프로그램에서 신청을 누가 내나 (D-99′). 없으면 `leader`(지금까지의 동작).
+   * 전용 양식이 자기 문구를 갖고 있으면 그쪽이 이긴다.
+   */
+  groupEntry?: GroupEntry
   description?: string
   /** 접수 기간 */
   opensAt?: Timestamp
@@ -157,9 +213,20 @@ export interface Program {
   activityStart?: Timestamp
   activityEnd?: Timestamp
 
-  /* ── 신청서 구성 (D-29) — 전부 선택 ─────────────────────────
-     프로그램마다 신청 항목이 달라지는 문제를, 폼 빌더를 만드는 대신
-     '자유 기재란 하나 + 첨부 하나'로 흡수한다.
+  /* ── 신청서 구성 (D-29 → D-99 로 부분 개정) — 전부 선택 ────────
+     처음에는 폼 빌더를 만들지 않기로 하고 '자유 기재란 하나 + 첨부 하나'로
+     흡수했다(D-29). 항목이 더 필요한 프로그램은 코드로 전용 양식을 만들었다
+     (D-50). 해커톤이 그 한계에 부딪혀 09-22 에 **부분적으로** 뒤집었다.
+
+     🔴 **경계 — 이 줄이 기준선이다 (D-99)**
+        담당자가 화면에서 정의할 수 있는 것은 「이름 + 안내문 + 필수 여부」가
+        붙은 **글 상자 · 첨부 · 동의 세 가지뿐**이다. 선택지·분기·계산·형식
+        검사가 필요해지면 그것은 여전히 `lib/forms` 의 **전용 양식(코드)** 으로
+        만든다. D-50 등록소는 없애지 않는다.
+
+     아래 옛 칸 다섯(noteLabel~cautionText)은 **이주하지 않고 공존한다** —
+     `note` 는 시트 N열과 PDF 전용 상자를 따로 갖고 있어서 옮기면 옛 답과 새 답이
+     다른 열로 갈린다. 새 공고는 `formFields` 만 쓴다.
      값이 없으면 그 칸 자체가 화면에 나타나지 않는다. */
 
   /** 자유 기재란의 이름 (예: '지원 동기'). 없으면 칸이 없다 */
@@ -184,8 +251,30 @@ export interface Program {
    *
    * 동의 여부는 `formData` 에 한 줄로 남는다 — PDF·시트·담당자 화면이 이미
    * 그 줄을 함께 나르므로 저장 경로를 새로 만들지 않는다.
+   *
+   * 🔵 D-99 이후 **새 공고는 이 칸을 만들지 않는다.** `formFields` 의 `consent`
+   *    칸이 같은 일을 하고 **본문 스냅샷까지 남긴다.** 옛 공고 호환용으로만 남긴다.
    */
   cautionText?: string
+
+  /**
+   * 담당자가 공고 화면에서 직접 만든 신청서 칸들 (D-99).
+   *
+   * **배열 순서가 곧 화면 순서다.** 비어 있으면 저장하지 않는다 — 안 쓰는 공고는
+   * 이 키 자체가 없고, 그래서 D-99 이전 공고와 문서 모양이 같다.
+   *
+   * 답이 저장되는 곳:
+   *   글 상자 · 동의 → `Application.formValues[fid]` (원본) + `formData` (라벨+값 사본)
+   *   첨부         → `Application.files` (지금까지와 같음)
+   * **`formData` 에 태우는 것이 핵심이다** — 시트는 O열 한 칸에 `라벨: 값` 을 쌓고
+   * (D-50), PDF·담당자 화면도 그 줄을 그대로 그리므로 **칸이 늘어도 시트 열·규칙·
+   * PDF·담당자 화면을 하나도 안 건드린다.**
+   *
+   * ⚠️ **첨부는 공고당 하나뿐이다.** 파일은 Storage 경로·드라이브 폴더·PDF 목록이
+   *    따로 묶여 있어, 칸을 둘로 늘리면 그 다섯 곳이 동시에 흔들린다.
+   *    글자와 파일의 비용이 다르다.
+   */
+  formFields?: ProgramField[]
 
   /**
    * 이 프로그램 **전용 신청 항목**의 식별자 (D-50).

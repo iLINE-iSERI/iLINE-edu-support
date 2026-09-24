@@ -38,6 +38,8 @@
 | `noteRequired` | boolean | | 자유 기재란 필수 여부 |
 | `attachmentGuide` | string | | **첨부 안내 문구**. 없으면 첨부란이 안 생김 |
 | `attachmentRequired` | boolean | | 첨부 필수 여부 |
+| `cautionText` | string | | **참가 유의사항**(D-98) — 읽고 동의하는 글. 비면 구획이 안 생김 |
+| `formFields` | array | | **담당자가 만든 칸들**(D-99). 화면에서 만드는 것이 정상이고, 여기서 손으로 넣을 일은 거의 없습니다 |
 | `createdAt` | timestamp | | 등록 시각 |
 | `updatedAt` | timestamp | | 수정 시각 |
 

@@ -299,7 +299,12 @@ export function canEditMyself(app: Application, program: Program | null): boolea
   if (!program || !program.published) return false
   // 고칠 수 있는 칸이 하나도 없는 프로그램(전용 양식도 기재란도 없음)이면 버튼을
   // 띄우지 않는다 — 열어 봐야 빈 화면이다 (09-16 iSERI 질문에서 발견)
-  if (!program.formType && !program.noteLabel) return false
+  // 담당자가 만든 글 상자·동의도 고칠 수 있는 칸이다 (D-99).
+  // 첨부만 있는 공고는 열어도 못 고치므로 제외한다.
+  const editableFields = (program.formFields ?? []).filter(
+    (f) => f.kind !== 'attachment'
+  ).length
+  if (!program.formType && !program.noteLabel && editableFields === 0) return false
   if (program.formType && !app.formValues) return false
 
   const now = Date.now()

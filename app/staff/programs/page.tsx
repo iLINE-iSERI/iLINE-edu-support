@@ -18,12 +18,14 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import Badge from '@/components/ui/Badge'
 import DescriptionPreview from '@/components/staff/DescriptionPreview'
+import ProgramFieldRows from '@/components/staff/ProgramFieldRows'
 import MemberGate from '@/components/auth/MemberGate'
 import {
   listAllPrograms,
   programIdTaken,
   createProgram,
   updateProgram,
+  setProgramPublished,
   uploadProgramPoster,
   deleteProgramPoster,
   posterRejectReason,
@@ -37,8 +39,15 @@ import {
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { useRevealForm } from '@/lib/hooks/useRevealForm'
 import { FORM_OPTIONS } from '@/lib/forms'
+import { blankField, fieldProblems } from '@/lib/forms/fields'
 import { Timestamp } from 'firebase/firestore'
-import type { Program, ProgramPoster } from '@/lib/types'
+import type {
+  GroupEntry,
+  Program,
+  ProgramPoster,
+  ProgramField,
+  ProgramFieldKind,
+} from '@/lib/types'
 
 /* ── 날짜 칸 ↔ Timestamp ───────────────────────────────────────────
    `datetime-local` 은 '2026-09-10T09:00' 같은 문자열을 주고받는다.
@@ -82,6 +91,7 @@ interface FormState {
   participationType: 'individual' | 'group'
   formType: string
   maxTeamSize: string
+  groupEntry: GroupEntry
   description: string
   opensAt: string
   closesAt: string
@@ -92,6 +102,8 @@ interface FormState {
   attachmentGuide: string
   cautionText: string
   attachmentRequired: boolean
+  /** 담당자가 만든 칸들 (D-99) — 배열 순서가 곧 화면 순서 */
+  fields: ProgramField[]
   /** 산출물 제출 (D-76) */
   outputVisibility: 'private' | 'members'
   outputOpensAt: string
@@ -102,8 +114,13 @@ interface FormState {
   published: boolean
 }
 
-/** 잘못된 칸 → 그 칸 옆에 붙일 사유 */
-type FieldErrors = Partial<Record<keyof FormState, string>>
+/**
+ * 잘못된 칸 → 그 칸 옆에 붙일 사유.
+ * 담당자가 만든 줄은 `row-<fid>` 로 담는다 (D-99) — 인덱스가 아니라 이름표를 쓰는
+ * 이유는 `ProgramField.fid` 주석 참고(줄이 움직여도 오류가 그 줄에 붙어 있어야 한다).
+ */
+type FieldKey = keyof FormState | `row-${string}`
+type FieldErrors = Partial<Record<FieldKey, string>>
 
 const EMPTY: FormState = {
   id: '',
@@ -112,6 +129,7 @@ const EMPTY: FormState = {
   participationType: 'individual',
   formType: '',
   maxTeamSize: '',
+  groupEntry: 'leader',
   description: '',
   opensAt: '',
   closesAt: '',
@@ -122,6 +140,7 @@ const EMPTY: FormState = {
   attachmentGuide: '',
   cautionText: '',
   attachmentRequired: false,
+  fields: [],
   outputVisibility: 'private',
   outputOpensAt: '',
   outputClosesAt: '',
@@ -140,6 +159,7 @@ function toForm(p: Program): FormState {
     participationType: p.participationType ?? 'individual',
     formType: p.formType ?? '',
     maxTeamSize: p.maxTeamSize ? String(p.maxTeamSize) : '',
+    groupEntry: p.groupEntry === 'each' ? 'each' : 'leader',
     description: p.description ?? '',
     opensAt: toInputValue(p.opensAt),
     closesAt: toInputValue(p.closesAt),
@@ -150,6 +170,8 @@ function toForm(p: Program): FormState {
     attachmentGuide: p.attachmentGuide ?? '',
     cautionText: p.cautionText ?? '',
     attachmentRequired: Boolean(p.attachmentRequired),
+    // 줄 객체까지 복사한다 — 얕게 두면 폼에서 고친 값이 목록의 원본에 새어 나간다
+    fields: (p.formFields ?? []).map((f) => ({ ...f })),
     outputVisibility: p.outputVisibility === 'members' ? 'members' : 'private',
     outputOpensAt: toInputValue(p.outputOpensAt),
     outputClosesAt: toInputValue(p.outputClosesAt),
@@ -166,7 +188,7 @@ function toForm(p: Program): FormState {
  * 내려와 해당 칸을 찾아야 한다. **화면을 옮겨 주고 커서까지 넣어**
  * 바로 고칠 수 있게 한다.
  */
-function focusField(key: keyof FormState) {
+function focusField(key: FieldKey) {
   const el = document.getElementById(`pf-${key}`)
   if (!el) return
   el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -233,6 +255,42 @@ function StaffProgramsContent() {
     setErrors((e) => (e[k] ? { ...e, [k]: undefined } : e))
   }
 
+  /* ── 담당자가 만든 칸 (D-99) ─────────────────────────────────
+     줄은 **이름표(fid)로** 찾는다. 인덱스로 찾으면 줄을 지웠을 때
+     같은 번호가 다른 질문을 가리킨다 (ProgramField.fid 주석). */
+
+  const setRow = (fid: string, patch: Partial<ProgramField>) => {
+    setForm((f) => ({
+      ...f,
+      fields: f.fields.map((r) => (r.fid === fid ? { ...r, ...patch } : r)),
+    }))
+    setErrors((e) => (e[`row-${fid}`] ? { ...e, [`row-${fid}`]: undefined } : e))
+  }
+
+  const addRow = (kind: ProgramFieldKind) => {
+    const row = blankField(kind)
+    setForm((f) => ({ ...f, fields: [...f.fields, row] }))
+    // 새 줄로 데려간다 — 폼이 길어서 맨 아래에 붙으면 생긴 줄 모른다.
+    // 그리기가 끝난 뒤라야 찾을 수 있어 다음 틱으로 미룬다.
+    window.setTimeout(() => focusField(`row-${row.fid}`), 0)
+  }
+
+  const moveRow = (fid: string, dir: -1 | 1) => {
+    setForm((f) => {
+      const i = f.fields.findIndex((r) => r.fid === fid)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= f.fields.length) return f
+      const next = [...f.fields]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return { ...f, fields: next }
+    })
+  }
+
+  const removeRow = (fid: string) => {
+    setForm((f) => ({ ...f, fields: f.fields.filter((r) => r.fid !== fid) }))
+    setErrors((e) => ({ ...e, [`row-${fid}`]: undefined }))
+  }
+
   function openNew() {
     setForm(EMPTY)
     setPosterFile(null)
@@ -267,6 +325,8 @@ function StaffProgramsContent() {
       title: f.title,
       year: Number(f.year),
       participationType: f.participationType,
+      // 단체가 아니면 뜻이 없는 값이라 안 넘긴다 (D-99′)
+      groupEntry: f.participationType === 'group' ? f.groupEntry : undefined,
       // 빈 문자열은 '기본 신청서' — toDoc 이 걸러서 저장하지 않는다
       formType: f.formType || undefined,
       maxTeamSize: f.maxTeamSize ? Number(f.maxTeamSize) : undefined,
@@ -280,6 +340,7 @@ function StaffProgramsContent() {
       attachmentGuide: f.attachmentGuide,
       cautionText: f.cautionText,
       attachmentRequired: f.attachmentRequired,
+      formFields: f.fields,
       outputVisibility: f.outputVisibility,
       outputOpensAt: fromInputValue(f.outputOpensAt),
       outputClosesAt: fromInputValue(f.outputClosesAt),
@@ -294,11 +355,11 @@ function StaffProgramsContent() {
     setBusy(true)
     setPageError('')
     try {
-      await updateProgram(
-        p.id,
-        { ...toInput(toForm(p)), published: !p.published },
-        p.createdAt
-      )
+      // 문서를 재조립하지 않는다 — 공개 여부 한 칸만 (D-99).
+      // 예전에는 toInput(toForm(p)) 로 전체를 다시 만들어 넘겼는데,
+      // 그러면 공고에 칸이 하나 늘 때마다 FormState·EMPTY·toForm·toInput
+      // 네 곳을 다 고쳐야 하고 하나라도 빠뜨리면 이 버튼에 값이 날아갔다.
+      await setProgramPublished(p.id, !p.published)
       await load()
     } catch (e) {
       console.error('[iLINE] 공개 상태 변경 실패:', e)
@@ -317,7 +378,13 @@ function StaffProgramsContent() {
   function reject(found: FieldErrors) {
     setErrors(found)
 
-    const ORDER: (keyof FormState)[] = ['id', 'title', 'year', 'opensAt', 'closesAt', 'activityStart', 'activityEnd', 'outputClosesAt']
+    // 담당자가 만든 줄은 화면에서 산출물 설정보다 위에 있으므로 그 사이에 끼운다.
+    // 정적 배열로 두면 줄이 늘어날 때마다 여기를 고쳐야 한다 (D-99).
+    const ORDER: FieldKey[] = [
+      'id', 'title', 'year', 'opensAt', 'closesAt', 'activityStart', 'activityEnd',
+      ...form.fields.map((f) => `row-${f.fid}` as const),
+      'outputClosesAt',
+    ]
     const first = ORDER.find((k) => found[k])
     if (!first) return
 
@@ -366,6 +433,10 @@ function StaffProgramsContent() {
     if (oOpens && oCloses && oOpens >= oCloses) {
       found.outputClosesAt = '제출 시작보다 빠릅니다'
     }
+
+    // 담당자가 만든 칸 (D-99) — 규칙은 lib/forms/fields.ts 한 곳에 있다.
+    // 옛 자유 기재란 이름도 넘겨 이름 중복을 함께 본다.
+    Object.assign(found, fieldProblems(form.fields, form.noteLabel))
 
     /* 중복 ID 확인도 **여기서 함께** 한다.
        예전에는 형식 검사를 모두 통과한 뒤에 물어봤는데, 그러면 연도가 틀려
@@ -564,9 +635,14 @@ function StaffProgramsContent() {
               {form.formType && (
                 <p className="mt-1.5 text-xs leading-relaxed text-ink-subtle">
                   이 프로그램에는 <strong>전용 신청 항목</strong>이 붙습니다.
-                  아래의 자유 기재란·첨부와 <strong>함께</strong> 나타나므로,
-                  전용 양식에 이미 있는 것을 자유 기재란으로 또 묻지 않도록
-                  확인해 주세요.
+                  아래에서 만든 칸과 <strong>함께</strong> 나타나므로, 전용 양식에
+                  이미 있는 것을 또 묻지 않도록 확인해 주세요.
+                  <br />
+                  🔴 <strong>전용 양식은 고른 값에 따라 일부 항목을 감출 수
+                  있습니다</strong> — 예를 들어 해커톤은 「팀 대표자」를 골랐을 때만
+                  트랙·과제·제출 서류가 나옵니다. <strong>화면에 안 보인다고 없는
+                  것이 아닙니다.</strong> 같은 질문을 여기서 또 만들기 전에
+                  담당자에게 확인해 주세요.
                 </p>
               )}
             </Field>
@@ -581,6 +657,40 @@ function StaffProgramsContent() {
                   placeholder="4"
                   className={inputCls()}
                 />
+              </Field>
+            )}
+
+            {/* 단체일 때 **누가 내는가** (D-99′) — 참여 방식과 다른 축이다.
+                전용 양식이 자기 문구를 갖고 있으면 그쪽이 이기므로,
+                여기서 고른 값은 기본 신청서에만 쓰인다 */}
+            {form.participationType === 'group' && (
+              <Field
+                id="groupEntry"
+                label="신청은 누가 하나"
+                hint="공고 상세의 「신청 방식」 줄과 안내 상자 문구가 이것에 따라 바뀝니다. 전용 양식이 걸린 공고는 그 양식의 문구가 우선합니다."
+              >
+                <select
+                  id="pf-groupEntry"
+                  value={form.groupEntry}
+                  onChange={(e) => set('groupEntry', e.target.value as GroupEntry)}
+                  className={inputCls()}
+                >
+                  <option value="leader">대표자 1인이 팀원 명단과 함께 신청</option>
+                  <option value="each">팀원이 각자 신청 (같은 팀명으로 묶임)</option>
+                </select>
+                <p className="mt-1.5 text-xs leading-relaxed text-ink-subtle">
+                  {form.groupEntry === 'each' ? (
+                    <>
+                      <strong>팀명 칸을 꼭 만드세요</strong> — 아래 「칸 추가 → 글 상자」로
+                      만들고 필수로 두면, 같은 팀명을 적은 신청끼리 묶입니다.
+                    </>
+                  ) : (
+                    <>
+                      대표자가 <strong>남의 개인정보를 대신 입력</strong>하게 되므로,
+                      신청 화면에 「팀원 전원에게 미리 동의를 받으라」는 안내가 함께 나갑니다.
+                    </>
+                  )}
+                </p>
               </Field>
             )}
 
@@ -719,17 +829,42 @@ function StaffProgramsContent() {
               </Field>
             </div>
 
-            {/* ── 신청서 구성 (D-29) ─────────────────────── */}
+            {/* ── 신청서 구성 (D-29 → D-99) ─────────────────
+                옛 칸 셋(자유 기재란·첨부·유의사항)은 **값이 있을 때만** 보인다.
+                새 공고는 아래 목록만 쓴다 — 옛 칸을 만들 길을 없앤 일방통행이다. */}
             <div className="space-y-5 rounded-xl bg-subtle p-4">
               <div>
                 <h3 className="font-bold">신청서에 추가할 칸</h3>
                 <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
                   비워두면 신청서는 <strong>내 정보 확인 후 제출</strong>만
-                  있습니다. 프로그램마다 받을 것이 다른 문제를 글칸 하나 · 첨부
-                  하나로 해결합니다.
+                  있습니다. 필요한 만큼 <strong>글 상자 · 첨부 · 동의</strong>를
+                  더하고, 칸마다 필수 여부를 정하세요.
                 </p>
               </div>
 
+              <ProgramFieldRows
+                rows={form.fields}
+                errors={errors}
+                onChange={setRow}
+                onAdd={addRow}
+                onMove={moveRow}
+                onRemove={removeRow}
+              />
+
+              {/* 옛 방식 칸 (D-29) — **값이 있는 공고에만** 보인다.
+                  새 공고는 위 목록만 쓴다. 지우고 저장하면 그 칸이 문서에서
+                  사라지므로, 담당자가 스스로 졸업시킬 수 있다 (이주 스크립트 없음). */}
+              {(form.noteLabel.trim() ||
+                form.attachmentGuide.trim() ||
+                form.cautionText.trim()) && (
+                <div className="space-y-5 rounded-lg border border-line-strong bg-surface p-4">
+                  <p className="text-sm font-bold">
+                    옛 방식 칸
+                    <span className="ml-2 font-normal text-xs text-ink-subtle">
+                      이 공고가 예전 방식으로 만들어졌습니다. 그대로 두셔도 되고,
+                      지우고 위 목록으로 옮기셔도 됩니다.
+                    </span>
+                  </p>
               <Field
                 id="noteLabel"
                 label="자유 기재란 이름 (선택)"
@@ -793,6 +928,8 @@ function StaffProgramsContent() {
                   className={inputCls()}
                 />
               </Field>
+                </div>
+              )}
             </div>
 
             {/* ── 산출물 제출 (D-76) ─────────────────────── */}

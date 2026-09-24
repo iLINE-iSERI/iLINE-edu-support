@@ -30,9 +30,12 @@ import {
   APPLICATION_STATUS_LABEL,
   type Application,
   type ApplicationStatus,
+  type GroupEntry,
   type Program,
+  type ProgramField,
   type ProgramPoster,
 } from '@/lib/types'
+import { cleanFields } from '@/lib/forms/fields'
 
 /**
  * 전체 신청 목록.
@@ -186,6 +189,8 @@ export interface ProgramInput {
   year: number
   participationType: Program['participationType']
   maxTeamSize?: number
+  /** 단체일 때 누가 내나 (D-99′) — 'leader' 는 기본값이라 저장하지 않는다 */
+  groupEntry?: GroupEntry
   description?: string
   opensAt?: Date
   closesAt?: Date
@@ -198,6 +203,8 @@ export interface ProgramInput {
   attachmentRequired?: boolean
   /** 참가 유의사항 (D-98) — 비면 신청서에 구획이 안 나온다 */
   cautionText?: string
+  /** 담당자가 만든 신청서 칸들 (D-99) — 비면 키 자체를 안 만든다 */
+  formFields?: ProgramField[]
   /** 이 프로그램 전용 신청 항목의 이름 (D-50). 빈 값이면 기본 신청서 */
   formType?: string
   /** 산출물 제출 (D-76) — 전부 선택. 기한을 비우면 활동 기간을 따른다 */
@@ -274,7 +281,11 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   }
 
   const put = (k: string, v: unknown) => {
-    if (v !== undefined && v !== '' && v !== null) out[k] = v
+    if (v === undefined || v === '' || v === null) return
+    // 빈 배열도 '없는 것'이다 (D-99). 이게 없으면 칸을 하나도 안 만든 공고에
+    // `formFields: []` 가 남아, D-99 이전 공고와 문서 모양이 달라진다.
+    if (Array.isArray(v) && v.length === 0) return
+    out[k] = v
   }
 
   put('description', input.description?.trim())
@@ -285,6 +296,9 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   put('noteLabel', input.noteLabel?.trim())
   put('attachmentGuide', input.attachmentGuide?.trim())
   put('cautionText', input.cautionText?.trim())
+  // 'leader' 는 기본값이라 저장하지 않는다 — 옛 공고와 문서 모양을 같게 (D-99′)
+  if (input.groupEntry === 'each') out.groupEntry = 'each'
+  put('formFields', cleanFields(input.formFields ?? []))
   // '기본 신청서'를 고르면 빈 문자열이 오고, put 이 걸러 낸다.
   // 위의 setDoc 이 문서를 통째로 덮어쓰므로 **전용 양식이 실제로 떨어진다.**
   put('formType', input.formType?.trim())
@@ -338,6 +352,25 @@ export async function updateProgram(
     // 콘솔에서 손으로 만든 프로그램은 createdAt 이 없을 수 있다.
     // 그럴 때 undefined 를 넣으면 저장이 거부되므로 지금 시각으로 채운다.
     createdAt: createdAt ?? serverTimestamp(),
+  })
+}
+
+/**
+ * 공개/비공개만 뒤집기 (D-99).
+ *
+ * ⚠️ `updateProgram` 을 부르지 않는다. 그쪽은 `setDoc` 통째 덮어쓰기라,
+ *    화면의 `FormState` 를 거쳐 문서를 **재조립**해야 한다. 그러면 공고에 칸이
+ *    하나 늘 때마다 `FormState`·`EMPTY`·`toForm`·`toInput` **네 곳을 다 고쳐야**
+ *    하고, 하나라도 빠뜨리면 **「공개하기」 한 번에 그 값이 날아간다.**
+ *    공개 여부는 다른 칸과 아무 상관이 없으므로 그 한 칸만 건드린다.
+ */
+export async function setProgramPublished(
+  id: string,
+  published: boolean
+): Promise<void> {
+  await updateDoc(doc(getDb(), COL.programs, id), {
+    published,
+    updatedAt: serverTimestamp(),
   })
 }
 

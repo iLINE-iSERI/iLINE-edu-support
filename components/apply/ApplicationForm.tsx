@@ -19,7 +19,17 @@ import {
 import Button from '@/components/ui/Button'
 import ApplicationSheet from './ApplicationSheet'
 import PortraitConsent from './PortraitConsent'
+import ProgramFields from './ProgramFields'
 import { formFor, type FormValues } from '@/lib/forms'
+import {
+  fieldsOf,
+  clearStale,
+  sealConsents,
+  isStale,
+  firstProblem,
+  rowsForFields,
+  consentSnapshots,
+} from '@/lib/forms/fields'
 import { elementToPdfBlob } from '@/lib/pdf/applicationPdf'
 import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
 import {
@@ -101,7 +111,11 @@ export default function ApplicationForm({
    * 어떤 항목이 있는지는 **이 화면이 모른다** — 프로그램에 걸린 양식이 정한다.
    * 수정 모드면 저장해 둔 원래 값(formValues)으로 시작한다.
    */
-  const [extra, setExtra] = useState<FormValues>(editing?.formValues ?? {})
+  const [extra, setExtra] = useState<FormValues>(() =>
+    // 수정 화면을 **열 때 한 번** — 본문이 바뀐 동의는 답과 스냅샷을 비워
+    // 다시 묻게 한다 (D-98 결함 ②). 이게 없으면 읽은 적 없는 동의가 남는다.
+    clearStale(fieldsOf(program), editing?.formValues ?? {})
+  )
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState('')
   const [error, setError] = useState('')
@@ -122,18 +136,32 @@ export default function ApplicationForm({
   /** 이 프로그램 전용 신청 항목 — 없으면 지금까지처럼 기본 신청서만 나온다 */
   const form = formFor(program.formType)
 
+  /** 담당자가 공고에서 만든 칸들 (D-99) */
+  const fields = fieldsOf(program)
+  /** 수정 중인데 본문이 바뀌어 **다시 물어야 하는** 동의 칸 */
+  const staleIds = new Set(
+    isEdit ? fields.filter((f) => isStale(extra, f)).map((f) => f.fid) : []
+  )
+
   /**
-   * 신청서에 저장할 `{라벨, 값}` 줄 — 전용 양식의 답 + 유의사항 동의.
-   * PDF·시트·담당자 화면이 **이 한 벌**을 함께 나른다. 유의사항 동의만
-   * 따로 두면 세 곳을 다 고쳐야 하므로 같은 줄에 태운다.
+   * 신청서에 저장할 `{라벨, 값}` 줄 — 전용 양식 + 옛 유의사항 + 담당자가 만든 칸.
+   * PDF·시트·담당자 화면이 **이 한 벌**을 함께 나른다. 따로 두면 세 곳을 다
+   * 고쳐야 하므로 같은 줄에 태운다. **순서는 화면 순서와 같다.**
    */
-  const rowsToSave = () => {
-    const rows = form ? form.toRows(extra) : []
-    return wantsCaution
-      ? [...rows, { label: '참가 유의사항 확인', value: '확인함' }]
-      : rows
-  }
-  const savedRows = rowsToSave()
+  const rowsAt = (v: FormValues) => [
+    ...(form ? form.toRows(v) : []),
+    ...(wantsCaution
+      ? [
+          {
+            label: '참가 유의사항 확인',
+            value: cautionOk || isEdit ? '확인함' : '확인하지 않음',
+          },
+        ]
+      : []),
+    ...rowsForFields(fields, v),
+  ]
+  /** 화면(PDF 인쇄본)이 지금 보고 있는 줄 */
+  const savedRows = rowsAt(extra)
 
   const consent = (purpose: string) =>
     member.consents.some((c) => c.purpose === purpose && c.agreed)
@@ -165,6 +193,83 @@ export default function ApplicationForm({
     // 비우지 않으면 '같은 파일 재선택'이 change 이벤트를 일으키지 않아
     // 사용자가 다시 시도해도 아무 반응이 없다.
     if (input) input.value = ''
+  }
+
+  /**
+   * 파일 고르기 UI — **옛 첨부 칸과 담당자가 만든 첨부 칸이 같은 것을 쓴다** (D-99).
+   * 상태(`files`·`rejected`)는 이 화면이 계속 쥐고 있다. 첨부는 공고당 하나라
+   * 상태를 칸별로 쪼갤 필요가 없다.
+   */
+  function fileUI(required: boolean) {
+    return (
+      <>
+          {/* D-24: capture 속성을 두지 않아 '카메라 촬영'과 '파일 선택'이
+                   모두 뜨게 한다. 휴대폰에서 영수증을 바로 찍어 올릴 수 있다. */}
+          {/* data-field-* — 찾아가기(lib/ui/formSeek)용. 파일 input 은 고른 뒤 값이 비워지므로 상태로 알려 준다 */}
+          <input
+            type="file"
+            multiple
+            accept={ACCEPT}
+            data-field-required={required && !editing ? 'true' : undefined}
+            data-field-filled={files.length > 0 || (editing?.files?.length ?? 0) > 0 ? 'true' : 'false'}
+            onChange={(e) => handleFiles(e.target.files, e.target)}
+            className="mt-4 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2.5 file:font-semibold file:text-white"
+          />
+          <p className="mt-2 text-xs text-ink-subtle">
+            사진 또는 PDF · 1개당 20MB 이하 · 최대 {MAX_FILES}개
+          </p>
+
+          {/* 걸러진 파일 — 제출할 때까지 사라지지 않는다 */}
+          {rejected.length > 0 && (
+            <div
+              role="alert"
+              className="mt-3 rounded-xl border border-status-revision/40 bg-status-revision/10 p-3 text-sm"
+            >
+              <p className="font-bold text-status-revision">
+                첨부하지 못한 파일 {rejected.length}개
+              </p>
+              <ul className="mt-1.5 space-y-1 text-ink-muted">
+                {rejected.map((r, i) => (
+                  <li key={`${r.name}-${i}`} className="leading-relaxed">
+                    <span className="break-all font-medium">{r.name}</span>
+                    <span className="text-ink-subtle"> — {r.why}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => {
+                  setRejected([])
+                  setError('')
+                }}
+                className="mt-2 text-xs font-semibold text-ink-muted underline underline-offset-2"
+              >
+                무시하고 계속
+              </button>
+            </div>
+          )}
+
+          {files.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {files.map((f, i) => (
+                <li
+                  key={`${f.name}-${i}`}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-subtle px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                    className="shrink-0 text-xs font-semibold text-ink-muted underline"
+                  >
+                    삭제
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+      </>
+    )
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -204,12 +309,25 @@ export default function ApplicationForm({
       setError('참가 유의사항을 확인하고 체크해 주세요.')
       return
     }
+    // 담당자가 만든 칸 (D-99) — 배열 순서대로 = 화면 순서대로 본다.
+    // 규칙은 lib/forms/fields.ts 한 곳에 있고 여기서는 부르기만 한다.
+    const fieldBad = firstProblem(fields, extra, { isEdit, fileCount: files.length })
+    if (fieldBad) {
+      setError(fieldBad)
+      return
+    }
+
     // 초상권은 '선택' 항목이지만 **답은 반드시 골라야** 한다 (D-44).
     // 거부도 기록해야 하므로, 안 고른 채 넘어가면 기록상 거부와 구분되지 않는다.
     if (portrait === null) {
       setError('초상권 활용 동의 여부를 선택해 주세요. 동의하지 않으셔도 신청하실 수 있습니다.')
       return
     }
+
+    // 동의 본문을 **그 시점 값으로 확정**한다 (D-99 §4). 공고를 나중에 고쳐도
+    // "무엇에 동의했는가"가 신청서에 남는다. 거부한 동의의 본문도 남긴다.
+    const sealed = sealConsents(fields, extra)
+    if (sealed !== extra) setExtra(sealed)
 
     setBusy(true)
     try {
@@ -230,8 +348,8 @@ export default function ApplicationForm({
         await updateMyApplication({
           app: editing,
           program,
-          formData: savedRows.length ? savedRows : undefined,
-          formValues: form ? extra : undefined,
+          formData: rowsAt(sealed).length ? rowsAt(sealed) : undefined,
+          formValues: Object.keys(sealed).length ? sealed : undefined,
           note,
           pdf,
         })
@@ -247,8 +365,8 @@ export default function ApplicationForm({
         member,
         uid,
         portraitConsent: portrait,
-        formData: savedRows.length ? savedRows : undefined,
-        formValues: form ? extra : undefined,
+        formData: rowsAt(sealed).length ? rowsAt(sealed) : undefined,
+        formValues: Object.keys(sealed).length ? sealed : undefined,
         note,
         files,
         pdf,
@@ -298,6 +416,7 @@ export default function ApplicationForm({
         }
         portraitConsent={portrait}
         formRows={savedRows.length ? savedRows : undefined}
+        consents={consentSnapshots(fields, extra)}
         edit={
           editing
             ? {
@@ -410,6 +529,7 @@ export default function ApplicationForm({
       )}
 
       {/* ── 첨부 — 프로그램이 요구할 때만 ────────────────────── */}
+      {/* 옛 방식 첨부 (D-29) — 담당자가 안내 문구를 적어 둔 공고에만 */}
       {wantsFiles && !isEdit && (
         <section className="rounded-2xl border border-line shadow-card bg-surface p-5">
           <h2 className="font-bold">
@@ -423,72 +543,7 @@ export default function ApplicationForm({
           <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-ink-muted">
             {program.attachmentGuide}
           </p>
-
-          {/* D-24: capture 속성을 두지 않아 '카메라 촬영'과 '파일 선택'이
-                   모두 뜨게 한다. 휴대폰에서 영수증을 바로 찍어 올릴 수 있다. */}
-          {/* data-field-* — 찾아가기(lib/ui/formSeek)용. 파일 input 은 고른 뒤 값이 비워지므로 상태로 알려 준다 */}
-          <input
-            type="file"
-            multiple
-            accept={ACCEPT}
-            data-field-required={program.attachmentRequired && !editing ? 'true' : undefined}
-            data-field-filled={files.length > 0 || (editing?.files?.length ?? 0) > 0 ? 'true' : 'false'}
-            onChange={(e) => handleFiles(e.target.files, e.target)}
-            className="mt-4 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2.5 file:font-semibold file:text-white"
-          />
-          <p className="mt-2 text-xs text-ink-subtle">
-            사진 또는 PDF · 1개당 20MB 이하 · 최대 {MAX_FILES}개
-          </p>
-
-          {/* 걸러진 파일 — 제출할 때까지 사라지지 않는다 */}
-          {rejected.length > 0 && (
-            <div
-              role="alert"
-              className="mt-3 rounded-xl border border-status-revision/40 bg-status-revision/10 p-3 text-sm"
-            >
-              <p className="font-bold text-status-revision">
-                첨부하지 못한 파일 {rejected.length}개
-              </p>
-              <ul className="mt-1.5 space-y-1 text-ink-muted">
-                {rejected.map((r, i) => (
-                  <li key={`${r.name}-${i}`} className="leading-relaxed">
-                    <span className="break-all font-medium">{r.name}</span>
-                    <span className="text-ink-subtle"> — {r.why}</span>
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                onClick={() => {
-                  setRejected([])
-                  setError('')
-                }}
-                className="mt-2 text-xs font-semibold text-ink-muted underline underline-offset-2"
-              >
-                무시하고 계속
-              </button>
-            </div>
-          )}
-
-          {files.length > 0 && (
-            <ul className="mt-3 space-y-2">
-              {files.map((f, i) => (
-                <li
-                  key={`${f.name}-${i}`}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-subtle px-3 py-2 text-sm"
-                >
-                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setFiles(files.filter((_, j) => j !== i))}
-                    className="shrink-0 text-xs font-semibold text-ink-muted underline"
-                  >
-                    삭제
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {fileUI(Boolean(program.attachmentRequired))}
         </section>
       )}
 
@@ -531,6 +586,18 @@ export default function ApplicationForm({
           )}
         </section>
       )}
+
+      {/* ── 담당자가 만든 칸 (D-99) ─────────────────────────
+          공고 화면에서 만든 글 상자·첨부·동의. 규칙은 lib/forms/fields.ts 에
+          있고, 첨부의 파일 UI 는 이 화면이 계속 그린다(상태를 쪼개지 않으려고). */}
+      <ProgramFields
+        fields={fields}
+        values={extra}
+        onChange={(k, val) => setExtra((prev) => ({ ...prev, [k]: val }))}
+        isEdit={isEdit}
+        staleIds={staleIds}
+        renderAttachment={(f) => fileUI(Boolean(f.required))}
+      />
 
       {/* ── 초상권 동의 (D-44) ──────────────────────────────
           가입이 아니라 여기서 받는다. 사진은 **이 프로그램의 활동**에서

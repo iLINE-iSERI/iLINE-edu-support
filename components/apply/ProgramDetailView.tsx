@@ -18,6 +18,7 @@ import {
   formatDate,
 } from '@/lib/firebase/programs'
 import { formFor } from '@/lib/forms'
+import { GROUP_NOTICE, groupEntryOf } from '@/lib/forms/fields'
 import { SITE } from '@/lib/config/site'
 import { APPLICATION_STATUS_LABEL } from '@/lib/types'
 import type { Program, Application, SupportUser } from '@/lib/types'
@@ -54,15 +55,14 @@ export default function ProgramDetailView({
   const isGroup = program.participationType === 'group'
 
   /**
-   * 단체 신청 안내는 **양식에서 가져온다** (D-95). 양식이 없거나 안 적어 두었으면
-   * 기본 신청서 기준인 아래 문구 — 공고 화면이 방식을 짐작하지 않는다.
+   * 단체 신청 안내 — **순서가 있다** (D-95 → D-99′).
+   *   ① 전용 양식이 자기 문구를 갖고 있으면 **그게 이긴다.** 양식은 자기 방식을
+   *      알고 있고, 담당자가 고른 값은 틀릴 수 있다
+   *   ② 없으면(기본 신청서) 공고에서 담당자가 고른 「신청 방법」
+   * 공고 화면이 방식을 **짐작하지 않는다** — 이 화면은 아무것도 안다고 가정하지 않는다.
    */
-  const groupNotice = formFor(program.formType)?.groupNotice ?? {
-    howToApply: '대표자가 팀원 명단과 함께',
-    body:
-      '대표자 한 분이 팀원의 이름·학번·전공·학년·연락처를 함께 제출합니다. ' +
-      '팀원 전원에게 미리 동의를 받은 뒤 입력해 주세요. 신청서에서 동의 여부를 확인합니다.',
-  }
+  const groupNotice =
+    formFor(program.formType)?.groupNotice ?? GROUP_NOTICE[groupEntryOf(program)]
 
   /**
    * 고정 카드·하단 바의 버튼 하나 — 상태에 따라 글과 행선지가 다르다.
