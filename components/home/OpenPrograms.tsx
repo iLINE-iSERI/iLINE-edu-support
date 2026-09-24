@@ -258,7 +258,7 @@ function ProgramHeroCard({
 
   if (size === 'tall') {
     return (
-      <article className="card flex flex-col p-5">
+      <article className="card-raised flex flex-col p-5">
         {head}
         {title}
         {meta}
@@ -272,7 +272,7 @@ function ProgramHeroCard({
   }
 
   return (
-    <article className={'card flex ' + (size === 'wide' ? 'p-5 sm:p-6' : 'p-5')}>
+    <article className={'card-raised flex ' + (size === 'wide' ? 'p-5 sm:p-6' : 'p-5')}>
       <div className="flex min-w-0 flex-1 flex-col">
         {head}
         {title}

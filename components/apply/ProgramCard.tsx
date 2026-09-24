@@ -40,7 +40,7 @@ export default function ProgramCard({ program }: { program: Program }) {
         //   PC(md 이상)      [포스터 | 배지·제목·요약·항목·메타·버튼]  (D-89 가로 분할 그대로)
         // 휴대폰에서 카드가 화면을 다 먹던 원인은 글이 아니라 240×320 포스터였다(포스터 없는
         // 카드는 한 화면에 들어왔음) → 썸네일 100px 로. 사방 같은 패딩(1rem · md 1.25rem)
-        'card-link program-card ' + (poster ? '' : 'program-card--noposter ') + (closed ? 'opacity-80' : '')
+        'card-raised-link program-card ' + (poster ? '' : 'program-card--noposter ') + (closed ? 'opacity-80' : '')
       }
     >
       {poster && (
