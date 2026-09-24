@@ -140,14 +140,24 @@ export function formatPeriod(from?: Timestamp, to?: Timestamp): string {
 }
 
 /**
- * 짧은 기간 표기 (홈 첫 화면용 · D-72) — '2026. 9. 15.(월) 09:00 ~ 9. 30.(화) 18:00'
+ * 짧은 기간 표기 (홈 첫 화면용 · D-72) — '2026. 9. 15.(월) ~ 9. 30.(화) 18:00'
  * 같은 해면 뒤쪽 연도는 생략하고, 시각이 00:00 이면(날짜만 받은 활동 기간) 시각을 뺀다.
+ *
+ * **기간(`from`~`to`)에서는 시작 시각을 생략하고 마감 시각만 남긴다** (D-102).
+ * "언제부터"의 시각은 **이미 접수가 시작된 뒤라 가치가 낮고**, "언제까지"는
+ * **마감 당일(D-0)에 결정적**이다 — 배지가 「오늘 마감」으로만 바뀌면 밤에
+ * 들어온 사람이 몇 시까지인지 모른다. 홈 카드가 좁아 한 줄이 날짜 중간에서
+ * 쪼개지던 것도 이 줄이 짧아지면 함께 풀린다.
+ *
+ * 🔴 **단일 시점(`from` 만 · `to` 만)은 시각을 그대로 둔다.**
+ *    `components/outputs/ProgramOutputs.tsx` 가 「…부터 / …까지 올릴 수
+ *    있습니다」로 쓰는데, 거기서는 **그 시각이 유일한 정보**다.
  */
 export function formatPeriodShort(from?: Timestamp, to?: Timestamp): string {
   if (!from && !to) return '상시'
   const DOW = ['일', '월', '화', '수', '목', '금', '토']
-  const one = (d: Date, withYear: boolean) => {
-    const t = d.getHours() || d.getMinutes()
+  const one = (d: Date, withYear: boolean, withTime = true) => {
+    const t = withTime && (d.getHours() || d.getMinutes())
       ? ` ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
       : ''
     return `${withYear ? `${d.getFullYear()}. ` : ''}${d.getMonth() + 1}. ${d.getDate()}.(${DOW[d.getDay()]})${t}`
@@ -156,6 +166,7 @@ export function formatPeriodShort(from?: Timestamp, to?: Timestamp): string {
   const t = to?.toDate()
   if (f && !t) return `${one(f, true)}부터`
   if (!f && t) return `${one(t, true)}까지`
-  if (f && t) return `${one(f, true)} ~ ${one(t, t.getFullYear() !== f.getFullYear())}`
+  // 시작은 시각 없이, 마감은 시각까지 (위 주석)
+  if (f && t) return `${one(f, true, false)} ~ ${one(t, t.getFullYear() !== f.getFullYear())}`
   return ''
 }

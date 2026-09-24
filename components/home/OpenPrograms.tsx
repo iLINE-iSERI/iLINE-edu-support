@@ -198,20 +198,39 @@ function ProgramHeroCard({
   const dday = daysUntilClose(p)
   const isGroup = p.participationType === 'group'
 
+  /**
+   * 메타 — **목록 카드(`ProgramCard`)의 키·값 구조에 맞춘다** (D-102).
+   * 줄글이던 탓에 카드 폭에 밀려 **날짜 중간(`9.` / `30.(수)`)에서 쪼개졌다.**
+   * 새로 설계하지 않고 이미 있는 구조를 가져왔다.
+   *
+   * 강약이 **전과 정반대**다 — 레이블을 연하게(`text-ink-subtle`), 값을 진하게
+   * (`font-medium`). **값이 정보이고 레이블은 안내**이며, 목록·상세가 이미 그렇다.
+   *
+   * 목록 카드의 **회색 상자(`bg-subtle`)는 가져오지 않는다.** 거기는 줄이 많아
+   * 묶을 값이 있지만, 여기는 2~3행뿐이고 이미 흰 카드 안이라 면을 하나 더
+   * 얹으면 무거워진다. **구조만 가져오고 면은 두지 않는다.**
+   *
+   * 세 크기(`wide`·`tall`·`compact`)가 이 하나를 함께 쓴다.
+   */
   const meta = (
-    <p className="mt-2 break-keep text-sm leading-relaxed text-ink-muted">
-      <b className="font-semibold text-ink">접수</b> {formatPeriodShort(p.opensAt, p.closesAt)}
-      {' · '}
-      <b className="font-semibold text-ink">신청</b>{' '}
-      {isGroup ? groupNoticeOf(p).short : '개인'}
+    <dl className="mt-2 grid gap-y-1 break-keep text-sm leading-relaxed">
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-ink-subtle">접수</dt>
+        <dd className="font-medium">{formatPeriodShort(p.opensAt, p.closesAt)}</dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="shrink-0 text-ink-subtle">신청</dt>
+        <dd className="font-medium">{isGroup ? groupNoticeOf(p).short : '개인'}</dd>
+      </div>
       {size !== 'compact' && (p.activityStart || p.activityEnd) && (
-        <>
-          {' · '}
-          <b className="font-semibold text-ink">활동</b>{' '}
-          {formatPeriodShort(p.activityStart, p.activityEnd)}
-        </>
+        <div className="flex gap-2">
+          <dt className="shrink-0 text-ink-subtle">활동</dt>
+          <dd className="font-medium">
+            {formatPeriodShort(p.activityStart, p.activityEnd)}
+          </dd>
+        </div>
       )}
-    </p>
+    </dl>
   )
 
   const head = (
