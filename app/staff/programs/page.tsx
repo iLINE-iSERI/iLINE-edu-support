@@ -198,6 +198,44 @@ function focusField(key: FieldKey) {
 }
 
 /**
+ * 공고 목록을 **네 구역**으로 (D-110 · 09-25 iSERI).
+ *
+ * 예전에는 연도 → 만든 순(최신 먼저) 한 줄이라, 오늘 만든 **시험 공고가 접수 중인
+ * 공고보다 위에** 떴다. 담당자가 이 화면을 열 때 알고 싶은 것은 *"지금 손봐야 할
+ * 공고가 뭐지"* 다 — 그러려면 **마감이 가까운 접수 중 공고**가 맨 위여야 한다.
+ *
+ *   ① 접수 중    — 공개 · 접수 기간 안. **마감 임박 순** (마감 없는 상시 접수는 끝에)
+ *   ② 접수 예정  — 공개 · 시작 전. 시작이 가까운 순
+ *   ③ 비공개     — 작성 중·시험용. 최근 만든 순. **지난 공고보다 위** — 지금 작업 중인 것이라
+ *   ④ 지난 공고  — 공개 · 마감. 최근 마감 순. **해마다 쌓이므로 접어 둔다**
+ *
+ * 「공개/비공개」 두 칸만 두지 않은 이유 — 공개 안에서도 접수 중·예정·마감이 섞이고,
+ * 마감 공고가 쌓이면 1년 뒤에는 공개 칸이 지난 공고로 가득 찬다.
+ */
+function programSections(list: Program[]) {
+  const ms = (t?: { toMillis(): number }) => t?.toMillis() ?? 0
+  const open: Program[] = []
+  const upcoming: Program[] = []
+  const hidden: Program[] = []
+  const past: Program[] = []
+  for (const p of list) {
+    if (!p.published) hidden.push(p)
+    else {
+      const phase = getProgramPhase(p)
+      if (phase === 'open') open.push(p)
+      else if (phase === 'upcoming') upcoming.push(p)
+      else past.push(p)
+    }
+  }
+  // 마감 없는 상시 접수는 맨 끝 — 급한 순서에서 가장 덜 급하다
+  open.sort((a, b) => (ms(a.closesAt) || Infinity) - (ms(b.closesAt) || Infinity))
+  upcoming.sort((a, b) => ms(a.opensAt) - ms(b.opensAt))
+  hidden.sort((a, b) => ms(b.createdAt) - ms(a.createdAt))
+  past.sort((a, b) => ms(b.closesAt) - ms(a.closesAt))
+  return { open, upcoming, hidden, past }
+}
+
+/**
  * 새 단체 공고에 「팀명」 칸을 **미리 한 줄** 넣는다 (D-107 · 09-25 iSERI).
  *
  * 팀명 칸을 만들고 「이 칸이 팀명입니다」까지 체크해야 산출물이 팀으로 묶이는데
@@ -1121,8 +1159,10 @@ function StaffProgramsContent() {
             desc="위 [새 프로그램 등록]으로 첫 공고를 올려 보세요."
           />
         ) : (
-          <ul className="space-y-3">
-            {programs.map((p) => {
+          (() => {
+            const { open, upcoming, hidden, past } = programSections(programs)
+            // 한 줄의 모양·버튼은 예전 그대로 — 묶는 방식과 순서만 바뀌었다 (D-110)
+            const item = (p: Program) => {
               const phase = getProgramPhase(p)
               return (
                 <li
@@ -1173,8 +1213,44 @@ function StaffProgramsContent() {
                   </div>
                 </li>
               )
-            })}
-          </ul>
+            }
+            const section = (title: string, list: Program[], hint?: string) =>
+              list.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-bold">
+                    {title}{' '}
+                    <span className="font-semibold text-ink-subtle">{list.length}</span>
+                    {hint && (
+                      <span className="ml-2 text-xs font-normal text-ink-subtle">{hint}</span>
+                    )}
+                  </h2>
+                  <ul className="space-y-3">{list.map(item)}</ul>
+                </section>
+              )
+            return (
+              <div className="space-y-8">
+                {section('접수 중', open, '마감이 가까운 순')}
+                {section('접수 예정', upcoming, '시작이 가까운 순')}
+                {section('비공개', hidden, '작성 중·시험용 — 학생에게 안 보입니다')}
+                {/* 지난 공고는 해마다 쌓이므로 접어 둔다 — 누르면 펼쳐진다 */}
+                {past.length > 0 && (
+                  <details className="group space-y-3">
+                    <summary className="cursor-pointer list-none text-sm font-bold">
+                      <span className="mr-1 inline-block transition-transform group-open:rotate-90">
+                        ▸
+                      </span>
+                      지난 공고{' '}
+                      <span className="font-semibold text-ink-subtle">{past.length}</span>
+                      <span className="ml-2 text-xs font-normal text-ink-subtle">
+                        접수가 끝난 공고 — 누르면 펼쳐집니다
+                      </span>
+                    </summary>
+                    <ul className="mt-3 space-y-3">{past.map(item)}</ul>
+                  </details>
+                )}
+              </div>
+            )
+          })()
         )}
 
         <p className="text-xs leading-relaxed text-ink-subtle">
