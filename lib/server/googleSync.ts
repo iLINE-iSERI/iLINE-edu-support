@@ -282,6 +282,45 @@ async function fitColumns(
 }
 
 /**
+ * 이 건이 쓸 줄 — **A열에서 자기 번호를 찾는다** (D-109 · 09-25). 없으면 0(새로 붙인다).
+ *
+ * 🔴 **왜 기억해 둔 번호(`sheetRowId`)를 그대로 믿지 않나.** 예전에는 그 번호의 줄을
+ *    **확인 없이 덮어썼다.** 담당자가 시트에서 **행을 삭제**하면 아래 줄이 위로 당겨져
+ *    번호가 어긋나고, 줄 **내용을 비우면** 새 신청이 그 빈 줄로 들어와 두 문서가 같은
+ *    번호를 기억하게 된다. 그 뒤 동기화 때마다 **다른 사람의 줄을 덮어썼다**(09-25 iSERI
+ *    가 시험 줄을 지운 뒤 실제로 겪음). A열은 네 탭 모두 **그 문서의 번호**라, 쓸 때마다
+ *    거기서 찾으면 줄을 지우든 비우든 정렬하든 **각 건이 자기 줄을 스스로 찾는다.**
+ *
+ * 기억해 둔 번호는 **먼저 확인하는 힌트**로만 쓴다 — 그 줄 A열이 자기 번호면 바로 쓰고,
+ * 아니면 A열 전체에서 찾는다. 같은 번호가 여러 줄이면 첫 줄에 쓴다(나머지는
+ * `scripts/check-sheet-rows.mjs` 가 「중복」으로 알려 준다 — 여기서 지우지 않는다).
+ *
+ * 새 줄은 지금처럼 `append` 로 붙인다. 번호를 직접 계산해 쓰면 두 신청이 동시에 오면
+ * **같은 줄을 둘이 쓴다** — `append` 는 구글이 한 줄씩 차례로 붙여 준다.
+ * (빈 줄이 있으면 그 자리에 붙어 순서가 섞일 수는 있지만, 이제는 덮어쓰지 않는다.)
+ *
+ * `tab` 이 null 이면 **첫 번째 탭**(신청) — 이름이 아니라 위치로 찾는다.
+ */
+async function findSheetRow(
+  sheets: Sheets,
+  spreadsheetId: string,
+  tab: string | null,
+  id: string,
+  hint: number
+): Promise<number> {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: tab ? `'${tab}'!A:A` : 'A:A',
+    majorDimension: 'COLUMNS',
+  })
+  // 인덱스 0 이 1행(머리글)
+  const colA = (res.data.values?.[0] ?? []).map((v) => String(v ?? '').trim())
+  if (hint > 1 && colA[hint - 1] === id) return hint
+  const idx = colA.findIndex((v, i) => i > 0 && v === id)
+  return idx > 0 ? idx + 1 : 0
+}
+
+/**
  * 링크 셀 — URL 을 그대로 쓰면 80자가 넘어 열이 잘린다 (09-17). 셀에는 짧은 글자만 두고
  * 그 글자에 링크를 건다. 클릭하면 똑같이 열리고, 열은 글자 폭만 차지한다.
  * 값을 RAW 로 쓴 **뒤에** 부른다 (그 셀만 덮어쓴다).
@@ -612,7 +651,10 @@ export async function syncApplication(
 
   // 이미 시트에 줄이 있으면(수정본 · 재시도) **그 줄을 덮어쓴다** — 정산 탭과 같은 방식.
   // 새 줄을 또 붙이면 담당자가 같은 사람을 두 번 세게 된다.
-  const existing = Number(app.sheetRowId) || 0
+  // D-109: 기억한 번호를 믿지 않고 A열에서 자기 번호를 찾는다 (findSheetRow)
+  const existing = await step('시트 줄 찾기', () =>
+    findSheetRow(sheets, cfg.sheetId, null, app.id, Number(app.sheetRowId) || 0)
+  )
   if (existing > 1) {
     await step('시트 줄 갱신', () =>
       sheets.spreadsheets.values.update({
@@ -972,7 +1014,9 @@ export async function syncSettlement(
   ]
 
   // 이미 줄이 있으면 **그 줄을 고친다** — 재제출·승인·지급 완료가 같은 줄에 반영되게
-  const existing = Number(st.sheetRowId) || 0
+  const existing = await step('시트 줄 찾기', () =>
+    findSheetRow(sheets, cfg.sheetId, SETTLEMENT_SHEET, st.id, Number(st.sheetRowId) || 0)
+  )
   if (existing > 1) {
     await step('시트 줄 갱신', () =>
       sheets.spreadsheets.values.update({
@@ -1107,7 +1151,9 @@ export async function syncOutput(o: Output, openUrl: string): Promise<OutputSync
     openUrl,
   ]
 
-  const existing = Number(o.sheetRowId) || 0
+  const existing = await step('시트 줄 찾기', () =>
+    findSheetRow(sheets, cfg.sheetId, OUTPUT_SHEET, o.id, Number(o.sheetRowId) || 0)
+  )
   const muted = Boolean(o.hiddenByStaff)
   if (existing > 1) {
     await step('시트 줄 갱신', () =>
@@ -1239,7 +1285,9 @@ export async function syncInquiry(
   ]
 
   const muted = i.status === 'closed'
-  const existing = Number(i.sheetRowId) || 0
+  const existing = await step('시트 줄 찾기', () =>
+    findSheetRow(sheets, cfg.sheetId, INQUIRY_SHEET, i.id, Number(i.sheetRowId) || 0)
+  )
   if (existing > 1) {
     await step('시트 줄 갱신', () =>
       sheets.spreadsheets.values.update({
