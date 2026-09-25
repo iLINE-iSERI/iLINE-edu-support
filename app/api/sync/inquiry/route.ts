@@ -56,8 +56,11 @@ export async function POST(req: Request) {
   }
 
   // D-111: 테스트 계정이 낸 것은 시트·드라이브로 보내지 않는다 — **주인 기준**(담당자가
-  // 상태를 바꿔 동기화될 때도). 까닭을 문서에 남겨 담당자 화면이 「시험」으로 보이게 한다
-  if (await isTesterUid(i.uid)) {
+  // 상태를 바꿔 동기화될 때도). 까닭을 문서에 남겨 담당자 화면이 「시험」으로 보이게 한다.
+  // 🔴 **한 번 「시험」이면 계속 시험이다** — 그 계정을 일반 회원으로 되돌리거나 지운 뒤
+  //    담당자가 상태를 바꿔도, 주인이 더는 테스트 계정이 아니라서 시트로 새던 빈틈을 막는다.
+  //    (반대로 되돌린 뒤 **새로** 낸 것은 표시가 없으니 평소대로 간다 — 사람이 아니라 문서 기준)
+  if (snap.get('sheetSkipped') === 'tester' || (await isTesterUid(i.uid))) {
     await ref.update({ sheetSkipped: 'tester', driveSyncError: '' }).catch(() => {})
     return NextResponse.json({ skipped: 'tester' })
   }
