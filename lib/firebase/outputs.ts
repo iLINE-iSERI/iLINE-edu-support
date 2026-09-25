@@ -175,7 +175,9 @@ export async function submitOutput(input: OutputInput): Promise<string> {
     createdAt: now,
     updatedAt: now,
   }
-  const team = teamNameOf(application)
+  // 🔴 여기서 복사한 팀명은 **나중에 안 바뀐다.** 공고를 넘기지 않으면 「칸 추가」
+  //    팀명을 못 찾아 팀명 없는 산출물로 영구히 남는다 (D-104 · D-105)
+  const team = teamNameOf(application, program)
   if (team) data.teamName = team
   if (input.authorAffiliation) data.authorAffiliation = input.authorAffiliation
   if (input.text.trim()) data.text = input.text.trim()

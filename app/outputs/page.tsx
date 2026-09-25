@@ -81,7 +81,7 @@ function OutputsContent() {
       for (const app of approved) {
         const program = programs.find((p) => p.id === app.programId)
         if (!program) continue
-        const teamName = teamNameOf(app)
+        const teamName = teamNameOf(app, program)
         let outputs = mine.filter((o) => o.applicationId === app.id)
         if (teamName) {
           // 팀이면 서버가 팀원 것까지 묶어 준다. 실패하면 내 것만이라도 보인다

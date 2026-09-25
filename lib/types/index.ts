@@ -214,6 +214,19 @@ export interface ProgramField {
   options?: [string, string]
   /** 필수 여부. **참일 때만 저장한다**(값이 없으면 칸도 없다) */
   required?: boolean
+  /**
+   * 글 상자만 — **이 칸의 답이 팀명이다** (D-105). 공고당 하나, 단체 프로그램만.
+   *
+   * 산출물이 팀으로 묶이려면 사이트가 **어느 칸이 팀명인지** 알아야 한다. 전용
+   * 양식은 `formValues.teamName` 이라는 정해진 자리에 두지만, 「칸 추가」 칸의 답은
+   * `formValues[fid]` 라 **표시가 없으면 찾을 길이 없다**(D-104 가 찾아낸 결함).
+   *
+   * ⚠️ **칸 이름(「팀명」)으로 알아보지 않는 이유** — 이름은 담당자가 문구 때문에
+   *    자유롭게 고치는 글이다. 「팀 이름」·「팀명(띄어쓰기까지 똑같이)」로 바꾸는
+   *    순간 **조용히 안 묶인다.** 표시를 따로 두면 이름을 어떻게 고쳐도 안 깨진다.
+   * **참일 때만 저장한다.**
+   */
+  isTeamName?: boolean
 }
 
 export interface Program {
@@ -589,9 +602,10 @@ export interface Application {
   /**
    * ⚠️ **지금 코드는 아래 세 칸을 채우지 않는다.** 팀원 명단 입력은 만들지 않았다
    *    (신청서 설계 §3 — 실제로 필요한 프로그램이 나오면 그때 붙인다).
-   *    팀명은 전용 양식의 `formValues.teamName` 에 있고, 읽을 때는 `teamNameOf()` 를 쓴다.
-   *    🔴 담당자가 「칸 추가」로 만든 「팀명」은 `formValues[fid]` 에 있어서
-   *    `teamNameOf()` 가 **찾지 못한다** (D-104 · 남은-일).
+   *    팀명은 전용 양식이면 `formValues.teamName`, 「칸 추가」면 담당자가
+   *    `isTeamName` 으로 표시한 칸의 `formValues[fid]` 에 있다. **읽을 때는 반드시
+   *    `teamNameOf(app, program)` 을 쓴다** — 공고를 넘겨야 어느 칸인지 안다
+   *    (D-104 가 찾고 D-105 가 고쳤다).
    */
   teamName?: string
   teamMembers?: TeamMember[]
@@ -811,14 +825,23 @@ export interface Output {
 /**
  * 이 신청 건의 팀명 — 없으면 undefined (개인).
  *
- * 두 곳에 있을 수 있다: 단체 프로그램의 `teamName`, 전용 양식(AI-EDU)의
- * `formValues.teamName`. 실제로는 후자뿐이다 — 신청서에 팀원 명단 칸이 없어
- * 모든 신청이 한 사람 한 건이고, 팀은 양식의 팀명으로만 묶인다(09-17 확인).
+ * 세 곳에 있을 수 있고 **이 순서로** 본다.
+ *   ① 담당자가 「칸 추가」에서 **팀명으로 표시한 칸**(`isTeamName`)의 답 (D-105)
+ *   ② 신청 문서의 `teamName` (지금 코드는 채우지 않는다 — 옛 자리)
+ *   ③ 전용 양식(AI-EDU·해커톤)의 `formValues.teamName`
+ * 모든 신청이 한 사람 한 건이고, 팀은 이 팀명으로만 묶인다(09-17 확인).
+ *
+ * 🔴 **`program` 을 선택 인자로 두지 않았다.** 선택이면 넘기는 걸 잊은 곳이
+ *    ①을 건너뛰고 **조용히 「개인」이 된다** — D-104 가 찾은 바로 그 증상이다.
+ *    공고가 정말 없는 자리는 `null` 을 **일부러** 넘긴다.
  */
 export function teamNameOf(
-  app: Pick<Application, 'teamName' | 'formValues'> | null | undefined
+  app: Pick<Application, 'teamName' | 'formValues'> | null | undefined,
+  program: Pick<Program, 'formFields'> | null | undefined
 ): string | undefined {
-  const t = app?.teamName?.trim() || app?.formValues?.teamName?.trim()
+  const marked = program?.formFields?.find((f) => f.kind === 'text' && f.isTeamName)
+  const fromField = marked ? app?.formValues?.[marked.fid]?.trim() : undefined
+  const t = fromField || app?.teamName?.trim() || app?.formValues?.teamName?.trim()
   return t || undefined
 }
 

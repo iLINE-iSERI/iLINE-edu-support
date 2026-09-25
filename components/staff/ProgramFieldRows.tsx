@@ -48,6 +48,8 @@ export default function ProgramFieldRows({
   onAdd,
   onMove,
   onRemove,
+  isGroup,
+  teamNameExpected,
 }: {
   rows: ProgramField[]
   errors: Record<string, string | undefined>
@@ -55,12 +57,38 @@ export default function ProgramFieldRows({
   onAdd: (kind: ProgramFieldKind) => void
   onMove: (fid: string, dir: -1 | 1) => void
   onRemove: (fid: string) => void
+  /** 단체 프로그램이면 글 상자에 「이 칸이 팀명입니다」가 나온다 (D-105) */
+  isGroup: boolean
+  /** 팀원이 각자 신청 + 기본 신청서 — 팀명 칸이 **있어야** 산출물이 팀으로 묶인다 */
+  teamNameExpected: boolean
 }) {
   const hasAttachment = rows.some((f) => f.kind === 'attachment')
   const full = rows.length >= MAX_FIELDS
+  const hasTeamName = rows.some((f) => f.kind === 'text' && f.isTeamName)
+
+  /** 하나를 켜면 나머지를 끈다 — 팀명은 공고당 하나다 */
+  const pickTeamName = (fid: string, on: boolean) => {
+    if (on) {
+      for (const r of rows) {
+        if (r.fid !== fid && r.isTeamName) onChange(r.fid, { isTeamName: false })
+      }
+    }
+    onChange(fid, { isTeamName: on })
+  }
 
   return (
     <div className="space-y-3">
+      {/* 🔴 막지는 않고 알린다 — 접수 중 급한 오타 수정까지 막으면 안 된다.
+          다만 이걸 놓치면 산출물이 팀으로 안 묶이고, 그 사실을 **아무도 모른다**
+          (D-104 가 찾기 전까지 실제로 그랬다). 그래서 칸 목록 **맨 위**에 둔다. */}
+      {teamNameExpected && !hasTeamName && (
+        <p className="rounded-lg border-l-4 border-warn bg-warn-soft px-3 py-2 text-sm leading-relaxed text-warn-ink">
+          <strong>팀명 칸이 지정되지 않았습니다.</strong> 팀원이 각자 신청하는 공고는
+          팀명으로 팀을 묶습니다 — 지정하지 않으면 <strong>산출물이 팀으로 묶이지
+          않습니다.</strong> 「+ 글 상자」로 팀명 칸을 만들고{' '}
+          <strong>「이 칸이 팀명입니다」</strong>를 체크해 주세요.
+        </p>
+      )}
       {rows.map((f, i) => {
         const err = errors[`row-${f.fid}`]
         const isText = f.kind === 'text'
@@ -173,6 +201,23 @@ export default function ProgramFieldRows({
                   />
                 </div>
               </fieldset>
+            )}
+
+            {isText && isGroup && (
+              <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={Boolean(f.isTeamName)}
+                  onChange={(e) => pickTeamName(f.fid, e.target.checked)}
+                  className="mt-0.5 size-4 shrink-0 accent-brand-600"
+                />
+                <span>
+                  <span className="font-semibold">이 칸이 팀명입니다</span>
+                  <span className="block text-xs text-ink-subtle">
+                    산출물을 팀으로 묶을 때 이 칸의 답을 씁니다. 공고당 하나만.
+                  </span>
+                </span>
+              </label>
             )}
 
             {isChoice && (

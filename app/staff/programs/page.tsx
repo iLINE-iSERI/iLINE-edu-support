@@ -340,7 +340,12 @@ function StaffProgramsContent() {
       attachmentGuide: f.attachmentGuide,
       cautionText: f.cautionText,
       attachmentRequired: f.attachmentRequired,
-      formFields: f.fields,
+      // 팀명 표시(D-105)는 단체일 때만 뜻이 있다 — 개인으로 바꾼 공고에 남아 있으면
+      // 산출물이 「팀」으로 묶여 버린다. 저장할 때 떼서 문서에 안 남긴다
+      formFields:
+        f.participationType === 'group'
+          ? f.fields
+          : f.fields.map((r) => ({ ...r, isTeamName: undefined })),
       outputVisibility: f.outputVisibility,
       outputOpensAt: fromInputValue(f.outputOpensAt),
       outputClosesAt: fromInputValue(f.outputClosesAt),
@@ -849,6 +854,14 @@ function StaffProgramsContent() {
                 onAdd={addRow}
                 onMove={moveRow}
                 onRemove={removeRow}
+                isGroup={form.participationType === 'group'}
+                // 팀원이 각자 신청 + 기본 신청서면 팀명 칸이 **있어야** 산출물이 묶인다.
+                // 전용 양식은 자기가 팀명을 받으므로 여기서 요구하지 않는다 (D-105)
+                teamNameExpected={
+                  form.participationType === 'group' &&
+                  form.groupEntry === 'each' &&
+                  !form.formType
+                }
               />
 
               {/* 옛 방식 칸 (D-29) — **값이 있는 공고에만** 보인다.

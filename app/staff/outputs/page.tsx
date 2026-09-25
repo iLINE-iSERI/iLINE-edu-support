@@ -112,7 +112,7 @@ function StaffOutputsContent() {
   const units = useMemo(() => {
     const map = new Map<string, { label: string; isTeam: boolean; count: number }>()
     for (const a of apps) {
-      const team = teamNameOf(a)
+      const team = teamNameOf(a, program)
       const key = team ? `team:${team}` : `uid:${a.uid}`
       if (!map.has(key)) {
         map.set(key, { label: team ? `${team} 팀` : a.applicant?.name ?? '(이름 없음)', isTeam: Boolean(team), count: 0 })
@@ -124,7 +124,7 @@ function StaffOutputsContent() {
       if (u) u.count += 1
     }
     return Array.from(map.values())
-  }, [apps, rows])
+  }, [apps, rows, program])
   const submittedUnits = units.filter((u) => u.count > 0)
   const missingUnits = units.filter((u) => u.count === 0)
 

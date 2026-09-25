@@ -78,7 +78,13 @@ export async function POST(req: Request) {
   if (mineSnap.empty) return NextResponse.json({ outputs: [] })
 
   const mine = mineSnap.docs[0].data()
-  const team = teamNameOf(mine as Parameters<typeof teamNameOf>[0])
+  // 공고를 읽어야 「칸 추가」로 만든 팀명 칸이 어느 것인지 안다 (D-105).
+  // 없으면(지워진 공고) null — 전용 양식 팀명만으로 묶는다
+  const programSnap = await db.collection(COL.programs).doc(programId).get()
+  const program = programSnap.exists
+    ? (programSnap.data() as Parameters<typeof teamNameOf>[1])
+    : null
+  const team = teamNameOf(mine as Parameters<typeof teamNameOf>[0], program)
 
   // ③④ 팀원 uid — 팀명이 없으면 나 혼자
   let uids = [who.uid]
@@ -89,7 +95,7 @@ export async function POST(req: Request) {
       .where('status', '==', 'approved')
       .get()
     uids = all.docs
-      .filter((d) => teamNameOf(d.data() as Parameters<typeof teamNameOf>[0]) === team)
+      .filter((d) => teamNameOf(d.data() as Parameters<typeof teamNameOf>[0], program) === team)
       .map((d) => d.data().uid as string)
     if (!uids.includes(who.uid)) uids.push(who.uid)
   }

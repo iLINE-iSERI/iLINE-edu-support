@@ -168,6 +168,8 @@ export function cleanFields(rows: ProgramField[]): ProgramField[] {
     if (label && r.kind !== 'attachment') f.label = label
     if (body) f.body = body
     if (r.multiline && r.kind === 'text') f.multiline = true
+    // 팀명 표시는 글 상자에만 뜻이 있다 (D-105). 종류를 바꿔도 남지 않게 여기서 거른다
+    if (r.isTeamName && r.kind === 'text') f.isTeamName = true
     // 고르기는 **선택지가 답의 뜻을 정하므로** 비어도 키를 남긴다.
     // 여기서 지우면 담당자 화면이 「두 갈래가 없는 고르기」를 그리게 된다.
     if (r.kind === 'choice') f.options = optionsOf(r)
@@ -219,6 +221,13 @@ export function fieldProblems(
       if (!a || !b) bad[key] = '고를 것을 두 개 다 적어 주세요.'
       else if (a === b) bad[key] = '고를 것 두 개가 같습니다.'
     }
+  }
+
+  // 팀명 칸은 하나만 (D-105). 화면에서 하나를 고르면 나머지가 풀리므로 여기
+  // 걸리는 건 콘솔 등으로 들어온 경우뿐이다 — 둘이면 어느 답으로 묶을지 모른다.
+  const teamRows = rows.filter((r) => r.kind === 'text' && r.isTeamName)
+  if (teamRows.length > 1) {
+    for (const r of teamRows) bad[`row-${r.fid}`] = '팀명 칸은 하나만 지정할 수 있습니다.'
   }
 
   // 이름 중복 — 미관 문제가 아니다. 담당자 신청 상세가 `formData` 를 라벨로
