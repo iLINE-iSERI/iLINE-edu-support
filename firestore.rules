@@ -37,6 +37,14 @@ service cloud.firestore {
       return isMember() && memberDoc().role == 'staff';
     }
 
+    // 테스트 계정 (D-111 · 09-26) — 비공개 공고를 보고, 거기에 신청·산출물 제출을 해 볼 수 있다.
+    // 일반 회원과 똑같이 동작하고 **비공개 공고에 대한 문만** 더 열린다(담당자 권한은 없다).
+    // 🔒 스스로 될 수 없다 — 가입 때 `role == 'applicant'` 로 고정되고(아래 회원 규칙),
+    //    본인이 고칠 수 있는 칸에 `role` 이 없다. 담당자나 `scripts/grant-tester.mjs` 만 바꾼다.
+    function isTester() {
+      return isMember() && memberDoc().role == 'tester';
+    }
+
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
@@ -52,7 +60,8 @@ service cloud.firestore {
     // 접수는 드문 행위라 요금에는 영향이 없다.
     function acceptingNow(programId) {
       let p = get(/databases/$(database)/documents/support_programs/$(programId)).data;
-      return p.published == true
+      // 테스트 계정은 비공개 공고에도 낼 수 있다(D-111). 접수 기간은 똑같이 지킨다
+      return (p.published == true || isTester())
         && (!('opensAt' in p) || request.time >= p.opensAt)
         && (!('closesAt' in p) || request.time <= p.closesAt);
     }
@@ -106,7 +115,8 @@ service cloud.firestore {
 
     // ----- 프로그램 (공개 읽기, 담당자만 관리) -----
     match /support_programs/{id} {
-      allow read: if resource.data.published == true || isStaff();
+      // 비공개 공고는 담당자와 테스트 계정만 (D-111)
+      allow read: if resource.data.published == true || isStaff() || isTester();
       allow write: if isStaff();
     }
 
@@ -257,7 +267,8 @@ service cloud.firestore {
       //   제출 기한이 있으면 그것 → 없으면 활동 기간(종료일은 그날 끝까지) → 없으면 제한 없음
       function outputWindowOpen(programId) {
         let p = get(/databases/$(database)/documents/support_programs/$(programId)).data;
-        return p.published == true
+        // 테스트 계정은 비공개 공고의 산출물도 낼 수 있다(D-111). 제출 기간은 똑같이 지킨다
+        return (p.published == true || isTester())
           && (('outputOpensAt' in p)
                 ? request.time >= p.outputOpensAt
                 : (!('activityStart' in p) || request.time >= p.activityStart))

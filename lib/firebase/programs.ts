@@ -71,11 +71,18 @@ const PHASE_ORDER: Record<ProgramPhase, number> = {
  *    애초에 위 기준은 '현재 시각'에 따라 달라져서 색인으로는 표현되지 않는다.
  *    프로그램은 많아야 수십 건이라 클라이언트 정렬로 충분하다.
  */
-export async function listPublishedPrograms(): Promise<Program[]> {
-  const q = query(
-    collection(getDb(), COL.programs),
-    where('published', '==', true)
-  )
+export async function listPublishedPrograms(
+  opts: {
+    /**
+     * 비공개 공고까지 (D-111 · 09-26) — **테스트 계정 전용.** 규칙이 테스트 계정(과 담당자)에게만
+     * 비공개 공고 읽기를 연다. 다른 사람이 켜면 규칙에 막혀 **목록 전체가 실패**하므로, 부르는
+     * 쪽이 `member.role === 'tester'` 를 확인하고 켠다. 정렬은 공개 목록과 같다.
+     */
+    includeHidden?: boolean
+  } = {}
+): Promise<Program[]> {
+  const col = collection(getDb(), COL.programs)
+  const q = opts.includeHidden ? query(col) : query(col, where('published', '==', true))
   const snap = await getDocs(q)
   const now = new Date()
 

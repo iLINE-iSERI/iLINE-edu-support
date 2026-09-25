@@ -332,6 +332,8 @@ function ApplicationRow({
         <Badge tone={APPLICATION_TONE[app.status]}>
           {APPLICATION_STATUS_LABEL[app.status]}
         </Badge>
+        {/* 테스트 계정이 낸 신청 (D-111) — 실제 신청과 섞여 세지 않도록 한눈에 */}
+        {app.sheetSkipped === 'tester' && <Badge tone="warn">시험</Badge>}
         <span className="text-xs text-ink-subtle">
           {app.submittedAt?.toDate().toLocaleString('ko-KR')} 제출
         </span>
@@ -418,7 +420,13 @@ function ApplicationRow({
       )}
 
       {/* 시트 동기화 상태 — 담당자가 "왜 시트에 없지?"를 여기서 알 수 있게 */}
-      {app.driveSyncError ? (
+      {app.sheetSkipped === 'tester' ? (
+        // D-111: 테스트 계정이 낸 신청 — 일부러 시트·드라이브로 보내지 않았다
+        <p className="mt-3 text-xs text-ink-subtle">
+          <strong className="font-semibold text-warn-ink">시험 신청</strong> — 테스트 계정이
+          낸 것이라 구글 시트·드라이브로 보내지 않았습니다.
+        </p>
+      ) : app.driveSyncError ? (
         <div className="mt-3 rounded-lg bg-status-revision/10 px-3 py-2 text-xs leading-relaxed text-status-revision">
           <p>
             <strong>구글 시트 반영 실패</strong> — {app.driveSyncError}

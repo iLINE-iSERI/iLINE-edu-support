@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { adminDb, adminBucket, verifyRequester } from '@/lib/server/admin'
+import { adminDb, adminBucket, verifyRequester, isTesterUid } from '@/lib/server/admin'
 import { syncApplication } from '@/lib/server/googleSync'
 import { getGoogleConfig } from '@/lib/server/env'
 import { COL } from '@/lib/firebase/config'
@@ -54,6 +54,13 @@ export async function POST(req: Request) {
   // 본인 또는 담당자만. 여기가 유일한 방어선이다.
   if (app.uid !== who.uid && !who.isStaff) {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
+  }
+
+  // D-111: 테스트 계정이 낸 것은 시트·드라이브로 보내지 않는다 — **주인 기준**(담당자가
+  // 상태를 바꿔 동기화될 때도). 까닭을 문서에 남겨 담당자 화면이 「시험」으로 보이게 한다
+  if (await isTesterUid(app.uid)) {
+    await ref.update({ sheetSkipped: 'tester', driveSyncError: '' }).catch(() => {})
+    return NextResponse.json({ skipped: 'tester' })
   }
 
   // 이미 올린 건이라도 다시 부를 수 있다 (D-73 수정본). 시트 줄 번호가 있으면

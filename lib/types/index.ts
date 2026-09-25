@@ -17,7 +17,13 @@ import type { Timestamp } from 'firebase/firestore'
    계정을 만들었더라도 이 문서가 없으면 회원이 아니다.
    ───────────────────────────────────────────────────────────── */
 
-export type SupportRole = 'applicant' | 'staff'
+/**
+ * `tester` (D-111 · 09-26) — **테스트 계정.** 일반 회원과 똑같이 동작하되 비공개 공고를 보고
+ * 거기에 신청·산출물 제출을 해 볼 수 있다. 그 사람이 낸 것은 **시트·드라이브로 보내지 않는다.**
+ * 스스로 될 수 없다(가입 때 규칙이 `applicant` 로 고정) — `scripts/grant-tester.mjs` 로 바꾼다.
+ * 담당자 권한은 없다. `role` 은 하나뿐이라 **담당자 계정은 테스트 계정이 될 수 없다.**
+ */
+export type SupportRole = 'applicant' | 'staff' | 'tester'
 export type MemberStatus = 'active' | 'withdrawn'
 
 /**
@@ -596,6 +602,11 @@ export interface Application {
   programId: string
   /** 신청 당시의 프로그램 이름 사본 — 프로그램이 수정돼도 이력이 남는다 */
   programTitle?: string
+  /**
+   * 시트·드라이브로 **일부러 보내지 않은** 까닭 (D-111). 지금은 `'tester'` 하나 —
+   * 테스트 계정이 낸 신청이다. 서버(Admin)만 쓴다. 담당자 목록에 「시험」으로 보인다.
+   */
+  sheetSkipped?: 'tester'
   /** 신청 시점의 참여 방식 스냅샷 — 프로그램 설정이 바뀌어도 이력은 남는다 */
   participationType: ParticipationType
 

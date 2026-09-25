@@ -60,7 +60,10 @@ function ProgramDetailContent() {
         console.error(e)
         setProgram('notfound')
       })
-  }, [params.programId])
+    // 로그인이 확인되면 **다시** 부른다 (D-111). 비공개 공고는 담당자·테스트 계정만 읽을 수
+    // 있는데, 주소를 바로 열면 로그인 정보가 붙기 전에 첫 요청이 나가 규칙에 막히고
+    // 「찾을 수 없습니다」로 굳었다. 공개 공고는 두 번 읽어도 결과가 같다.
+  }, [params.programId, user?.uid])
 
   // 중복 신청 방지 — 회원으로 확인된 뒤에만 조회한다
   useEffect(() => {

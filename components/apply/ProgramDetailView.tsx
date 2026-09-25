@@ -109,6 +109,15 @@ export default function ProgramDetailView({
       {/* 휴대폰 하단 고정 바 자리를 비워 둔다(pb) — 바는 lg 미만에서만 */}
       <div className="container-page grid gap-8 py-10 pb-28 lg:grid-cols-[1fr_340px] lg:items-start lg:gap-10 lg:pb-10 xl:grid-cols-[1fr_380px]">
       <div className="flex min-w-0 flex-col gap-8">
+        {/* 비공개 공고 (D-111) — 이 화면을 볼 수 있는 건 담당자(「신청 화면 보기」)와 테스트
+            계정뿐이다. 둘 다 「학생에게는 아직 안 보인다」를 알아야 착각하지 않는다 */}
+        {!program.published && (
+          <p className="rounded-lg border-l-4 border-warn bg-warn-soft px-3 py-2 text-sm leading-relaxed text-warn-ink">
+            <strong>비공개 공고입니다.</strong> 학생에게는 보이지 않습니다. 담당자나 테스트
+            계정이라 보이는 화면입니다.
+          </p>
+        )}
+
         {/* 요약 (휴대폰·태블릿 — PC 는 오른쪽 카드에 있다) */}
         <div className="lg:hidden">{summary}</div>
 

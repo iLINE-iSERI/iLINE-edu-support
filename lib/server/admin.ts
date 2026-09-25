@@ -63,3 +63,25 @@ export async function verifyRequester(
     return null
   }
 }
+
+/**
+ * 이 uid 가 **테스트 계정**인가 (D-111 · 09-26) — 그 사람이 낸 것은 시트·드라이브로 보내지 않는다.
+ *
+ * 🔴 **요청한 사람이 아니라 문서 주인으로 판단한다.** 담당자가 테스트 계정 신청의 상태를
+ *    바꿀 때도 동기화가 일어나는데, 그때 요청자는 담당자다. 주인을 봐야 시트로 새지 않는다.
+ *
+ * 신청서에 적힌 값(예: 신청자 사본)을 믿지 않고 **회원 문서를 직접** 읽는다 — 신청서는 본인이
+ * 쓰는 문서라, 일반 회원이 스스로 「시험」이라고 적어 시트에서 빠질 수 있기 때문이다.
+ * 시험 줄을 시트에서 빼는 것이 중요한 이유는 D-109 — 한 번 들어간 줄은 지우기 번거롭다.
+ */
+export async function isTesterUid(uid: string): Promise<boolean> {
+  // 확인이 실패하면 「테스트 계정 아님」으로 본다 — 이 확인 때문에 **실제 회원의 동기화가
+  // 멈추면 안 된다.** 반대로 틀려도(테스트 건이 시트로 감) D-109 뒤로는 지워도 안전하다.
+  try {
+    const snap = await adminDb().collection('support_users').doc(uid).get()
+    return snap.data()?.role === 'tester'
+  } catch (e) {
+    console.warn('[iLINE] 테스트 계정 확인 실패 — 평소대로 동기화합니다:', e)
+    return false
+  }
+}

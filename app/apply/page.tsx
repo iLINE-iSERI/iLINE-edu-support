@@ -7,6 +7,7 @@ import ProgramCard from '@/components/apply/ProgramCard'
 import { listPublishedPrograms, getProgramPhase } from '@/lib/firebase/programs'
 import { isFirebaseConfigured } from '@/lib/firebase/config'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { useAuth } from '@/components/auth/AuthProvider'
 import type { Program } from '@/lib/types'
 
 /**
@@ -18,13 +19,16 @@ import type { Program } from '@/lib/types'
 export default function ApplyPage() {
   const [programs, setPrograms] = useState<Program[] | null>(null)
   const [error, setError] = useState('')
+  /** 테스트 계정이면 비공개 공고까지 보인다 (D-111) — 역할이 확인된 뒤 다시 불러온다 */
+  const { member } = useAuth()
+  const isTester = member?.role === 'tester'
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
       setPrograms([])
       return
     }
-    listPublishedPrograms()
+    listPublishedPrograms({ includeHidden: isTester })
       .then(setPrograms)
       .catch((e) => {
         // 원인을 추측해 한 문장으로 덮어쓰지 않는다.
@@ -34,7 +38,7 @@ export default function ApplyPage() {
         setError(firestoreErrorMessage(e))
         setPrograms([])
       })
-  }, [])
+  }, [isTester])
 
   const open = programs?.filter((p) => getProgramPhase(p) !== 'closed') ?? []
   const closed = programs?.filter((p) => getProgramPhase(p) === 'closed') ?? []
@@ -47,6 +51,13 @@ export default function ApplyPage() {
       />
 
       <div className="container-page space-y-8 py-10">
+        {/* 테스트 계정이라는 걸 늘 알 수 있게 — 모르고 실제 공고에 시험 신청을 넣지 않도록 */}
+        {isTester && (
+          <p className="rounded-lg border-l-4 border-warn bg-warn-soft px-3 py-2 text-sm leading-relaxed text-warn-ink">
+            <strong>테스트 계정으로 로그인 중입니다.</strong> 비공개 공고도 보이고 신청해 볼 수
+            있습니다. 이 계정이 낸 것은 <strong>구글 시트·드라이브로 가지 않습니다.</strong>
+          </p>
+        )}
         {programs === null ? (
           <p className="text-sm text-ink-muted">불러오는 중…</p>
         ) : error ? (

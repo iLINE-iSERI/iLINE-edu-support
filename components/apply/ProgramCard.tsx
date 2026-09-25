@@ -75,6 +75,8 @@ export default function ProgramCard({ program }: { program: Program }) {
           <Badge tone={isGroup ? 'group' : 'individual'}>
             {isGroup ? '단체 프로그램' : '개인 신청'}
           </Badge>
+          {/* 테스트 계정에게만 보이는 비공개 공고 (D-111) — 학생에게는 이 카드 자체가 없다 */}
+          {!program.published && <Badge tone="warn">비공개 · 시험</Badge>}
           {dday !== null && (
             <span className="text-[13px] font-bold text-warn-ink">
               {dday === 0 ? '오늘 마감' : `D-${dday}`}

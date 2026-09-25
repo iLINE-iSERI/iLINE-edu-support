@@ -73,7 +73,8 @@ function OutputsContent() {
     try {
       const [apps, programs, mine] = await Promise.all([
         listMyApplications(user.uid),
-        listPublishedPrograms(),
+        // 테스트 계정은 비공개 공고의 산출물도 시험한다 (D-111)
+        listPublishedPrograms({ includeHidden: member?.role === 'tester' }),
         listMyOutputs(user.uid),
       ])
       const approved = apps.filter((a) => a.status === 'approved')
@@ -99,7 +100,7 @@ function OutputsContent() {
       setError(firestoreErrorMessage(e))
       setBundles([])
     }
-  }, [user])
+  }, [user, member?.role])
 
   useEffect(() => {
     void load()
