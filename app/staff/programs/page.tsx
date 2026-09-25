@@ -39,7 +39,7 @@ import {
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { useRevealForm } from '@/lib/hooks/useRevealForm'
 import { FORM_OPTIONS } from '@/lib/forms'
-import { blankField, fieldProblems } from '@/lib/forms/fields'
+import { blankField, fieldProblems, newFieldId } from '@/lib/forms/fields'
 import { Timestamp } from 'firebase/firestore'
 import type {
   GroupEntry,
@@ -197,6 +197,56 @@ function focusField(key: FieldKey) {
   window.setTimeout(() => (el as HTMLInputElement).focus({ preventScroll: true }), 250)
 }
 
+/**
+ * 새 단체 공고에 「팀명」 칸을 **미리 한 줄** 넣는다 (D-107 · 09-25 iSERI).
+ *
+ * 팀명 칸을 만들고 「이 칸이 팀명입니다」까지 체크해야 산출물이 팀으로 묶이는데
+ * (D-105), 담당자가 이걸 매번 기억하기를 바라면 **한 번은 반드시 빠뜨린다.**
+ * 단체를 고르는 순간 체크된 채로 넣어 두면 빠뜨릴 수가 없다.
+ *
+ * 🔴 **새 공고에서만.** 이미 올라간 공고에 넣으면 이미 낸 사람들의 신청서에
+ *    빈 필수 칸이 생긴다 — 데이터 디깅에서 「칸 추가」 팀명이 이미 있던 것처럼
+ *    **팀명 칸이 둘**이 될 수도 있다. 그래서 `isNew` 가 아니면 아무것도 안 한다.
+ *
+ * **전용 양식을 고르면 넣지 않는다** — AI-EDU·해커톤은 양식이 팀명을 따로 받는다.
+ *
+ * 개인으로 되돌리거나 전용 양식을 고르면 **손대지 않은 경우에만** 뺀다
+ * (`isUntouchedTeamRow`). 담당자가 이름·안내·필수를 하나라도 고쳤으면 그 칸은
+ * 담당자 것이므로 남긴다.
+ */
+function isUntouchedTeamRow(r: ProgramField): boolean {
+  return (
+    r.kind === 'text' &&
+    r.isTeamName === true &&
+    (r.label ?? '') === '팀명' &&
+    !(r.body ?? '').trim() &&
+    r.required === true &&
+    !r.multiline
+  )
+}
+
+function syncTeamRow(f: FormState, isNew: boolean): FormState {
+  if (!isNew) return f
+  const want = f.participationType === 'group' && !f.formType
+  const hasTeamName = f.fields.some((r) => r.kind === 'text' && r.isTeamName)
+  if (want && !hasTeamName) {
+    // 맨 위에 — 팀명은 신청서에서 가장 먼저 정해져 있어야 하는 것이다
+    const row: ProgramField = {
+      fid: newFieldId(),
+      kind: 'text',
+      label: '팀명',
+      required: true,
+      isTeamName: true,
+    }
+    return { ...f, fields: [row, ...f.fields] }
+  }
+  if (!want) {
+    const kept = f.fields.filter((r) => !isUntouchedTeamRow(r))
+    if (kept.length !== f.fields.length) return { ...f, fields: kept }
+  }
+  return f
+}
+
 export default function StaffProgramsPage() {
   return (
     <MemberGate requireStaff>
@@ -251,7 +301,13 @@ function StaffProgramsContent() {
 
   /** 값이 바뀌면 그 칸의 오류 표시는 지운다 — 고치는 중에 빨간 글씨가 남으면 헷갈린다 */
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
-    setForm((f) => ({ ...f, [k]: v }))
+    setForm((f) => {
+      const next = { ...f, [k]: v }
+      // 팀명 칸 미리 넣기(D-107)는 이 둘이 바뀔 때만 — 불러오기(수정 열기)에는 안 탄다
+      return k === 'participationType' || k === 'formType'
+        ? syncTeamRow(next, editingId === '')
+        : next
+    })
     setErrors((e) => (e[k] ? { ...e, [k]: undefined } : e))
   }
 
@@ -601,7 +657,7 @@ function StaffProgramsContent() {
               <Field
                 id="participationType"
                 label="참여 방식"
-                hint="지금은 신청서가 같습니다. 상세 화면의 안내 문구만 달라집니다."
+                hint="단체를 고르면 신청 방법·팀 인원을 정하게 되고, 새 공고에는 신청서에 「팀명」 칸이 체크된 채로 한 줄 들어갑니다."
               >
                 <select
                   id="pf-participationType"
