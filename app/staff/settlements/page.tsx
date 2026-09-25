@@ -3,10 +3,9 @@
 /**
  * 담당자 정산 관리 (Phase 6 · D-39)
  *
- * ⚠️ 이 화면에는 **계좌 정보가 나온다.** 시트·드라이브로는 절대 내보내지
- *    않기로 했으므로(D-38), 담당자가 지급하려면 볼 곳이 여기뿐이다.
- *    그래서 화면에 기본으로 펼쳐두지 않고 **누를 때만** 보여준다 —
- *    목록을 띄워둔 채 자리를 비우거나 화면을 공유할 때를 대비한 것이다.
+ * 🔴 **지급 계좌는 받지 않는다** (D-108 · 09-25). 예전에는 이 화면에 계좌가
+ *    나왔고(누를 때만 펼침), 시트·드라이브로는 내보내지 않았다(D-38).
+ *    지금은 **영수증·증빙 파일만** 확인한다.
  *
  * 금액 칸은 없다(09-06 확정). 담당자가 영수증을 열어 읽고 합산한다.
  */
@@ -79,7 +78,7 @@ function StaffSettlementsContent() {
     <>
       <PageHeader
         title="정산 관리"
-        description="제출된 지급 계좌와 영수증을 확인해 승인하고, 이체한 뒤 지급 완료로 표시합니다."
+        description="제출된 영수증·증빙 서류를 확인해 승인하고, 지급한 뒤 지급 완료로 표시합니다."
       />
 
       <div className="container-page space-y-6 py-8">
@@ -176,7 +175,6 @@ function SettlementRow({
   onSaved: () => void
 }) {
   const [note, setNote] = useState(row.reviewNote || '')
-  const [showBank, setShowBank] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   // 지급 완료 (09-12) — 이체한 날짜를 고른다. 기본은 오늘
@@ -242,29 +240,6 @@ function SettlementRow({
         {row.applicantName || '이름없음'} · {row.programTitle || row.programId}
       </p>
 
-      {/* ── 지급 계좌 — 누를 때만 보여준다 ─────────────────── */}
-      <div className="mt-3 rounded-lg bg-subtle p-3 text-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="font-semibold">지급 계좌</p>
-          <button
-            type="button"
-            onClick={() => setShowBank((v) => !v)}
-            className="text-xs font-semibold text-ink-muted underline underline-offset-2"
-          >
-            {showBank ? '가리기' : '보기'}
-          </button>
-        </div>
-        {showBank ? (
-          <p className="mt-1.5 font-mono">
-            {row.bankInfo?.bankName} {row.bankInfo?.accountNumber} (
-            {row.bankInfo?.accountHolder})
-          </p>
-        ) : (
-          <p className="mt-1.5 text-ink-subtle">
-            지급할 때만 열어 보세요. 시트·드라이브에는 나가지 않습니다.
-          </p>
-        )}
-      </div>
 
       {/* ── 영수증 ─────────────────────────────────────────── */}
       <div className="mt-3">

@@ -1,11 +1,14 @@
 'use client'
 
 /**
- * 마이페이지 정산 영역 (D-19 / D-39)
+ * 마이페이지 정산 영역 (D-19 / D-39 / D-108)
  *
  * **선정(approved)된 신청건에만** 나타난다. 미선정·검토 중인 건에는 보이지
- * 않는다 — 아직 지급 대상이 아닌데 계좌를 입력받으면, 쓸 일 없는 계좌를
- * 보유하게 된다(D-38의 '정산 단계에 받는다'는 판단이 여기서 실현된다).
+ * 않는다 — 아직 지급 대상이 아닌데 서류를 받을 이유가 없다.
+ *
+ * 🔴 **지급 계좌는 받지 않는다** (D-108 · 09-25). 예전에는 은행·계좌번호·예금주를
+ *    받았다. 지금은 **영수증·증빙 파일만**이고, 그래서 **한 장 이상이 필수**다 —
+ *    파일 없이 낸 정산은 무엇을 낸 것인지 알 수 없다.
  */
 
 import { useState } from 'react'
@@ -63,13 +66,6 @@ export default function SettlementSection({
   const editable = !settlement || settlement.status === 'rejected'
   const [open, setOpen] = useState(false)
 
-  const [bankName, setBankName] = useState(settlement?.bankInfo?.bankName ?? '')
-  const [accountNumber, setAccountNumber] = useState(
-    settlement?.bankInfo?.accountNumber ?? '',
-  )
-  const [accountHolder, setAccountHolder] = useState(
-    settlement?.bankInfo?.accountHolder ?? '',
-  )
   const [files, setFiles] = useState<File[]>([])
   const [rejected, setRejected] = useState<{ name: string; why: string }[]>([])
   // 재제출 때 **빼기로 한** 기존 영수증 (09-12). 기본은 전부 남긴다
@@ -102,14 +98,12 @@ export default function SettlementSection({
     e.preventDefault()
     setError('')
 
-    if (!bankName.trim()) return setError('은행 이름을 입력해 주세요.')
-    if (!accountNumber.trim()) return setError('계좌번호를 입력해 주세요.')
-    if (!accountHolder.trim()) return setError('예금주를 입력해 주세요.')
-
-    /* 영수증은 **선택이다** (D-41).
-       증빙이 필요한 회차도 계좌만 받으면 되는 회차도 있어서, 프로그램마다
-       설정을 두는 대신 항상 낼 수 있게 두었다. 필요 여부는 공고문이 안내하고,
-       어긋나면 담당자가 사유를 적어 반려한다. */
+    /* 한 장 이상 필수 (D-108). 예전에는 선택이었는데(D-41) 그건 계좌가 정산의
+       본체였을 때 이야기다. 계좌가 빠지니 파일이 정산의 전부다.
+       재제출이면 **남기기로 한 기존 파일도** 센다. */
+    if (kept.length + files.length === 0) {
+      return setError('영수증이나 증빙 서류를 한 장 이상 올려 주세요.')
+    }
     if (rejected.length > 0) {
       return setError(
         '첨부하지 못한 파일이 있습니다. 확인하시거나 [무시하고 계속]을 눌러 주세요.',
@@ -121,9 +115,6 @@ export default function SettlementSection({
       const input = {
         application,
         uid,
-        bankName,
-        accountNumber,
-        accountHolder,
         files,
         keepReceipts: kept,
       }
@@ -171,9 +162,8 @@ export default function SettlementSection({
           {/* 한 줄짜리 상태 안내 — 버튼과 같은 높이에서 균형을 잡는다 */}
           {!settlement && !open && (
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-              활동비 지급을 위해 <strong>지급 계좌</strong>를 입력해 주세요.
-              지출 증빙이 있으면 <strong>영수증</strong>도 함께 첨부하실 수
-              있습니다.
+              활동비 정산을 위해 <strong>영수증·증빙 서류</strong>를 올려
+              주세요. 무엇을 내야 하는지는 프로그램 공고를 확인해 주세요.
             </p>
           )}
           {settlement?.status === 'submitted' && (
@@ -183,7 +173,7 @@ export default function SettlementSection({
           )}
           {settlement?.status === 'approved' && (
             <p className="mt-2 text-sm text-ink-muted">
-              정산이 승인되었습니다. 입력하신 계좌로 지급될 예정입니다.
+              정산이 승인되었습니다. 지급이 끝나면 이곳에 표시됩니다.
             </p>
           )}
           {settlement?.status === 'paid' && (
@@ -235,57 +225,18 @@ export default function SettlementSection({
       {open && (
         <form onSubmit={submit} noValidate className="mt-4 space-y-4">
           <div className="rounded-lg bg-surface p-4">
-            <p className="text-sm font-bold">지급 계좌</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
-              본인 명의 계좌만 입력해 주세요. 계좌 정보는{' '}
-              <strong>담당자만</strong> 볼 수 있고, 구글 시트나 드라이브로
-              나가지 않습니다.
-            </p>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <label className="block">
-                <span className="text-xs font-semibold">은행</span>
-                <input
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  placeholder="농협"
-                  className={INPUT}
-                />
-              </label>
-              <label className="block sm:col-span-2">
-                <span className="text-xs font-semibold">계좌번호</span>
-                <input
-                  inputMode="numeric"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="- 없이 숫자만"
-                  className={INPUT}
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold">예금주</span>
-                <input
-                  value={accountHolder}
-                  onChange={(e) => setAccountHolder(e.target.value)}
-                  className={INPUT}
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className="rounded-lg bg-surface p-4">
             <p className="text-sm font-bold">
-              영수증
-              <span className="ml-1.5 text-xs font-semibold text-ink-subtle">
-                (선택)
+              영수증 · 증빙 서류
+              <span className="ml-1 text-status-revision" aria-hidden="true">
+                *
               </span>
             </p>
             <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
-              지출 증빙이 있으면 촬영하거나 PDF로 첨부해 주세요. 사진 또는 PDF ·
-              1장당 20MB 이하 · 최대 {MAX_FILES}장.
+              영수증과, <strong>회의록처럼 프로그램이 요구한 증빙</strong>을 함께
+              올려 주세요. 사진 또는 PDF · 1장당 20MB 이하 · 최대 {MAX_FILES}장.
               <br />
-              <strong>영수증 없이도 제출할 수 있습니다.</strong> 무엇을 내야
-              하는지는 프로그램 공고를 확인해 주세요.
+              <strong>한 장 이상 올려야 제출됩니다.</strong> 무엇을 내야 하는지는
+              프로그램 공고를 확인해 주세요.
             </p>
 
             {/* 재제출: 기존 영수증을 보여주고 뺄 수 있게 (09-12) */}
@@ -427,9 +378,6 @@ export default function SettlementSection({
     </div>
   )
 }
-
-const INPUT =
-  'mt-1.5 w-full rounded-xl border border-line-strong bg-surface p-3 text-base outline-none focus:border-brand-600'
 
 function ReceiptButton({ path, label }: { path: string; label: string }) {
   const [busy, setBusy] = useState(false)

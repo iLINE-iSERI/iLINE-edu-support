@@ -232,8 +232,8 @@ function MypageContent() {
                     )}
 
                     {/* 정산 — 선정된 건에만 (D-19 / D-39).
-                        아직 지급 대상이 아닌 사람에게 계좌를 물으면
-                        쓸 일 없는 계좌를 보유하게 된다 (D-38) */}
+                        아직 지급 대상이 아닌 사람에게 서류를 받을 이유가 없다.
+                        계좌는 D-108 부터 받지 않는다 */}
                     {a.status === 'approved' && user && (
                       <SettlementSection
                         application={a}

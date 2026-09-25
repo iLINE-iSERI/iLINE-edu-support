@@ -1,10 +1,11 @@
 // 정산 (support_settlements) — D-39
 //
-// 최소 구성이다: **지급 계좌 3칸 + 영수증 파일.**
+// 최소 구성이다: **영수증·증빙 파일만** (D-108).
 // 지출 항목을 줄 단위로 받지 않는다(D-29와 같은 판단).
 //
-// ⚠️ 계좌 정보는 **시트·드라이브로 절대 내보내지 않는다**(D-38).
-//    사이트 안에서 담당자만 본다. 영수증만 드라이브로 나간다.
+// 🔴 지급 계좌는 **받지 않는다** (D-108 · 09-25). 예전 구성은 「계좌 3칸 + 영수증」
+//    이었다(D-39). 첫 정산이 들어오기 전에 없앴으므로 계좌가 담긴 문서는 없다.
+//    영수증은 드라이브로 나간다.
 //
 // 정산은 **선정된 신청건(approved)** 에만 붙는다. 신청 1건 : 정산 1건.
 
@@ -19,6 +20,7 @@ import {
   updateDoc,
   serverTimestamp,
   Timestamp,
+  deleteField,
 } from 'firebase/firestore'
 import { ref, uploadBytes, deleteObject } from 'firebase/storage'
 import { getDb, getStorageClient, getAuthClient, COL, STORAGE_ROOT } from './config'
@@ -60,9 +62,6 @@ async function uploadReceipt(
 export interface SettlementInput {
   application: Application
   uid: string
-  bankName: string
-  accountNumber: string
-  accountHolder: string
   files: File[]
   /**
    * 재제출 때 **남길** 기존 영수증 (09-12). 없으면 전부 남긴다.
@@ -96,11 +95,6 @@ export async function submitSettlement(
     programId: application.programId,
     programTitle: application.programTitle ?? '',
     applicantName: application.applicant?.name ?? '',
-    bankInfo: {
-      bankName: input.bankName.trim(),
-      accountNumber: input.accountNumber.replace(/\s/g, ''),
-      accountHolder: input.accountHolder.trim(),
-    },
     receipts,
     submittedAt: now,
     createdAt: now,
@@ -143,11 +137,9 @@ export async function resubmitSettlement(
 
   await updateDoc(doc(getDb(), COL.settlements, id), {
     status: 'submitted',
-    bankInfo: {
-      bankName: input.bankName.trim(),
-      accountNumber: input.accountNumber.replace(/\s/g, ''),
-      accountHolder: input.accountHolder.trim(),
-    },
+    // 계좌는 받지 않는다(D-108). 혹시 남아 있는 값이 있으면 이 기회에 지운다 —
+    // 계좌 없이 낸 문서에는 원래 없으므로 아무 일도 일어나지 않는다
+    bankInfo: deleteField(),
     receipts: [...keep, ...added],
     // 반려 사유는 지운다 — 다시 낸 뒤에도 남아 있으면 아직 반려 상태로 보인다
     reviewNote: '',
