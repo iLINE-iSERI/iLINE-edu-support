@@ -14,7 +14,10 @@ import type { Notice } from '@/lib/types'
  * 공지 목록.
  *
  * 로그인 없이 보이는 화면이다 — 공고 안내는 회원이 되기 전에 읽는 것이므로
- * 회원 게이트를 두지 않는다. 보안 규칙도 `allow read: if true` 다.
+ * 회원 게이트를 두지 않는다.
+ *
+ * 공개 범위 (D-113) — 전체 공개와 **회원만**이 나온다(회원만은 「회원 공개」 표시 · 눌러야
+ * 로그인 안내). 비공개는 담당자에게도 여기엔 안 나온다 — 담당자는 공지 관리에서 본다.
  */
 export default function NoticeList() {
   const [notices, setNotices] = useState<Notice[] | null>(null)
@@ -63,12 +66,13 @@ export default function NoticeList() {
           >
             {/* 고정 공지는 목록 어디에 있든 눈에 띄어야 한다 */}
             {n.pinned && <Badge tone="info">공지</Badge>}
+            {n.visibility === 'members' && <Badge tone="neutral">회원 공개</Badge>}
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{n.title}</p>
               <p className="mt-1 text-xs text-ink-subtle">
                 {formatDate(n.createdAt)}
                 {/* 첨부가 있으면 목록에서 미리 알린다 — 서식을 받으러 온 사람이 찾기 쉽게 (D-112) */}
-                {n.files && n.files.length > 0 && <> · 첨부 {n.files.length}</>}
+                {(n.fileCount ?? 0) > 0 && <> · 첨부 {n.fileCount}</>}
               </p>
             </div>
             <span aria-hidden="true" className="text-ink-subtle">

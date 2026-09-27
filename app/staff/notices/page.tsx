@@ -12,7 +12,10 @@
  *
  * 첨부 파일 (D-112) — 고른 파일은 **저장할 때** 올라간다. 산출물 제출창과 같은 손놀림
  * (이미 올린 것은 [빼기]/[되살리기], 새로 고른 것은 [빼기], 못 붙인 것은 이유와 함께).
- * 🔴 공개 경로라 로그인 안 한 사람도 받는다 — 경고를 파일 칸에 늘 보인다.
+ *
+ * 공개 범위 (D-113) — 전체 공개 · 회원만 · 비공개를 글마다 고른다. 파일 칸의 경고도 고른 범위를
+ * 따라 바뀐다. 화면이 열릴 때 D-113 이전 공지에 「전체 공개」를 채운다(backfillNoticeVisibility —
+ * 안 채우면 알림마당 목록에서 빠진다).
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -24,11 +27,14 @@ import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
 import {
   listNotices,
+  getNoticeBody,
   createNotice,
   updateNotice,
   deleteNotice,
+  backfillNoticeVisibility,
+  visibilityOf,
   noticeFileRejectReason,
-  noticeFileUrl,
+  noticeFileLinks,
   fileSizeLabel,
   NOTICE_ACCEPT,
   NOTICE_MAX_FILES,
@@ -37,9 +43,32 @@ import {
 import { formatDate } from '@/lib/firebase/programs'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { useRevealForm } from '@/lib/hooks/useRevealForm'
-import type { AttachedFile, Notice } from '@/lib/types'
+import {
+  NOTICE_VISIBILITY_LABEL,
+  type AttachedFile,
+  type Notice,
+  type NoticeBody,
+  type NoticeVisibility,
+} from '@/lib/types'
 
-const EMPTY: NoticeInput = { title: '', content: '', pinned: false }
+const EMPTY: NoticeInput = { title: '', content: '', pinned: false, visibility: 'public' }
+
+/** 공개 범위 고르기 — 순서가 곧 화면 순서. 설명은 담당자가 고를 때 읽는 한 줄 */
+const VISIBILITY_OPTIONS: { value: NoticeVisibility; desc: string }[] = [
+  { value: 'public', desc: '로그인하지 않은 방문자도 제목·본문·첨부를 봅니다' },
+  {
+    value: 'members',
+    desc: '제목은 누구나 보고, 본문·첨부는 가입을 마친 회원만 봅니다. 가입은 누구나 할 수 있습니다',
+  },
+  { value: 'private', desc: '담당자만 봅니다. 알림마당 목록에 나오지 않습니다 — 미리 써 두기·시험용' },
+]
+
+/** 파일 칸 경고 — 고른 공개 범위에 맞춰 */
+const FILE_AUDIENCE: Record<NoticeVisibility, string> = {
+  public: '첨부 파일은 로그인하지 않은 사람도 받을 수 있습니다.',
+  members: '첨부 파일은 가입한 회원이면 누구나 받을 수 있습니다.',
+  private: '지금은 담당자만 받습니다. 공개 범위를 바꾸면 그 범위를 따릅니다.',
+}
 
 export default function StaffNoticesPage() {
   return (
@@ -73,7 +102,9 @@ function StaffNoticesContent() {
   /** 붙이지 못한 파일과 이유 */
   const [rejected, setRejected] = useState<{ name: string; why: string }[]>([])
   const editingNotice = editingId ? (notices?.find((n) => n.id === editingId) ?? null) : null
-  const prevFiles: AttachedFile[] = editingNotice?.files ?? []
+  /** 수정 중인 공지의 속지(본문·첨부) — 겉장에는 본문이 없어서 열 때 따로 읽는다 (D-113) */
+  const [editingBody, setEditingBody] = useState<NoticeBody | null>(null)
+  const prevFiles: AttachedFile[] = editingBody?.files ?? []
   const kept = prevFiles.filter((f) => !dropped.has(f.storagePath))
 
   function resetFiles() {
@@ -101,7 +132,13 @@ function StaffNoticesContent() {
   const load = useCallback(async () => {
     setError('')
     try {
-      setNotices(await listNotices())
+      const list = await listNotices({ staff: true })
+      // 옛 공지에 공개 범위 채우기 — 실패해도 목록은 보인다(다음에 열 때 다시)
+      const filled = await backfillNoticeVisibility(list).catch((e) => {
+        console.warn('[iLINE] 옛 공지 공개 범위 채우기 실패(다음에 다시):', e)
+        return 0
+      })
+      setNotices(filled > 0 ? await listNotices({ staff: true }) : list)
     } catch (e) {
       console.error('[iLINE] 공지 목록 조회 실패:', e)
       setError(firestoreErrorMessage(e))
@@ -116,22 +153,36 @@ function StaffNoticesContent() {
   function openNew() {
     setEditingId('')
     setForm(EMPTY)
+    setEditingBody(null)
     setError('')
     setFieldError({})
     resetFiles()
   }
 
-  function openEdit(n: Notice) {
-    setEditingId(n.id)
-    setForm({ title: n.title, content: n.content, pinned: n.pinned })
+  async function openEdit(n: Notice) {
     setError('')
     setFieldError({})
     resetFiles()
+    setBusy(true)
+    try {
+      const body = await getNoticeBody(n)
+      // 담당자는 늘 읽을 수 있다. 막혔다면 규칙이 아직 배포되지 않은 것
+      if (body === 'locked') throw Object.assign(new Error('locked'), { code: 'permission-denied' })
+      setEditingBody(body)
+      setForm({ title: n.title, content: body.content, pinned: n.pinned, visibility: visibilityOf(n) })
+      setEditingId(n.id)
+    } catch (e) {
+      console.error('[iLINE] 공지 본문 읽기 실패:', e)
+      setError(firestoreErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
   function close() {
     setEditingId(null)
     setForm(EMPTY)
+    setEditingBody(null)
     setFieldError({})
     setError('')
     resetFiles()
@@ -158,7 +209,7 @@ function StaffNoticesContent() {
       return setError('붙이지 못한 파일이 있습니다. 확인하시거나 [무시하고 계속]을 눌러 주세요.')
     }
     // 수정하던 공지가 그 사이 지워졌으면 새 공지로 만들지 않는다
-    if (editingId && !editingNotice) {
+    if (editingId && (!editingNotice || !editingBody)) {
       return setError('수정하던 공지를 찾을 수 없습니다. [취소]를 누르고 목록을 확인해 주세요.')
     }
 
@@ -168,8 +219,14 @@ function StaffNoticesContent() {
     const onProgress = (done: number, total: number) =>
       setProgress(`파일 올리는 중 (${done + 1}/${total})…`)
     try {
-      if (editingNotice) {
-        await updateNotice(editingNotice, form, { keep: kept, add: newFiles }, onProgress)
+      if (editingNotice && editingBody) {
+        await updateNotice(
+          editingNotice,
+          editingBody,
+          form,
+          { keep: kept, add: newFiles },
+          onProgress
+        )
       } else {
         await createNotice(form, newFiles, user.uid, onProgress)
       }
@@ -186,7 +243,8 @@ function StaffNoticesContent() {
 
   async function remove(n: Notice) {
     // 되돌릴 수 없으므로 제목을 보여주며 한 번 더 묻는다.
-    const withFiles = n.files?.length ? ` 첨부 파일 ${n.files.length}개도 함께 지워집니다.` : ''
+    const count = n.fileCount ?? n.files?.length ?? 0
+    const withFiles = count > 0 ? ` 첨부 파일 ${count}개도 함께 지워집니다.` : ''
     if (!confirm(`"${n.title}" 공지를 삭제합니다.${withFiles} 되돌릴 수 없습니다.`)) return
 
     setBusy(true)
@@ -314,23 +372,60 @@ function StaffNoticesContent() {
               </p>
             </div>
 
+            {/* ── 공개 범위 (D-113) ── */}
+            <fieldset>
+              <legend className="text-sm font-semibold">공개 범위</legend>
+              <div className="mt-2 space-y-2">
+                {VISIBILITY_OPTIONS.map((o) => (
+                  <label
+                    key={o.value}
+                    className={
+                      'flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-sm transition-colors ' +
+                      (form.visibility === o.value
+                        ? 'border-brand-600 bg-brand-soft'
+                        : 'border-line hover:border-brand-600')
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="visibility"
+                      value={o.value}
+                      checked={form.visibility === o.value}
+                      onChange={() => setForm({ ...form, visibility: o.value })}
+                      className="mt-0.5 size-4"
+                    />
+                    <span>
+                      <strong className="font-semibold">{NOTICE_VISIBILITY_LABEL[o.value]}</strong>
+                      <span className="block text-xs leading-relaxed text-ink-subtle">{o.desc}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             {/* ── 첨부 파일 (D-112) ── */}
             <div>
               <p className="text-sm font-semibold">
                 첨부 파일{' '}
                 <span className="text-xs font-semibold text-ink-subtle">
-                  (선택 · 최대 {NOTICE_MAX_FILES}개 · 하나에 20MB 미만)
+                  (선택 · 최대 {NOTICE_MAX_FILES}개 · 하나에 50MB 미만)
                 </span>
               </p>
               <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
                 PDF · 한글 · 워드 · 엑셀 · 파워포인트 · 사진 · 압축. 고른 파일은 [저장]을 누를 때
                 올라갑니다.
               </p>
-              {/* 공개 범위 경고 — 공지 본문보다 파일이 더 쉽게 퍼진다(내려받아 돌려 본다) */}
-              <p className="mt-2 rounded-lg bg-status-revision/10 px-3 py-2 text-xs leading-relaxed text-status-revision">
-                <strong className="font-bold">첨부 파일은 로그인하지 않은 사람도 받을 수 있습니다.</strong>{' '}
-                이름·연락처·학번이 담긴 파일(선정자 명단 등)은 올리지 마세요. 명단은 본문에 정한
-                범위만 적습니다.
+              {/* 누가 받는지 — 고른 공개 범위를 따른다. 파일은 본문보다 쉽게 퍼진다(내려받아 돌려 본다) */}
+              <p
+                className={
+                  'mt-2 rounded-lg px-3 py-2 text-xs leading-relaxed ' +
+                  (form.visibility === 'private'
+                    ? 'bg-subtle text-ink-muted'
+                    : 'bg-status-revision/10 text-status-revision')
+                }
+              >
+                <strong className="font-bold">{FILE_AUDIENCE[form.visibility]}</strong>
+                {form.visibility !== 'private' && ' 이름·연락처가 담긴 파일은 올리지 마세요.'}
               </p>
 
               {prevFiles.length > 0 && (
@@ -345,7 +440,7 @@ function StaffNoticesContent() {
                       return (
                         <li key={f.storagePath} className="flex items-center justify-between gap-3">
                           <span className={'min-w-0 ' + (off ? 'line-through opacity-50' : '')}>
-                            <StaffFileLink file={f} />
+                            <StaffFileLink noticeId={editingId ?? ''} file={f} />
                           </span>
                           <button
                             type="button"
@@ -496,11 +591,16 @@ function StaffNoticesContent() {
                 className="flex flex-wrap items-start gap-3 px-5 py-4"
               >
                 {n.pinned && <Badge tone="info">고정</Badge>}
+                {/* 전체 공개는 표시하지 않는다 — 평소 상태라 달면 오히려 눈에 안 띈다 */}
+                {visibilityOf(n) === 'members' && <Badge tone="neutral">회원만</Badge>}
+                {visibilityOf(n) === 'private' && <Badge tone="warn">비공개</Badge>}
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{n.title}</p>
                   <p className="mt-1 text-xs text-ink-subtle">
                     {formatDate(n.createdAt)}
-                    {n.files && n.files.length > 0 && <> · 첨부 {n.files.length}</>}
+                    {(n.fileCount ?? n.files?.length ?? 0) > 0 && (
+                      <> · 첨부 {n.fileCount ?? n.files?.length}</>
+                    )}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2 text-sm">
@@ -549,8 +649,11 @@ function saveErrorMessage(e: unknown): string {
   return firestoreErrorMessage(e)
 }
 
-/** 이미 올린 파일 열기 — 올바르게 올라갔는지 담당자가 눌러 확인한다 */
-function StaffFileLink({ file }: { file: AttachedFile }) {
+/**
+ * 이미 올린 파일 열기 — 올바르게 올라갔는지 담당자가 눌러 확인한다.
+ * 방문자와 같은 서버 경로로 주소를 받는다(비공개 폴더라 브라우저가 직접 못 읽는다 · D-113)
+ */
+function StaffFileLink({ noticeId, file }: { noticeId: string; file: AttachedFile }) {
   const [busy, setBusy] = useState(false)
   return (
     <button
@@ -560,7 +663,10 @@ function StaffFileLink({ file }: { file: AttachedFile }) {
       onClick={async () => {
         setBusy(true)
         try {
-          window.open(await noticeFileUrl(file.storagePath), '_blank', 'noopener')
+          const links = await noticeFileLinks(noticeId)
+          const url = links === 'locked' ? null : links.find((l) => l.storagePath === file.storagePath)?.url
+          if (!url) throw new Error('주소를 받지 못함')
+          window.open(url, '_blank', 'noopener')
         } catch (e) {
           console.error('[iLINE] 공지 첨부 열기 실패:', e)
           alert('파일을 여는 데 실패했습니다.')

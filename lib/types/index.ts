@@ -957,19 +957,54 @@ export interface Settlement {
    알림마당 — support_notices / support_resources
    ───────────────────────────────────────────────────────────── */
 
+/**
+ * 공지 공개 범위 (D-113 · 09-27 운영 담당자 요청) — 글마다 고른다.
+ *   public  전체 공개 — 로그인 안 한 방문자도 제목·본문·첨부
+ *   members 회원만   — **제목은 누구나**(목록에 「회원 공개」), 본문·첨부는 가입을 마친 회원만
+ *   private 비공개   — 담당자만. 목록에도 안 나온다(미리 써 두기·시험)
+ * 값이 없는 문서(D-113 이전)는 public 으로 본다 — 규칙도 같다.
+ * 켜고 끄는 값이 아니라 **값 하나**로 둔 이유: 나중에 「선정자만」 같은 단계를 더하거나 빼도
+ * 기존 공지를 건드리지 않는다.
+ */
+export type NoticeVisibility = 'public' | 'members' | 'private'
+
+export const NOTICE_VISIBILITY_LABEL: Record<NoticeVisibility, string> = {
+  public: '전체 공개',
+  members: '회원만',
+  private: '비공개',
+}
+
+/**
+ * 공지 **겉장** — `support_notices/{id}`. 제목·고정·공개 범위·첨부 수만 둔다.
+ * 본문과 첨부 목록은 **속지** `support_notices/{id}/body/main` (NoticeBody) — 「회원만」 글은
+ * 제목만 누구나 보여야 하는데, Firestore 규칙은 문서 단위라 한 문서 안의 칸을 나눠 막을 수 없다.
+ */
 export interface Notice {
   id: string
   title: string
-  content: string
   pinned: boolean
-  /**
-   * 첨부 파일 (D-112) — 공개 경로 `support/public/notices/{id}/` 라 **로그인 없이 누구나 받는다.**
-   * 없으면 키 자체가 없다(빈 배열을 남기지 않는다)
-   */
+  /** D-113 이전 문서엔 없다 → public */
+  visibility?: NoticeVisibility
+  /** 첨부 개수 — 목록의 「첨부 N」. 속지를 읽지 않고 보여 주려고 겉장에 둔다 */
+  fileCount?: number
+  /** ⚠️ D-113 이전 문서만 — 본문이 겉장에 있다. 담당자가 한 번 고쳐 저장하면 속지로 옮겨진다 */
+  content?: string
+  /** ⚠️ D-112 문서만 — 위와 같음 */
   files?: AttachedFile[]
   authorUid: string
   createdAt: Timestamp
   updatedAt: Timestamp
+}
+
+/** 공지 **속지** — 본문과 첨부 목록. 읽을 수 있는지는 겉장의 공개 범위로 규칙이 판단한다 */
+export interface NoticeBody {
+  content: string
+  /**
+   * 첨부 파일 (D-112 · D-113) — 비공개 폴더 `support/notices/{id}/`. 브라우저가 직접 못 읽고
+   * **서버(`/api/notices/files`)가 공개 범위를 확인한 뒤** 한 시간짜리 주소를 내준다.
+   * 없으면 키 자체가 없다(빈 배열을 남기지 않는다)
+   */
+  files?: AttachedFile[]
 }
 
 export interface Resource {

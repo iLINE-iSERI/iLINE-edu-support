@@ -70,14 +70,27 @@ service firebase.storage {
       allow delete: if isOwner(uid) || isStaff();
     }
 
-    // 공지 첨부 · 공고 포스터 — 공개 다운로드, 담당자만 업로드
-    // D-112(09-27): 형식·크기 검사 추가. 화면(lib/firebase/notices.ts · staff.ts 포스터)과
-    // 같은 기준이라 화면을 거치지 않고 올려도 똑같이 막힌다. 포스터(5MB 이하 이미지)도 이 안에 든다.
+    // 공고 포스터 — 공개 다운로드, 담당자만 업로드
+    // D-112(09-27): 형식·크기 검사 추가. 화면(lib/firebase/staff.ts 포스터 5MB 이하 이미지)이 이 안에 든다.
+    // 공지 첨부는 D-113 부터 아래 support/notices/ 로 간다. D-112 때(09-27 하루) 여기 올린 공지
+    // 첨부가 남아 있을 수 있어 경로는 그대로 둔다.
     // write 에는 삭제도 들어가는데, 삭제 때는 request.resource 가 없어 위 검사가 실패하므로
     // 삭제는 따로 연다(신청 서류와 같은 방식).
     match /support/public/{allPaths=**} {
       allow read: if true;
       allow write: if isStaff() && isOutputType() && isUnderSizeLimit();
+      allow delete: if isStaff();
+    }
+
+    // 공지 첨부 (D-113 · 09-27) — 공개 범위를 글마다 고르므로(전체·회원만·비공개) 파일은 한곳에
+    // 두고 **브라우저가 직접 못 읽게** 한다. 받을 주소는 서버(/api/notices/files)가 글의 공개 범위와
+    // 회원 여부를 확인하고 한 시간짜리로 내준다 — 범위를 바꿔도 파일을 옮기지 않는다.
+    // 읽기를 담당자에게 여는 것은 공지를 지울 때 폴더를 비우려고(목록 보기).
+    // 크기 50MB 미만 — 09-27 iSERI 결정(산출물과 같다). lib/firebase/notices.ts 의 NOTICE_MAX_BYTES 와 같은 값.
+    match /support/notices/{allPaths=**} {
+      allow read: if isStaff();
+      allow write: if isStaff() && isOutputType()
+        && request.resource.size < 50 * 1024 * 1024;
       allow delete: if isStaff();
     }
   }

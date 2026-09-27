@@ -317,14 +317,40 @@ service cloud.firestore {
     }
 
     // ── 공지 · 서식 자료실 ───────────────────────────────────────────────
-    // 공지는 회원이 아니어도 읽는다 — 공고 안내는 가입 전에 보는 것이다.
     // 작성자(authorUid)는 스스로를 속일 수 없게 본인으로 고정한다.
     // 누가 올렸는지 남겨두면 잘못된 안내가 나갔을 때 확인할 수 있다.
+    //
+    // 공개 범위 (D-113 · 09-27) — 글마다 public(전체) · members(회원만) · private(비공개).
+    // 값이 없는 옛 공지는 public 이다.
+    //  · 겉장(제목·고정·공개 범위·첨부 수) — 비공개만 담당자에게. 「회원만」도 **제목은 누구나**
+    //    본다(목록에 「회원 공개」로 보이고, 눌러야 로그인 안내)
+    //  · 속지 body/main(본문·첨부 목록) — 공개 범위대로
+    //  · 목록 요청은 **조건을 걸어야** 통과한다(visibility in [public, members]). 규칙은 거르개가
+    //    아니라서, 비공개가 섞일 수 있는 요청은 통째로 거절한다. 담당자는 조건 없이 전부
+    //  · 첨부 파일은 서버(/api/notices/files)가 **같은 판단**으로 내준다 — 여기를 바꾸면 거기도
+    function noticeVisibility(data) {
+      return data.get('visibility', 'public');
+    }
+    function isNoticeVisibility(v) {
+      return v in ['public', 'members', 'private'];
+    }
+    function canReadNoticeBody(id) {
+      let v = noticeVisibility(get(/databases/$(database)/documents/support_notices/$(id)).data);
+      return v == 'public' || (v == 'members' && isMember());
+    }
     match /support_notices/{id} {
-      allow read: if true;
+      allow get: if noticeVisibility(resource.data) != 'private' || isStaff();
+      allow list: if resource.data.visibility in ['public', 'members'] || isStaff();
       allow create: if isStaff()
-        && request.resource.data.authorUid == request.auth.uid;
-      allow update, delete: if isStaff();
+        && request.resource.data.authorUid == request.auth.uid
+        && isNoticeVisibility(request.resource.data.visibility);
+      allow update: if isStaff() && isNoticeVisibility(request.resource.data.visibility);
+      allow delete: if isStaff();
+
+      match /body/{docId} {
+        allow get: if isStaff() || canReadNoticeBody(id);
+        allow create, update, delete: if isStaff();
+      }
     }
 
     // ── 1:1 문의 (D-93 · 09-18) ──────────────────────────────────────────
