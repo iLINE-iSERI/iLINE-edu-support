@@ -581,7 +581,7 @@ export const APPLICANT_STATUS_LABEL: Record<ApplicationStatus, string> = {
 export interface AttachedFile {
   /**
    * 어디에 붙은 파일인가 — 지금 쓰는 값은 `'application'`(신청서 첨부) ·
-   * `'receipt'`(정산 영수증) · `'output'`(산출물) 셋이다. 신분증·재직증명서 같은
+   * `'receipt'`(정산 영수증) · `'output'`(산출물) · `'notice'`(공지 첨부 · D-112) 넷이다. 신분증·재직증명서 같은
    * 옛 값은 서류를 받지 않기로 하면서(D-40) 쓰이지 않는다.
    */
   type: string
@@ -962,6 +962,11 @@ export interface Notice {
   title: string
   content: string
   pinned: boolean
+  /**
+   * 첨부 파일 (D-112) — 공개 경로 `support/public/notices/{id}/` 라 **로그인 없이 누구나 받는다.**
+   * 없으면 키 자체가 없다(빈 배열을 남기지 않는다)
+   */
+  files?: AttachedFile[]
   authorUid: string
   createdAt: Timestamp
   updatedAt: Timestamp

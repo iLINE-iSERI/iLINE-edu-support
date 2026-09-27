@@ -67,6 +67,8 @@ export default function NoticeList() {
               <p className="truncate font-semibold">{n.title}</p>
               <p className="mt-1 text-xs text-ink-subtle">
                 {formatDate(n.createdAt)}
+                {/* 첨부가 있으면 목록에서 미리 알린다 — 서식을 받으러 온 사람이 찾기 쉽게 (D-112) */}
+                {n.files && n.files.length > 0 && <> · 첨부 {n.files.length}</>}
               </p>
             </div>
             <span aria-hidden="true" className="text-ink-subtle">

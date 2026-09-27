@@ -70,10 +70,15 @@ service firebase.storage {
       allow delete: if isOwner(uid) || isStaff();
     }
 
-    // 공지 첨부 · 서식 자료실 — 공개 다운로드, 담당자만 업로드
+    // 공지 첨부 · 공고 포스터 — 공개 다운로드, 담당자만 업로드
+    // D-112(09-27): 형식·크기 검사 추가. 화면(lib/firebase/notices.ts · staff.ts 포스터)과
+    // 같은 기준이라 화면을 거치지 않고 올려도 똑같이 막힌다. 포스터(5MB 이하 이미지)도 이 안에 든다.
+    // write 에는 삭제도 들어가는데, 삭제 때는 request.resource 가 없어 위 검사가 실패하므로
+    // 삭제는 따로 연다(신청 서류와 같은 방식).
     match /support/public/{allPaths=**} {
       allow read: if true;
-      allow write: if isStaff();
+      allow write: if isStaff() && isOutputType() && isUnderSizeLimit();
+      allow delete: if isStaff();
     }
   }
 }
