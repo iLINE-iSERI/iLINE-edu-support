@@ -119,7 +119,7 @@ function StaffContent() {
     <>
       <PageHeader
         title="관리"
-        description="신청 목록입니다 — 상태를 바꾸고 사유를 남깁니다. 프로그램·공지·정산·산출물·예약 관리는 아래 버튼으로. 목록 정리와 집계는 구글 스프레드시트에서 하세요."
+        description="신청 목록입니다 — 상태를 바꾸고 사유를 남깁니다. 프로그램·공지·정산·산출물·예약·문의·회원 관리는 아래 버튼으로. 목록 정리와 집계는 구글 스프레드시트에서 하세요."
       />
 
       <div className="container-page space-y-6 py-8">
@@ -169,6 +169,12 @@ function StaffContent() {
                 {openInquiries}
               </span>
             )}
+          </Link>
+          <Link
+            href="/staff/members"
+            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
+          >
+            회원 관리 →
           </Link>
         </div>
 

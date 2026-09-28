@@ -5,8 +5,10 @@
 //   iLINE 회원이 로그인한 채로 넘어와도, 이 문서가 없으면 회원이 아니다.
 
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   serverTimestamp,
@@ -28,6 +30,18 @@ export async function getMember(uid: string): Promise<SupportUser | null> {
   const snap = await getDoc(doc(getDb(), COL.users, uid))
   if (!snap.exists()) return null
   return { uid: snap.id, ...snap.data() } as SupportUser
+}
+
+/**
+ * 전체 회원 — 담당자 「회원 관리」 화면용 (D-114). **읽기만 한다.**
+ * 규칙이 목록 읽기를 담당자에게만 연다(`allow list: if isStaff()`). 최근 가입 순.
+ * 정렬은 여기서 한다 — orderBy 를 걸면 `createdAt` 이 없는 문서가 빠진다.
+ */
+export async function listMembers(): Promise<SupportUser[]> {
+  const snap = await getDocs(collection(getDb(), COL.users))
+  return snap.docs
+    .map((d) => ({ uid: d.id, ...d.data() }) as SupportUser)
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
 }
 
 export interface RegisterInput {
