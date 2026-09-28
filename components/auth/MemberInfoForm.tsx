@@ -224,7 +224,9 @@ export default function MemberInfoForm({
             label="학과 · 전공"
             name="major"
             required
-            hint="예: 초등교육과 / 컴퓨터교육전공"
+            // 09-29 iSERI: 「○○교육전공」과 「○○교육과」가 섞여 들어와서 예시를 「~과」로 통일.
+            // 교직이수 과정 학생도 있어 사범대 밖 학과 + 「(교직이수)」 예시를 함께
+            hint="예: 초등교육과 / 컴퓨터교육과 / 국어국문학과(교직이수)"
             value={major}
             onChange={(e) => setMajor(e.target.value)}
           />
