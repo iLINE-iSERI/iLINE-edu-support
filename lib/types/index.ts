@@ -607,6 +607,11 @@ export interface Application {
    * 테스트 계정이 낸 신청이다. 서버(Admin)만 쓴다. 담당자 목록에 「시험」으로 보인다.
    */
   sheetSkipped?: 'tester'
+  /**
+   * 선정된 뒤 **본인이** 취소했으면 'approved' (D-116 · 09-29). 담당자 목록·시트에 「선정 뒤 본인 취소」로
+   * 보인다 — 선정해 연락까지 한 사람이 조용히 빠지는 것을 놓치지 않게. 규칙이 이전 상태와 맞는지 본다
+   */
+  cancelledFromStatus?: 'approved'
   /** 신청 시점의 참여 방식 스냅샷 — 프로그램 설정이 바뀌어도 이력은 남는다 */
   participationType: ParticipationType
 

@@ -22,7 +22,7 @@ import { listMyInquiries, hasUnseenAnswer } from '@/lib/firebase/inquiries'
 import Link from 'next/link'
 import SettlementSection from '@/components/settlement/SettlementSection'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
-import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
+import { firestoreErrorMessage, firebaseErrorKind, actionErrorMessage } from '@/lib/firebase/errors'
 import {
   APPLICANT_STATUS_LABEL,
   profileRows,
@@ -79,7 +79,8 @@ function MypageContent() {
           console.warn('[iLINE] 정산 조회 실패:', e)
           return []
         }),
-        listPublishedPrograms().catch((e) => {
+        // 테스트 계정은 비공개 공고에 신청한다(D-111) — 그 공고도 불러와야 수정·취소 판정이 된다
+        listPublishedPrograms({ includeHidden: member?.role === 'tester' }).catch((e) => {
           console.warn('[iLINE] 프로그램 조회 실패:', e)
           return [] as Program[]
         }),
@@ -92,7 +93,7 @@ function MypageContent() {
       setError(firestoreErrorMessage(e))
       setApps([])
     }
-  }, [user])
+  }, [user, member?.role])
 
   useEffect(() => {
     void load()
@@ -264,6 +265,7 @@ function MypageContent() {
                     {canEditMyself(
                       a,
                       programs.find((p) => p.id === a.programId) ?? null,
+                      { tester: member?.role === 'tester' },
                     ) && (
                       <div className="mt-3 border-t border-line pt-3">
                         <Button
@@ -276,16 +278,21 @@ function MypageContent() {
                           접수 마감 전까지 프로그램별 항목·기재란을 고칠 수
                           있습니다. 신청자 정보·첨부·초상권 동의는 취소 후 다시
                           신청해야 바뀝니다.
+                          {/* D-116: 선정 뒤에도 기간 중이면 고칠 수 있다 — 담당자가 알게 된다는 것을 미리 */}
+                          {a.status === 'approved' &&
+                            ' 선정된 뒤에 고치시면 담당자에게 「선정 뒤 수정됨」으로 표시됩니다.'}
                         </p>
                       </div>
                     )}
 
-                    {/* 본인 취소 (D-48) — 접수 기간 중 · 제출 완료/보완 요청만 */}
+                    {/* 본인 취소 (D-48 · D-116) — 접수 기간 중 · 미선정·취소 말고 전부. 정산 낸 선정 건은 안 됨 */}
                     <CancelBlock
                       app={a}
                       program={
                         programs.find((p) => p.id === a.programId) ?? null
                       }
+                      hasSettlement={settlements.some((s) => s.applicationId === a.id)}
+                      tester={member?.role === 'tester'}
                       onDone={load}
                     />
                   </li>
@@ -375,10 +382,16 @@ function MypageContent() {
 function CancelBlock({
   app,
   program,
+  hasSettlement,
+  tester,
   onDone,
 }: {
   app: Application
   program: Program | null
+  /** 이 신청에 정산을 냈는가 — 선정 건은 정산이 있으면 취소 못 한다 (D-116) */
+  hasSettlement: boolean
+  /** 테스트 계정 — 비공개 공고의 신청도 취소할 수 있다 (D-111) */
+  tester: boolean
   onDone: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -389,17 +402,18 @@ function CancelBlock({
   // 이미 끝난 건에는 아무것도 띄우지 않는다 — 할 수 있는 일이 없다
   if (app.status === 'cancelled' || app.status === 'rejected') return null
 
-  if (!canCancelMyself(app, program)) {
-    // 선정된 건은 취소가 곧 '참여 포기'라 담당자가 반드시 알아야 한다.
-    // 그 밖(검토 중·마감 후)은 담당자가 이미 손댔거나 재신청이 불가능한 상태다.
+  const approved = app.status === 'approved'
+  if (!canCancelMyself(app, program, { hasSettlement, tester })) {
+    // D-116 부터 선정도 접수 기간 중이면 취소된다. 막히는 이유는 셋 — 정산을 냈거나(선정 건),
+    // 접수가 마감됐거나, 프로그램이 내려갔거나. 마감 뒤 선정 건의 취소는 곧 '참여 포기'라 담당자가 알아야 한다.
     return (
       <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-ink-subtle">
         신청을 취소하시려면 담당자에게 문의해 주세요.{' '}
-        {app.status === 'approved'
-          ? '선정된 프로그램은 참여 포기 처리가 필요합니다.'
-          : // '검토 중' 상태를 없애면서(D-49) 남을 이유는 사실상 마감뿐이다.
-            // 옛 문구는 "검토가 시작된"을 함께 말해서 이제 사실과 다르다.
-            '접수가 마감된 뒤에는 화면에서 취소할 수 없습니다.'}
+        {approved && hasSettlement
+          ? '정산을 내신 뒤에는 화면에서 취소할 수 없습니다.'
+          : approved
+            ? '접수가 마감된 뒤 선정된 프로그램은 참여 포기 처리가 필요합니다.'
+            : '접수가 마감된 뒤에는 화면에서 취소할 수 없습니다.'}
       </p>
     )
   }
@@ -418,8 +432,9 @@ function CancelBlock({
       // 담당자가 상태를 바꾼 것이다. 화면을 새로 읽으면 상황이 보인다.
       setError(
         firebaseErrorKind(e) === 'permission-denied'
-          ? '지금은 취소할 수 없습니다. 접수가 마감되었거나 담당자가 검토를 시작했을 수 있습니다. 화면을 새로고침해 확인해 주세요.'
-          : firestoreErrorMessage(e),
+          ? '지금은 취소할 수 없습니다. 접수가 마감되었거나 그 사이 상태가 바뀌었을 수 있습니다. 화면을 새로고침해 확인해 주세요.'
+          : // 산출물을 낸 선정 건 등 우리가 쓴 안내는 그대로 보인다 (D-116)
+            actionErrorMessage(e),
       )
       setBusy(false)
     }
@@ -435,6 +450,13 @@ function CancelBlock({
         <div className="rounded-xl bg-subtle p-3">
           <p className="text-sm font-bold">이 신청을 취소하시겠습니까?</p>
           <ul className="mt-1.5 space-y-1 text-xs leading-relaxed text-ink-muted">
+            {/* D-116: 선정된 건은 무엇을 잃는지 먼저 */}
+            {approved && (
+              <li className="font-semibold text-status-revision">
+                · 선정이 취소됩니다. 다시 신청하시면 새 신청으로 다시 심사합니다 — 담당자에게는
+                「선정 뒤 취소」로 알려집니다
+              </li>
+            )}
             <li>· 신청 기록은 &lsquo;취소됨&rsquo;으로 남습니다</li>
             <li>
               · 접수 기간 안이라면 이 프로그램에 다시 신청하실 수 있습니다

@@ -22,6 +22,8 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { getDb, getStorageClient, COL, STORAGE_ROOT } from './config'
 import { CONSENT_VERSION } from './members'
+import { UserFacingError } from './errors'
+import { listMyOutputs } from './outputs'
 import type {
   Application,
   ApplicantSnapshot,
@@ -269,10 +271,20 @@ export async function findMyApplication(
  *    여기 조건을 고치면 `firestore.rules` 의 본인 취소 규칙도 함께 고칠 것.
  *    한쪽만 고치면 버튼은 보이는데 눌러도 거부되거나, 그 반대가 된다.
  */
-export function canCancelMyself(app: Application, program: Program | null): boolean {
-  const CANCELLABLE = ['submitted', 'reviewing', 'revision']
+export function canCancelMyself(
+  app: Application,
+  program: Program | null,
+  /**
+   * hasSettlement — 이 신청에 정산을 이미 냈는가. 선정 건은 정산이 있으면 취소 못 한다(규칙도 막는다 · D-116)
+   * tester — 테스트 계정인가. 비공개 공고도 된다(규칙 acceptingNow 와 같다 · D-111)
+   */
+  opts: { hasSettlement?: boolean; tester?: boolean } = {}
+): boolean {
+  // D-116(09-29): 선정도 접수 기간 중이면 취소할 수 있다. 미선정은 계속 막는다
+  const CANCELLABLE = ['submitted', 'reviewing', 'revision', 'approved']
   if (!CANCELLABLE.includes(app.status)) return false
-  if (!program || !program.published) return false
+  if (app.status === 'approved' && opts.hasSettlement) return false
+  if (!program || (!program.published && !opts.tester)) return false
 
   const now = Date.now()
   const opens = program.opensAt?.toMillis()
@@ -285,18 +297,23 @@ export function canCancelMyself(app: Application, program: Program | null): bool
 /**
  * 신청자가 **직접 내용을 고칠 수 있는 상태인가** (D-73 · 09-16).
  *
- * 조건은 취소(`canCancelMyself`)와 같다 — 제출 완료/보완 요청 · 공개된 프로그램 ·
- * 접수 기간 중. 그래서 [수정하기]와 [신청 취소]는 늘 함께 보이고 함께 사라진다.
+ * 조건은 취소(`canCancelMyself`)와 같다 — 제출 완료/보완 요청/**선정**(D-116) · 공개된 프로그램 ·
+ * 접수 기간 중. 기준은 「상태」가 아니라 「접수 기간」이다 — 선정 뒤에 고쳐도 상태는 그대로다. 그래서 [수정하기]와 [신청 취소]는 늘 함께 보이고 함께 사라진다.
  * 여기에 둘 더: 고칠 칸이 없는 프로그램(전용 양식·기재란 둘 다 없음)은 열지 않고,
  * **전용 양식이 걸린 프로그램인데 원래 값(formValues)이 없으면** 폼을 되살릴 수 없어
  * 수정 화면을 열지 않는다(09-16 이전 제출분).
  *
  * ⚠️ 진짜 차단은 `firestore.rules` 의 본인 수정 조항이다. 여기와 함께 고칠 것.
  */
-export function canEditMyself(app: Application, program: Program | null): boolean {
-  const EDITABLE = ['submitted', 'revision']
+export function canEditMyself(
+  app: Application,
+  program: Program | null,
+  /** 테스트 계정이면 비공개 공고도 된다 — 규칙 acceptingNow(published || isTester)와 같게 (D-111 · 09-29 발견) */
+  opts: { tester?: boolean } = {}
+): boolean {
+  const EDITABLE = ['submitted', 'revision', 'approved']
   if (!EDITABLE.includes(app.status)) return false
-  if (!program || !program.published) return false
+  if (!program || (!program.published && !opts.tester)) return false
   // 고칠 수 있는 칸이 하나도 없는 프로그램(전용 양식도 기재란도 없음)이면 버튼을
   // 띄우지 않는다 — 열어 봐야 빈 화면이다 (09-16 iSERI 질문에서 발견)
   // 담당자가 만든 글 상자·동의도 고칠 수 있는 칸이다 (D-99).
@@ -395,12 +412,25 @@ export async function cancelMyApplication(
   const db = getDb()
   const batch = writeBatch(db)
 
-  // ⚠️ 규칙이 바꿀 수 있는 칸을 네 개로 제한한다. 여기서 다른 칸을 건드리면
+  // D-116: 선정된 건에 산출물을 이미 냈으면 취소하지 않는다 — 산출물이 취소 건에 붙어 남는다.
+  //   (규칙은 산출물 수를 셀 수 없어 여기서만 막는다. 접수 기간과 제출 기간이 겹칠 때만 생기는 일)
+  if (app.status === 'approved') {
+    const outputs = await listMyOutputs(app.uid)
+    if (outputs.some((o) => o.applicationId === app.id)) {
+      throw new UserFacingError(
+        '산출물을 이미 제출하신 신청이라 화면에서 취소할 수 없습니다. 담당자에게 문의해 주세요.'
+      )
+    }
+  }
+
+  // ⚠️ 규칙이 바꿀 수 있는 칸을 제한한다. 여기서 다른 칸을 건드리면
   //    권한 오류로 통째로 거부된다.
   batch.update(doc(db, COL.applications, app.id), {
     status: 'cancelled',
     cancelReason: reason.trim(),
     cancelledAt: serverTimestamp(),
+    // 선정된 뒤의 본인 취소는 표시를 남긴다 — 규칙이 이전 상태와 맞는지 본다 (D-116)
+    ...(app.status === 'approved' ? { cancelledFromStatus: 'approved' } : {}),
     updatedAt: serverTimestamp(),
   })
 

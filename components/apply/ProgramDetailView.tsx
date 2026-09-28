@@ -184,7 +184,7 @@ export default function ProgramDetailView({
                 회원 등록
               </Button>
             </div>
-          ) : mine && wantsEdit && canEditMyself(mine, program) ? (
+          ) : mine && wantsEdit && canEditMyself(mine, program, { tester: member?.role === 'tester' }) ? (
             <p className="text-sm text-ink-muted">
               아래에서 신청 내용을 고친 뒤 <strong>[수정 내용 저장]</strong>을
               눌러 주세요.
@@ -206,7 +206,7 @@ export default function ProgramDetailView({
               </div>
               <div className="flex flex-wrap gap-2">
                 {/* 마감 전 본인 수정 (D-73) — 조건은 취소와 같다 */}
-                {canEditMyself(mine, program) && (
+                {canEditMyself(mine, program, { tester: member?.role === 'tester' }) && (
                   <Button href={`/apply/${program.id}?edit=1`}>
                     신청 내용 수정
                   </Button>
@@ -240,7 +240,7 @@ export default function ProgramDetailView({
           user &&
           mine &&
           wantsEdit &&
-          canEditMyself(mine, program) && (
+          canEditMyself(mine, program, { tester: member?.role === 'tester' }) && (
             <ApplicationForm
               key={mine.id}
               program={program}

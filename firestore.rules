@@ -147,7 +147,10 @@ service cloud.firestore {
 
         // ── 마감 전 본인 수정 (D-73 · 09-16) ─────────────────────
         // 신청서 **내용**만 고친다 — 팀 활동 중 변동(팀명·역할·계획 등)을 덮기 위해.
-        //   ① 자기 신청서  ② '제출 완료' 또는 '보완 요청'  ③ 접수 기간 중
+        //   ① 자기 신청서  ② '제출 완료' · '보완 요청' · **'선정'**  ③ 접수 기간 중
+        //   D-116(09-29): 접수 중에 담당자가 빨리 선정하면 기간이 남았는데도 막혔다 → 기준을
+        //   「상태」가 아니라 「접수 기간」으로. 선정 뒤 수정해도 상태는 그대로(담당자에겐 「선정 뒤 수정됨」).
+        //   '미선정' 은 계속 막는다 — 결과가 나온 건은 문의로
         //   ④ 바꿀 수 있는 칸을 못 박는다 — 내용(note · formData · formValues) ·
         //      새 PDF(generatedPdfPath · pdfHistory) · 흔적(editCount · lastEditedAt).
         //      상태·신청자 사본·첨부·초상권·프로그램은 여기 없으므로 못 건드린다.
@@ -155,7 +158,7 @@ service cloud.firestore {
         // 이 조항으로 **대체**했다(더 좁아짐). draft 는 D-29 로 쓰지 않는다.
         || (isMember()
             && resource.data.uid == request.auth.uid
-            && resource.data.status in ['submitted', 'revision']
+            && resource.data.status in ['submitted', 'revision', 'approved']
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['note', 'noteLabel', 'formData', 'formValues',
                            'generatedPdfPath', 'pdfHistory',
@@ -169,7 +172,8 @@ service cloud.firestore {
         //      — '검토 중'은 담당자가 **보고 있다는 표시일 뿐 확정이 아니다.**
         //        참여 못 하게 된 사람을 붙잡을 이유가 없고, 오히려 일찍
         //        알수록 헛심사가 준다 (09-08 재검토)
-        //      — 선정·미선정은 결과가 나온 뒤라 문의로 돌린다
+        //      — **선정도 접수 기간 중이면 된다 (D-116 · 09-29).** 미선정은 결과가 나온 뒤라
+        //        문의로 돌린다(막지 않으면 미선정 → 취소 → 재신청으로 다시 심사받는 길이 생긴다)
         //   ③ **접수 기간 중일 것** — 마감 뒤에는 재신청이 불가능해서
         //      "없던 일로 되돌리기"가 성립하지 않는다. 그때의 취소는 참여
         //      포기이고, 담당자가 알아야 하는 사건이다
@@ -179,10 +183,18 @@ service cloud.firestore {
         //    있다. 신청서는 제출 시점 원본이어야 한다 (D-28 / D-29).
         || (isMember()
             && resource.data.uid == request.auth.uid
-            && resource.data.status in ['submitted', 'reviewing', 'revision']
+            && resource.data.status in ['submitted', 'reviewing', 'revision', 'approved']
             && request.resource.data.status == 'cancelled'
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'cancelReason', 'cancelledAt', 'updatedAt'])
+                 .hasOnly(['status', 'cancelReason', 'cancelledAt', 'cancelledFromStatus', 'updatedAt'])
+            // D-116: 선정된 건을 취소하면 **그 사실을 남긴다**(담당자 목록·시트에 「선정 뒤 본인 취소」).
+            //        선정이 아닌 건에는 그 표시를 못 붙이고, 선정 건은 빼먹을 수 없다
+            && ((resource.data.status == 'approved')
+                  == (request.resource.data.get('cancelledFromStatus', '') == 'approved'))
+            // D-116: **정산을 이미 낸 선정 건은 취소 못 한다** — 정산만 남은 취소 건이 생긴다.
+            //        정산 문서 번호 = 신청번호(settlementIdOf)라 바로 확인된다
+            && (resource.data.status != 'approved'
+                || !exists(/databases/$(database)/documents/support_settlements/$(appId)))
             && acceptingNow(resource.data.programId));
 
       allow delete: if false;

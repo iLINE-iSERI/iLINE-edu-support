@@ -637,15 +637,23 @@ export async function syncApplication(
     ap?.personalInfoConsent ? 'O' : 'X',
     ap?.portraitConsent ? 'O' : 'X',
     // D-74: 영어 코드 대신 화면과 같은 한글 상태. 상태가 바뀔 때마다 이 줄을 다시 쓴다
-    APPLICATION_STATUS_LABEL[app.status] ?? app.status,
+    // D-116: 선정 뒤 본인 취소는 담당자가 놓치면 안 돼서 상태 칸에 함께 적는다
+    (APPLICATION_STATUS_LABEL[app.status] ?? app.status) +
+      (app.cancelledFromStatus === 'approved' ? ' (선정 뒤 본인 취소)' : ''),
     app.note ? `[${app.noteLabel || '추가 기재'}] ${app.note}` : '',
     // 저장된 라벨을 그대로 쓴다. 서버는 어떤 양식인지 모른다 (D-50).
     (app.formData ?? [])
       .filter((r) => r.value)
       .map((r) => `${r.label}: ${r.value}`)
       .join('\n'),
-    // D-73 수정 흔적
-    edited ? `${app.editCount}회 · ${seoulStamp(app.lastEditedAt?.toDate?.())}` : '',
+    // D-73 수정 흔적 · D-116 선정한 뒤에 고쳤으면 그 사실도
+    edited
+      ? `${app.editCount}회 · ${seoulStamp(app.lastEditedAt?.toDate?.())}` +
+        (app.status === 'approved' &&
+        (app.lastEditedAt?.toMillis?.() ?? 0) > (app.reviewedAt?.toMillis?.() ?? Infinity)
+          ? ' · 선정 뒤'
+          : '')
+      : '',
     driveUrl,
   ]
 

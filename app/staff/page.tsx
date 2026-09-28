@@ -340,13 +340,17 @@ function ApplicationRow({
         </Badge>
         {/* 테스트 계정이 낸 신청 (D-111) — 실제 신청과 섞여 세지 않도록 한눈에 */}
         {app.sheetSkipped === 'tester' && <Badge tone="warn">시험</Badge>}
+        {/* 선정해 둔 사람이 스스로 빠진 것 (D-116) — 선정 인원을 다시 봐야 한다 */}
+        {app.cancelledFromStatus === 'approved' && <Badge tone="warn">선정 뒤 취소</Badge>}
         <span className="text-xs text-ink-subtle">
           {app.submittedAt?.toDate().toLocaleString('ko-KR')} 제출
         </span>
-        {/* 마감 전 본인 수정 (D-73) — 심사 중 내용이 바뀐 것을 놓치지 않게 */}
+        {/* 마감 전 본인 수정 (D-73) — 심사 중 내용이 바뀐 것을 놓치지 않게.
+            D-116: 선정한 뒤에 고친 것은 「선정 뒤 수정됨」 — 심사한 내용과 달라졌을 수 있다 */}
         {(app.editCount ?? 0) > 0 && (
           <span className="rounded-full bg-status-revision/10 px-2.5 py-1 text-xs font-bold text-status-revision">
-            수정됨 · {app.lastEditedAt?.toDate().toLocaleString('ko-KR')} · {app.editCount}회
+            {editedAfterApproval(app) ? '선정 뒤 수정됨' : '수정됨'} ·{' '}
+            {app.lastEditedAt?.toDate().toLocaleString('ko-KR')} · {app.editCount}회
           </span>
         )}
       </div>
@@ -410,7 +414,7 @@ function ApplicationRow({
       {app.status === 'cancelled' && (
         <div className="mt-3 rounded-lg border border-line bg-subtle p-3 text-sm leading-relaxed">
           <p className="font-semibold">
-            취소됨
+            {app.cancelledFromStatus === 'approved' ? '선정 뒤 본인 취소' : '취소됨'}
             {app.cancelledAt && (
               <span className="ml-2 text-xs font-normal text-ink-subtle">
                 {app.cancelledAt.toDate().toLocaleString('ko-KR')}
@@ -422,6 +426,12 @@ function ApplicationRow({
               ? `신청자가 남긴 사유: ${app.cancelReason}`
               : '신청자가 사유를 남기지 않았습니다. (사유는 선택 항목입니다)'}
           </p>
+          {app.cancelledFromStatus === 'approved' && (
+            <p className="mt-1 text-xs font-semibold text-status-revision">
+              선정한 뒤 신청자가 스스로 취소했습니다. 선정 인원을 다시 확인해 주세요. (같은 사람이 다시
+              신청하면 새 건으로 들어옵니다)
+            </p>
+          )}
         </div>
       )}
 
@@ -635,4 +645,15 @@ function FileButton({ path, label }: { path: string; label: string }) {
       <span className="truncate">{busy ? '여는 중…' : label}</span>
     </button>
   )
+}
+
+/**
+ * 선정한 **뒤에** 신청자가 고쳤는가 (D-116) — 상태는 선정 그대로 두므로, 담당자가 심사한 내용과
+ * 달라졌다는 것을 이 표시로 알린다. 상태를 바꾼 시각(reviewedAt)보다 마지막 수정이 늦으면 그렇다.
+ */
+function editedAfterApproval(app: Application): boolean {
+  if (app.status !== 'approved') return false
+  const edited = app.lastEditedAt?.toMillis()
+  const reviewed = app.reviewedAt?.toMillis()
+  return edited !== undefined && reviewed !== undefined && edited > reviewed
 }
