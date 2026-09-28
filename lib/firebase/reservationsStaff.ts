@@ -391,17 +391,15 @@ export async function staffAddReservations(
    ───────────────────────────────────────────────────────────── */
 
 export async function saveReservationSettings(s: ReservationSettings): Promise<void> {
-  if (s.closeWeekday < 0 || s.closeWeekday > 6 || s.deliverWeekday < 0 || s.deliverWeekday > 6)
-    throw new UserFacingError('요일이 올바르지 않습니다.')
-  if (s.closeHour < 0 || s.closeHour > 23) throw new UserFacingError('마감 시각이 올바르지 않습니다.')
+  if (!Number.isInteger(s.leadDays) || s.leadDays < 1 || s.leadDays > 14)
+    throw new UserFacingError('예약 마감은 1~14일 전 사이여야 합니다.')
   if (s.rangeWeeks < 1 || s.rangeWeeks > 12) throw new UserFacingError('범위는 1~12주 사이여야 합니다.')
   const closedDates = Array.from(
     new Set(s.closedDates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))
   ).sort()
+  // setDoc(덮어쓰기)이라 D-115 이전의 요일 칸(closeWeekday 등)은 저장하면 사라진다 — 의도한 것
   await setDoc(doc(getDb(), COL.reservationSettings, 'main'), {
-    closeWeekday: s.closeWeekday,
-    closeHour: s.closeHour,
-    deliverWeekday: s.deliverWeekday,
+    leadDays: s.leadDays,
     rangeWeeks: s.rangeWeeks,
     closedDates,
     updatedAt: serverTimestamp(),

@@ -1022,7 +1022,8 @@ export interface Resource {
    지원사업 회원에게 사범대 공부실을 예약해 주는 기능.
    우리 시스템은 **진실의 원천이 아니다** — 시설은 사범대 것이고 최종
    권한은 행정실에 있다. 그래서 상태가 두 단계다:
-     received(접수됨) → (목요일 행정실 전달) → confirmed(확정됨)
+     received(접수됨) → (담당자가 행정실에 전달) → confirmed(확정됨)
+   예약은 이용일 3일 전 23:59 까지(D-115), 전달은 담당자가 명단을 열 때마다(요일 없음).
    정책·근거는 docs/4-기록/06-시설예약-설계.md.
    ───────────────────────────────────────────────────────────── */
 
@@ -1121,13 +1122,13 @@ export interface ReservationDelivery {
  *    (`/staff/reservations/settings`)에서 조정한다. 확인할 목록은 docs/3-할일/02 J 표.
  */
 export interface ReservationSettings {
-  /** 마감 요일 — 0=일 … 3=수 … 6=토 */
-  closeWeekday: number
-  /** 마감 시각 (정시) */
-  closeHour: number
-  /** 전달 요일 */
-  deliverWeekday: number
-  /** 앞으로 몇 주까지 받나 */
+  /**
+   * 예약 마감 — 이용일 **며칠 전 23:59 까지** 받나 (D-115 · 09-28 운영진 결정: 3일 전, 달력 기준).
+   * 예전의 「매주 ○요일 마감 → ○요일 전달」(D-55)을 대신한다. 전달 명단은 원래 날짜가 아니라
+   * 상태로 뽑으므로(D-55) 담당자는 **아무 날이나** 전달하면 된다 — 요일 설정이 필요 없어졌다.
+   */
+  leadDays: number
+  /** 앞으로 몇 주까지 받나 — 첫 날짜가 든 주부터 센다 */
   rangeWeeks: number
   /** 휴관일 `YYYY-MM-DD` 목록 — 시험 기간 등 */
   closedDates: string[]
@@ -1135,9 +1136,7 @@ export interface ReservationSettings {
 }
 
 export const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
-  closeWeekday: 3,
-  closeHour: 18,
-  deliverWeekday: 4,
+  leadDays: 3,
   rangeWeeks: 4,
   closedDates: [],
 }

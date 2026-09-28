@@ -7,7 +7,7 @@
 //     **한 묶음(batch)** 으로 쓴다. 슬롯·열쇠는 문서 ID 자체가 잠금이라
 //     동시에 두 사람이 눌러도 한 명만 성공한다 (신청서의 열쇠 문서와 같은 방식)
 //   · 우리 시스템은 진실의 원천이 아니다 — "예약되었습니다"라 하지 않는다.
-//     상태는 received(접수됨) → confirmed(확정됨, 목요일 전달 뒤)
+//     상태는 received(접수됨) → confirmed(확정됨, 담당자가 행정실에 전달한 뒤)
 
 import {
   collection,
@@ -51,10 +51,9 @@ export async function getReservationSettings(): Promise<ReservationSettings> {
   if (!snap.exists()) return DEFAULT_RESERVATION_SETTINGS
   const d = snap.data()
   return {
-    closeWeekday: d.closeWeekday ?? DEFAULT_RESERVATION_SETTINGS.closeWeekday,
-    closeHour: d.closeHour ?? DEFAULT_RESERVATION_SETTINGS.closeHour,
-    deliverWeekday:
-      d.deliverWeekday ?? DEFAULT_RESERVATION_SETTINGS.deliverWeekday,
+    // D-115 이전에 저장된 문서엔 leadDays 가 없다(요일 칸만 있다) → 기본값 3일.
+    // 옛 요일 칸(closeWeekday·closeHour·deliverWeekday)은 더 읽지 않는다
+    leadDays: typeof d.leadDays === 'number' ? d.leadDays : DEFAULT_RESERVATION_SETTINGS.leadDays,
     rangeWeeks: d.rangeWeeks ?? DEFAULT_RESERVATION_SETTINGS.rangeWeeks,
     closedDates: Array.isArray(d.closedDates) ? d.closedDates : [],
     updatedAt: d.updatedAt,
@@ -292,7 +291,8 @@ export async function createReservation(
  *
  * 확정된 것도 취소할 수 있다(D-55). 4주 범위라 3주 뒤 계획은 바뀌기
  * 마련이고, 그때마다 담당자에게 연락하게 하는 것은 비현실적이다.
- * 확정 뒤 취소는 다음 목요일 명단의 「취소」 묶음으로 행정실에 알린다.
+ * 확정 뒤 취소는 다음 전달 명단의 「취소」 묶음으로 행정실에 알린다.
+ * D-115(09-28 운영진): 예약 마감은 3일 전으로 바뀌었지만 **취소는 그대로 전날까지.**
  */
 export function canCancelMyself(r: Reservation, now: Date = new Date()): boolean {
   if (r.status === 'cancelled') return false

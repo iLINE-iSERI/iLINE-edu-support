@@ -230,7 +230,7 @@ export default function ReserveFlow() {
             표시됩니다.
           </p>
         </div>
-        <ReservationCard reservation={result} deliverDate={win.deliverDate} />
+        <ReservationCard reservation={result} />
         <div className="flex flex-wrap gap-2">
           <Button href="/reserve/mine">내 예약 보기</Button>
           <Button variant="secondary" onClick={reset}>
@@ -379,6 +379,7 @@ export default function ReserveFlow() {
         <div className="mt-3">
           <WeekGrid
             week={week}
+            win={win}
             settings={settings}
             totalSeats={venue.seats.length}
             occupancy={occupancy}

@@ -35,7 +35,7 @@ const SHORTCUTS: { href: string; title: string; desc: string; tone: 'blue' | 'te
   {
     href: '/reserve',
     title: '시설 예약',
-    desc: '사범대학 공부실을 회원 누구나',
+    desc: '사범대학 시설을 회원 누구나',
     tone: 'teal',
     icon: (
       <>

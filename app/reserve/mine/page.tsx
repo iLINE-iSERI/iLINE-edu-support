@@ -4,8 +4,8 @@
  * 내 예약 — 조회·취소 (화면 설계 §2).
  *
  * 상태는 둘: 접수됨 → 확정됨. 취소는 이용일 전날까지 언제든(J-5 가정값).
- * 확정된 것을 취소하면 다음 목요일 명단의 「취소」 묶음으로 행정실에
- * 알린다(D-55) — 그 뜻을 취소 전에 적어 준다.
+ * 확정된 것을 취소하면 다음 전달 명단의 「취소」 묶음으로 행정실에
+ * 알린다(D-55) — 그 뜻을 취소 전에 적어 준다. 전달은 요일 없이 담당자가 명단을 열 때마다(D-115).
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -16,11 +16,10 @@ import ReservationCard from '@/components/reserve/ReservationCard'
 import { useAuth } from '@/components/auth/AuthProvider'
 import {
   listMyReservations,
-  getReservationSettings,
   canCancelMyself,
   cancelMyReservation,
 } from '@/lib/firebase/reservations'
-import { computeWindow, toYmd } from '@/lib/reservations/window'
+import { toYmd } from '@/lib/reservations/window'
 import { actionErrorMessage, firestoreErrorMessage } from '@/lib/firebase/errors'
 import type { Reservation } from '@/lib/types'
 
@@ -35,7 +34,6 @@ export default function MyReservationsPage() {
 function Content() {
   const { user } = useAuth()
   const [list, setList] = useState<Reservation[] | null>(null)
-  const [deliverDate, setDeliverDate] = useState<string | undefined>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   /** 취소 확인 패널이 열린 예약 — window.confirm 대신 카드 안에서 확인한다 */
@@ -45,12 +43,7 @@ function Content() {
   const load = useCallback(async () => {
     if (!user) return
     try {
-      const [mine, settings] = await Promise.all([
-        listMyReservations(user.uid),
-        getReservationSettings().catch(() => null),
-      ])
-      setList(mine)
-      if (settings) setDeliverDate(computeWindow(settings).deliverDate)
+      setList(await listMyReservations(user.uid))
     } catch (e) {
       console.error('[iLINE] 예약 조회 실패:', e)
       setError(firestoreErrorMessage(e))
@@ -110,7 +103,6 @@ function Content() {
                   <li key={r.id}>
                     <ReservationCard
                       reservation={r}
-                      deliverDate={deliverDate}
                       action={
                         !canCancelMyself(r) ? (
                           <p className="text-xs text-ink-subtle">

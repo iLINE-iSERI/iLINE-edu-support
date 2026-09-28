@@ -9,7 +9,7 @@
  */
 
 import { seatLabel, venueLabel, hourLabel } from '@/lib/config/venues'
-import { longDate, shortDate } from '@/lib/reservations/window'
+import { longDate } from '@/lib/reservations/window'
 import { RESERVATION_STATUS_LABEL, type Reservation } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import { RESERVATION_TONE } from '@/lib/ui/statusTone'
@@ -20,12 +20,9 @@ export function timeRange(r: Reservation): string {
 
 export default function ReservationCard({
   reservation: r,
-  deliverDate,
   action,
 }: {
   reservation: Reservation
-  /** 접수됨 상태일 때 "○/○(목)에 전달" 문구에 쓴다 — 없으면 '목요일' */
-  deliverDate?: string
   action?: React.ReactNode
 }) {
   const dim = r.status === 'cancelled'
@@ -51,8 +48,8 @@ export default function ReservationCard({
 
       {r.status === 'received' && (
         <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-          {deliverDate ? `${shortDate(deliverDate)}에` : '목요일에'} 사범대학
-          행정실로 사용 요청이 전달되면 확정됩니다.
+          담당자가 사범대학 행정실로 사용 요청을 전달하면 「확정됨」으로 바뀝니다. 접수된
+          예약은 담당자가 차례로 전달합니다.
         </p>
       )}
       {r.status === 'confirmed' && (

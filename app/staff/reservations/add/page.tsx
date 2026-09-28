@@ -213,7 +213,7 @@ function Content() {
           <span>
             <strong>행정실과 이미 협의된 이용입니다 — 바로 확정으로 넣습니다.</strong>
             <br />
-            <span className="text-ink-muted">체크를 풀면 「접수됨」으로 들어가 다음 목요일 전달 명단에 포함됩니다.</span>
+            <span className="text-ink-muted">체크를 풀면 「접수됨」으로 들어가 다음 전달 명단에 포함됩니다.</span>
           </span>
         </label>
 

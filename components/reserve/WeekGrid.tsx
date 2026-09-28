@@ -3,7 +3,7 @@
 /**
  * 주간 격자 — 월~금 × 시작 시각 (화면 설계 §1-3).
  *
- *   숫자 = 남은 자리 수 · 0 = 다 참 · － = 휴관
+ *   숫자 = 남은 자리 수 · 0 = 다 참 · － = 휴관 · 마감 = 예약 마감이 지난 날 (D-115 — 날짜 단위로 잠근다)
  *
  * 달력을 만들지 않는다. 고를 수 있는 날이 평일뿐이라 5열 격자면 되고,
  * ◀ ▶ 로 주를 옮긴다 (4주 범위). "가능/불가"만 있으면 "지금 들어가면
@@ -18,7 +18,9 @@ import Link from 'next/link'
 import { START_HOURS, hourLabel } from '@/lib/config/venues'
 import {
   lockedReason,
+  pastReason,
   shortDate,
+  type ReservationWindow,
   type Week,
 } from '@/lib/reservations/window'
 import type { ReservationSettings } from '@/lib/types'
@@ -30,6 +32,7 @@ export interface GridSelection {
 
 export default function WeekGrid({
   week,
+  win,
   settings,
   totalSeats,
   occupancy,
@@ -43,6 +46,8 @@ export default function WeekGrid({
   canNext,
 }: {
   week: Week
+  /** 첫 날짜(오늘 + N일)보다 앞선 날은 「마감」 — 날짜 단위 잠금 (D-115) */
+  win: ReservationWindow
   settings: ReservationSettings
   totalSeats: number
   /** `{date}_{hour}` → 차 있는 자리 집합 */
@@ -59,7 +64,7 @@ export default function WeekGrid({
   canNext: boolean
 }) {
   const locked = week.state !== 'open'
-  const reason = lockedReason(week)
+  const reason = lockedReason(week, win)
 
   // 휴대폰용 — 이번에 보는 하루
   const [dayIdx, setDayIdx] = useState(0)
@@ -76,8 +81,9 @@ export default function WeekGrid({
   const remaining = (date: string, hour: number) =>
     totalSeats - (occupancy.get(`${date}_${hour}`)?.size ?? 0)
 
-  type CellState = 'closed' | 'mine' | 'busy' | 'full' | 'free'
+  type CellState = 'past' | 'closed' | 'mine' | 'busy' | 'full' | 'free'
   const cellState = (date: string, hour: number): CellState => {
+    if (date < win.firstDate) return 'past'
     if (settings.closedDates.includes(date)) return 'closed'
     if (myDates.has(date)) return 'mine'
     if (myBusy.has(`${date}_${hour}`)) return 'busy'
@@ -91,6 +97,7 @@ export default function WeekGrid({
     if (locked) return base + 'cursor-not-allowed bg-subtle text-ink-subtle'
     if (isSel) return base + 'bg-brand-600 text-white ring-2 ring-brand-300'
     switch (state) {
+      case 'past':
       case 'closed':
         return base + 'cursor-not-allowed text-ink-subtle'
       case 'mine':
@@ -104,11 +111,13 @@ export default function WeekGrid({
   }
 
   const cellText = (state: CellState, date: string, hour: number) =>
-    state === 'closed' ? '－' : String(Math.max(0, remaining(date, hour)))
+    state === 'past' ? '마감' : state === 'closed' ? '－' : String(Math.max(0, remaining(date, hour)))
 
   /** 못 고르는 이유 — 칸 설명(aria)·안내 줄·휴대폰 목록이 같은 문장을 쓴다 */
   const reasonOf = (state: CellState): string => {
     switch (state) {
+      case 'past':
+        return pastReason(win)
       case 'closed':
         return '휴관일입니다.'
       case 'mine':
@@ -168,7 +177,7 @@ export default function WeekGrid({
           {shortDate(week.monday)} ~ {shortDate(week.friday)}
           {locked && (
             <span className="ml-2 rounded-full bg-subtle px-2 py-0.5 text-xs font-semibold text-ink-subtle">
-              {week.state === 'delivered' ? '전달됨' : '마감 지남'}
+              마감 지남
             </span>
           )}
         </p>
@@ -282,7 +291,9 @@ export default function WeekGrid({
                 >
                   <span className="font-semibold">{hourLabel(h)}</span>
                   <span>
-                    {state === 'closed'
+                    {state === 'past'
+                      ? '예약 마감 지남'
+                      : state === 'closed'
                       ? '휴관'
                       : state === 'mine'
                         ? '이 공간에 이미 예약한 날'
@@ -300,9 +311,9 @@ export default function WeekGrid({
       </div>
 
       <p className="mt-3 text-xs text-ink-subtle">
-        숫자 = 남은 자리 수 · 0 = 다 참 · － = 휴관 · 취소선 = 이 공간에 이미
-        예약한 날이거나 다른 공간 예약과 겹치는 시간 · 주말은 휴관이라 나오지
-        않습니다
+        숫자 = 남은 자리 수 · 0 = 다 참 · － = 휴관 · 마감 = 예약 마감이 지난 날(이용일{' '}
+        {win.leadDays}일 전 23:59까지) · 취소선 = 이 공간에 이미 예약한 날이거나 다른 공간 예약과
+        겹치는 시간 · 주말은 휴관이라 나오지 않습니다
       </p>
     </div>
   )

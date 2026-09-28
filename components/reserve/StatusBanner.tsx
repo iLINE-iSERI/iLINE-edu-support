@@ -1,8 +1,8 @@
 /**
  * 예약하기 맨 위 — "어느 날짜까지 고를 수 있고, 언제 확정되는가" (화면 설계 §1-1).
  *
- * 예약은 항상 열려 있다. 「마감」은 사이트를 닫는 게 아니라 고를 수 있는
- * 첫 날짜를 한 주 미루는 것이라(D-55), "마감되었습니다" 화면은 없다.
+ * 예약은 항상 열려 있다. 「마감」은 사이트를 닫는 게 아니라 이용일 N일 전 23:59 가 지나면
+ * **그 날짜만** 못 고르게 되는 것이라(D-115), "마감되었습니다" 화면은 없다.
  *
  * ⚠️ 문의 안내는 필수다 (D-53). "안 됩니다"로 끝내면 못 쓰는 줄 안다.
  *    당일·이번 주·주말·야간은 현장에서 조율해 해결할 수 있는 경우가 있다.
@@ -19,13 +19,13 @@ export default function StatusBanner({ win }: { win: ReservationWindow }) {
   return (
     <div className="rounded-2xl border border-brand-200 bg-brand-50 p-5 text-sm leading-relaxed dark:border-brand-800 dark:bg-brand-900/30">
       <p className="font-bold text-brand-700 dark:text-brand-200">
-        📅 {shortDate(win.firstDate)} ~ {shortDate(win.lastDate)} 사이에서
+        📅 {shortDate(win.firstOpenDate)} ~ {shortDate(win.lastDate)} 사이에서
         고르실 수 있습니다
       </p>
       <p className="mt-1 text-ink-muted">
-        {closeAtLabel(win.closeAt)}까지 예약하시면{' '}
-        <strong className="text-ink">{shortDate(win.deliverDate)}</strong>에
-        사범대학 행정실로 전달되어 확정됩니다.
+        예약은 <strong className="text-ink">이용일 {win.leadDays}일 전 23:59까지</strong>입니다 — 가장
+        가까운 {shortDate(win.firstOpenDate)} 이용분은 {closeAtLabel(win.closeAt)}까지. 담당자가 사범대학
+        행정실로 사용 요청을 전달하면 「확정됨」으로 바뀝니다.
       </p>
       <p className="mt-3 border-t border-brand-200/60 pt-3 text-ink-muted dark:border-brand-800">
         그 전에 쓰셔야 하거나, 주말·18시 이후에 쓰시거나, <strong className="text-ink">이용 당일에

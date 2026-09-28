@@ -91,7 +91,7 @@ export function HeroView({ state }: { state: HeroState }) {
           </h1>
           <p className="mt-4 max-w-xl break-keep text-base leading-relaxed text-ink-muted sm:text-lg">
             {SITE.programName} 참여 사이트입니다. 프로그램 신청과 여비 정산, 산출물 제출,
-            공부실 예약을 이곳에서 합니다.
+            사범대학 시설 예약을 이곳에서 합니다.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button href="/apply" className="max-sm:w-full">

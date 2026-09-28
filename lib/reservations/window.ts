@@ -1,15 +1,16 @@
 /**
- * 예약 가능 날짜 범위 계산 — **한 곳에서만** (D-55).
+ * 예약 가능 날짜 범위 계산 — **한 곳에서만** (D-55 · D-115).
  *
- * 규칙 (docs/1-운영/06-예약-시스템-운영-방안.md §1):
- *   · 매주 「마감 요일·시각」이 지나면 「전달 요일」에 그때까지 들어온 것을 보낸다
- *   · 회원은 **앞으로 N주** 안의 평일을 고른다
- *   · 「마감」은 사이트를 닫는 게 아니라 **첫 날짜를 한 주 미루는 것**이다
- *       마감 전  → 다음 주 월요일부터
- *       마감 뒤  → 다다음 주 월요일부터 (다음 주 것은 다음 전달 때 이미 지난 뒤라)
+ * 규칙 (D-115 · 09-28 운영진 결정 — docs/1-운영/06-예약-시스템-운영-방안.md §1):
+ *   · 이용일 **N일 전 23:59 까지** 예약한다(기본 3일 · 달력 기준 — 주말도 하루로 센다)
+ *     → 지금 고를 수 있는 첫 날짜는 **오늘 + N일**. 그날의 마감이 **오늘 23:59** 다
+ *   · 전달은 담당자가 명단을 열 때마다(요일 없음). 명단은 원래 날짜가 아니라 상태로 뽑는다(D-55)
+ *   · 범위는 **앞으로 N주** — 첫 날짜가 든 주부터 센다
+ *   · 잠금은 **날짜 단위**다. 예전(「매주 수요일 마감 → 목요일 전달」)에는 주를 통째로 잠갔다
  *
  * 전부 **순수 함수**다 — `now` 를 인자로 받으므로 시험에서 날짜를 고정할 수 있다.
  * 날짜는 브라우저의 로컬 시간대로 계산한다 (이용자·행정실 모두 한국).
+ * 보안 규칙은 날짜 범위를 검사하지 않는다(형식만) — 화면과 lib(createReservation)가 이 판단을 쓴다.
  */
 
 import type { ReservationSettings } from '@/lib/types'
@@ -71,10 +72,9 @@ export function weekdayKo(n: number): string {
 /* ── 범위 계산 ───────────────────────────────────────────────── */
 
 export type WeekState =
-  /** 이미 행정실에 전달된 주 (이번 주) — 고를 수 없음 */
-  | 'delivered'
-  /** 마감이 지나 이번 전달에 못 들어가는 주 (마감 뒤의 다음 주) */
+  /** 고를 수 있는 날이 하나도 없는 주 — 마감이 다 지났다 */
   | 'closed'
+  /** 고를 수 있는 날이 있는 주 (앞쪽 며칠은 마감이 지났을 수 있다 — 날짜별로 본다) */
   | 'open'
 
 export interface Week {
@@ -86,17 +86,20 @@ export interface Week {
 }
 
 export interface ReservationWindow {
-  /** 고를 수 있는 첫 날짜 (월요일) */
+  /** 고를 수 있는 첫 날짜 — 오늘 + N일 (주말일 수도 있다. 주말은 어차피 못 고른다) */
   firstDate: string
   /** 고를 수 있는 마지막 날짜 (금요일) */
   lastDate: string
-  /** 이번 주 마감이 지났는가 */
-  closePassed: boolean
-  /** 지금 예약하면 언제까지 넣어야 다음 전달에 들어가나 */
+  /**
+   * 실제로 고를 수 있는 가장 가까운 날 — firstDate 가 주말·휴관일이면 그다음 평일.
+   * 안내 문구는 이것을 쓴다(「10/3(토)부터」라고 하면 토요일을 고를 수 있는 줄 안다)
+   */
+  firstOpenDate: string
+  /** firstOpenDate 의 예약 마감 — 그날 N일 전 23:59 */
   closeAt: Date
-  /** 지금 예약하면 언제 행정실로 나가나 (YYYY-MM-DD) */
-  deliverDate: string
-  /** 화면에 보여줄 주 목록 — 잠긴 주(이번 주·마감 지난 다음 주) + 열린 주 N개 */
+  /** 며칠 전까지 받나 (안내 문구용) */
+  leadDays: number
+  /** 화면에 보여줄 주 목록 — 이번 주부터 마지막 주까지 */
   weeks: Week[]
 }
 
@@ -105,44 +108,46 @@ function weekOf(monday: Date, state: WeekState): Week {
   return { monday: days[0], friday: days[4], days, state }
 }
 
+/** 이 날 또는 그 뒤의 첫 평일 */
+function onOrAfterWeekday(d: Date): Date {
+  let r = new Date(d)
+  while (r.getDay() === 0 || r.getDay() === 6) r = addDays(r, 1)
+  return r
+}
+
 export function computeWindow(
   settings: ReservationSettings,
   now: Date = new Date()
 ): ReservationWindow {
-  const thisMonday = mondayOf(now)
+  const leadDays = Math.max(0, settings.leadDays)
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
 
-  // 이번 주 마감 시각
-  const closeThisWeek = addDays(thisMonday, (settings.closeWeekday + 6) % 7)
-  closeThisWeek.setHours(settings.closeHour, 0, 0, 0)
-  const closePassed = now.getTime() >= closeThisWeek.getTime()
+  const first = addDays(today, leadDays)
 
-  const closeAt = closePassed ? addDays(closeThisWeek, 7) : closeThisWeek
-  closeAt.setHours(settings.closeHour, 0, 0, 0)
+  // 범위: 첫 날짜가 주말이면 그다음 평일이 든 주부터 N주
+  const firstMonday = mondayOf(onOrAfterWeekday(first))
+  const lastMonday = addDays(firstMonday, (Math.max(1, settings.rangeWeeks) - 1) * 7)
+  const firstDate = toYmd(first)
+  const lastDate = toYmd(addDays(lastMonday, 4))
 
-  // 전달일 — 마감이 속한 주의 전달 요일
-  const deliverMonday = mondayOf(closeAt)
-  const deliverDate = toYmd(
-    addDays(deliverMonday, (settings.deliverWeekday + 6) % 7)
-  )
+  // 가장 가까운 「고를 수 있는 날」과 그 마감(그날 N일 전 23:59) — 안내 문구용
+  let open = onOrAfterWeekday(first)
+  while (settings.closedDates.includes(toYmd(open)) && toYmd(open) <= lastDate) {
+    open = onOrAfterWeekday(addDays(open, 1))
+  }
+  const closeAt = addDays(open, -leadDays)
+  closeAt.setHours(23, 59, 0, 0)
 
-  // 첫 열린 주: 마감 전이면 다음 주, 지났으면 다다음 주
-  const firstMonday = addDays(thisMonday, closePassed ? 14 : 7)
-
-  const weeks: Week[] = [weekOf(thisMonday, 'delivered')]
-  if (closePassed) weeks.push(weekOf(addDays(thisMonday, 7), 'closed'))
-  for (let i = 0; i < settings.rangeWeeks; i++) {
-    weeks.push(weekOf(addDays(firstMonday, i * 7), 'open'))
+  // 이번 주부터 보여 준다 — 마감이 지난 날도 「왜 안 되나」를 보여 주려고
+  const weeks: Week[] = []
+  for (let m = mondayOf(today); m.getTime() <= lastMonday.getTime(); m = addDays(m, 7)) {
+    const w = weekOf(m, 'open')
+    w.state = w.friday < firstDate ? 'closed' : 'open'
+    weeks.push(w)
   }
 
-  const openWeeks = weeks.filter((w) => w.state === 'open')
-  return {
-    firstDate: openWeeks[0].monday,
-    lastDate: openWeeks[openWeeks.length - 1].friday,
-    closePassed,
-    closeAt,
-    deliverDate,
-    weeks,
-  }
+  return { firstDate, lastDate, firstOpenDate: toYmd(open), closeAt, leadDays, weeks }
 }
 
 /** 이 날짜를 지금 고를 수 있는가 — 화면과 lib 양쪽에서 같은 판단을 쓴다 */
@@ -158,16 +163,20 @@ export function isSelectableDate(
   return true
 }
 
-/** 잠긴 주를 누른 회원에게 보여줄 이유 */
-export function lockedReason(week: Week): string {
-  if (week.state === 'delivered')
-    return '이번 주는 이미 행정실에 전달되었습니다.'
-  if (week.state === 'closed')
-    return '이번 주 마감이 지나, 다음 주 이용분은 이번 전달에 넣을 수 없습니다.'
-  return ''
+/** 마감이 지난 날짜를 누른 회원에게 보여줄 이유 */
+export function pastReason(win: ReservationWindow): string {
+  return `예약 마감이 지났습니다 — 이용일 ${win.leadDays}일 전 23:59까지 예약할 수 있습니다.`
 }
 
-/** '9/16(수) 18:00' */
+/** 잠긴 주(고를 날이 하나도 없는 주)를 누른 회원에게 보여줄 이유 */
+export function lockedReason(week: Week, win: ReservationWindow): string {
+  if (week.state !== 'closed') return ''
+  return `이 주는 예약 마감이 모두 지났습니다. 이용일 ${win.leadDays}일 전 23:59까지 예약할 수 있습니다.`
+}
+
+/** '9/28(월) 23:59' */
 export function closeAtLabel(closeAt: Date): string {
-  return `${closeAt.getMonth() + 1}/${closeAt.getDate()}(${WEEKDAY_KO[closeAt.getDay()]}) ${String(closeAt.getHours()).padStart(2, '0')}:00`
+  const hh = String(closeAt.getHours()).padStart(2, '0')
+  const mm = String(closeAt.getMinutes()).padStart(2, '0')
+  return `${closeAt.getMonth() + 1}/${closeAt.getDate()}(${WEEKDAY_KO[closeAt.getDay()]}) ${hh}:${mm}`
 }
