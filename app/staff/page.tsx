@@ -8,9 +8,13 @@
  * 목록 정리·통계·집계는 구글 시트가 맡는다.
  *
  * 시트에서 상태를 고쳐도 사이트에는 반영되지 않는다. 상태의 원본은 여기다.
+ *
+ * 찾기 (09-30 · 순서표 7번 — iSERI *"프로그램 신청자 목록 좀 더 편하게… 일단 이름 '검색'"*) —
+ * 이름 · 이메일 · 학번 · 소속 · 전공 · 팀명, 전화번호는 숫자만 비교. 회원 관리(D-114)의 찾기와 같은 방식.
+ * 불러온 목록 안에서만 거른다(서버에 다시 묻지 않음) — 프로그램·상태 필터와 함께 걸린다.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
@@ -32,6 +36,7 @@ import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   APPLICATION_STATUS_LABEL,
   profileRows,
+  teamNameOf,
   type Application,
   type ApplicationStatus,
   type Program,
@@ -77,6 +82,8 @@ function StaffContent() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [programId, setProgramId] = useState('')
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('')
+  /** 찾기 — 프로그램을 바꿔도 남겨 둔다(같은 사람을 다른 프로그램에서 찾을 때) */
+  const [q, setQ] = useState('')
   const [apps, setApps] = useState<Application[] | null>(null)
   const [error, setError] = useState('')
   /** 답변 대기 문의 수 — 「문의 관리」 버튼 배지 (D-93). 실패해도 화면은 그대로 */
@@ -105,9 +112,27 @@ function StaffContent() {
     load()
   }, [load])
 
-  const shown = (apps ?? []).filter(
-    (a) => !statusFilter || a.status === statusFilter
-  )
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    const digits = needle.replace(/[^0-9]/g, '')
+    return (apps ?? []).filter((a) => {
+      if (statusFilter && a.status !== statusFilter) return false
+      if (!needle) return true
+      const ap = a.applicant
+      // 팀명은 공고의 「팀명 칸」을 봐야 찾는다(teamNameOf). 목록의 공고는 공개된 것뿐이라
+      // 비공개 공고(시험) 신청은 전용 양식 팀명만 — 시험용이라 괜찮다
+      const program = programs.find((p) => p.id === a.programId) ?? null
+      const hay = [ap?.name, ap?.email, ap?.studentId, ap?.affiliation, ap?.major, teamNameOf(a, program)]
+        .map((v) => String(v ?? '').toLowerCase())
+        .join(' ')
+      // 전화는 숫자만 저장돼 있다 — 010-1234 처럼 쳐도 찾게. 학번과 겹치지 않게 세 자리부터
+      return (
+        hay.includes(needle) ||
+        (digits.length >= 3 && String(ap?.phone ?? '').replace(/[^0-9]/g, '').includes(digits))
+      )
+    })
+  }, [apps, statusFilter, q, programs])
+  const searching = Boolean(q.trim())
 
   /** 상태별 건수 — 무엇부터 봐야 하는지 한눈에 */
   const counts = FLOW.map((s) => ({
@@ -180,6 +205,14 @@ function StaffContent() {
 
         {/* 필터 */}
         <div className="flex flex-wrap gap-3">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="찾기 — 이름 · 이메일 · 학번 · 팀명 · 전화번호"
+            aria-label="신청자 찾기"
+            className="touch-target min-w-[14rem] flex-1 rounded-lg border border-line-strong bg-surface px-3 text-sm outline-none focus:border-brand-600"
+          />
           <select
             value={programId}
             onChange={(e) => setProgramId(e.target.value)}
@@ -219,6 +252,22 @@ function StaffContent() {
           </button>
         </div>
 
+        {/* 찾는 중이면 몇 건 나왔는지 — 아래 상태별 건수는 찾기와 상관없이 그 프로그램 전체 */}
+        {apps && searching && (
+          <p className="text-sm text-ink-muted">
+            「{q.trim()}」 찾은 신청 <strong className="text-ink">{shown.length}</strong>건
+            {programId ? '' : ' (전체 프로그램)'}
+            {' · '}
+            <button
+              type="button"
+              onClick={() => setQ('')}
+              className="font-semibold underline underline-offset-2"
+            >
+              찾기 지우기
+            </button>
+          </p>
+        )}
+
         {/* 상태별 건수 */}
         {apps && apps.length > 0 && (
           <div className="flex flex-wrap gap-2 text-sm">
@@ -239,10 +288,17 @@ function StaffContent() {
         ) : error ? (
           <EmptyState title="목록을 불러오지 못했습니다" desc={error} />
         ) : shown.length === 0 ? (
-          <EmptyState
-            title="해당하는 신청이 없습니다"
-            desc="필터를 바꾸거나, 접수가 시작되기를 기다려 주세요."
-          />
+          searching ? (
+            <EmptyState
+              title="찾는 신청이 없습니다"
+              desc="글자를 확인하시거나, 프로그램·상태 필터를 「전체」로 바꿔 보세요."
+            />
+          ) : (
+            <EmptyState
+              title="해당하는 신청이 없습니다"
+              desc="필터를 바꾸거나, 접수가 시작되기를 기다려 주세요."
+            />
+          )
         ) : (
           <ul className="space-y-4">
             {shown.map((a) => (
