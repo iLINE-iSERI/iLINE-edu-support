@@ -26,8 +26,21 @@ export const metadata = { title: '사업소개' }
  *   · 사업의 **지원 대상은 예비교원** — 별도 줄이 아니라 문단 안에 녹인다.
  *     프로그램별 신청 자격은 필요에 따라 일반 회원 등으로 넓힐 수 있어 각
  *     공고가 정하지만, 여기서는 언급하지 않는다 (iSERI 09-14).
- *   · 협력체계는 역할 구분 없이 기관 5곳만. 🔶 로고 원본 파일을 받으면
- *     PARTNERS 의 텍스트 타일을 로고로 바꾼다 — 그때까지는 기관명 텍스트.
+ *   · 협력체계는 역할 구분 없이 기관 5곳만.
+ *
+ * 협력체계 로고 (10-01 · 순서표 9번 — 다섯 곳 모두 사용 허락, 한 장 ⑩) — iSERI 가 시안 둘을 보고 정함:
+ *   · **PC 는 시안 A** — 사업 추진체계도처럼 로고 위 + 이름표 아래(lg 네 칸 · md 두 칸)
+ *   · **휴대폰은 시안 B** — 기관 이름이 든 가로 로고 타일(한 줄에 하나 · sm 부터 둘)
+ *   · 제주대학교와 사범대학은 **한 칸** — 제주대 로고 + 이름표 「제주대학교·제주대학교 사범대학」(사범대학 로고는 따로 없다)
+ *   · 연구소는 PC 도 **글자 로고(가로형)** — 세로형 파일은 글자 없는 심벌이라 추진체계도와 달라 뺐다(iSERI)
+ *   · 기상청 로고 글자는 「기상청」이라 이름표·설명에 「제주지방기상청」
+ *   · 로고 칸은 **어두운 화면에서도 흰 바탕** — 기관 로고는 흰 바탕용이라 어두운 바탕에서는 회색 글자가 안 보이고,
+ *     기상청 파일은 JPG(흰 배경 포함)다
+ *   · 파일은 `public/partners/` — 제주대·교육청은 기관이 준 PNG, 기상청은 기관이 준 JPG(한글 좌우),
+ *     연구소는 연구소 누리집 「연구소 CI」 화면의 PNG
+ *   · 이미지 도구 없이 넣어서 **화면에서 자른다**(`CropImg`) — 파일마다 실제 그림이 있는 테두리(`box`)를
+ *     픽셀로 재어 둔 값이다(10-01 브라우저로 측정). 제주대 엠블럼 파일은 세 모양이 한 장이라 가운데만,
+ *     교육청 엠블럼은 투명 여백, 기상청 JPG 는 흰 여백을 잘라 낸다. 원본을 다듬으면(.ai 에서 내보내기) box 를 파일 전체로
  */
 
 const VISION =
@@ -68,13 +81,76 @@ const GOALS = [
 ]
 
 /** 협력체계 — 계획서 순서 그대로. 로고 파일이 오면 { name, logo } 로 바꾼다 */
-const PARTNERS = [
-  '제주대학교',
-  '제주대학교 사범대학',
-  '지능소프트웨어교육연구소',
-  '제주특별자치도교육청',
-  '제주지방기상청',
+/**
+ * 협력체계 — 한 칸에 한 기관(제주대학교 칸에 사범대학을 함께).
+ *   pc     PC(시안 A)의 위쪽 로고 · name 은 그 아래 이름표
+ *   mobile 휴대폰(시안 B)의 가로 로고 · caption 은 로고 아래 작은 글(로고에 없는 이름)
+ *   size   파일의 가로×세로 · box 는 실제 그림이 있는 테두리 [왼, 위, 오른, 아래] (픽셀)
+ *   cls    보이는 크기 — 둥근 엠블럼은 높이로, 가로 로고는 폭으로 정한다. 네 로고가 **비슷한 무게로**
+ *          보이도록 눈으로 맞춘 값
+ */
+interface LogoCrop {
+  src: string
+  alt: string
+  size: [number, number]
+  box: [number, number, number, number]
+  cls: string
+}
+const PARTNERS: { key: string; name: string; pc: LogoCrop; mobile: LogoCrop; caption?: string }[] = [
+  {
+    key: 'jnu',
+    name: '제주대학교·제주대학교 사범대학',
+    // 엠블럼 파일에 세 가지(글자 원 · 회색 원 · 테두리 원)가 가로로 있다 — 가운데(회색 원)만
+    pc: { src: '/partners/jnu-emblem.png', alt: '제주대학교 엠블럼', size: [1850, 516], box: [679, 6, 1159, 486], cls: 'h-[92px]' },
+    mobile: { src: '/partners/jnu-signature.png', alt: '제주대학교', size: [1587, 599], box: [0, 0, 1587, 599], cls: 'w-[150px]' },
+    caption: '제주대학교 사범대학',
+  },
+  {
+    key: 'iseri',
+    name: '지능소프트웨어교육연구소',
+    pc: { src: '/partners/iseri-ci.png', alt: '지능소프트웨어교육연구소', size: [700, 81], box: [0, 0, 700, 81], cls: 'w-[240px]' },
+    mobile: { src: '/partners/iseri-ci.png', alt: '지능소프트웨어교육연구소', size: [700, 81], box: [0, 0, 700, 81], cls: 'w-[230px]' },
+  },
+  {
+    key: 'jje',
+    name: '제주특별자치도교육청',
+    pc: { src: '/partners/jje-emblem.png', alt: '제주특별자치도교육청 엠블럼', size: [443, 443], box: [44, 44, 399, 399], cls: 'h-[92px]' },
+    mobile: { src: '/partners/jje-signature.png', alt: '제주특별자치도교육청', size: [896, 168], box: [22, 4, 874, 165], cls: 'w-[190px]' },
+  },
+  {
+    key: 'kma',
+    name: '제주지방기상청',
+    pc: { src: '/partners/kma-signature.jpg', alt: '기상청', size: [1580, 592], box: [149, 76, 1200, 490], cls: 'w-[176px]' },
+    mobile: { src: '/partners/kma-signature.jpg', alt: '기상청', size: [1580, 592], box: [149, 76, 1200, 490], cls: 'w-[120px]' },
+    caption: '제주지방기상청',
+  },
 ]
+
+/**
+ * 파일의 일부(box)만 보이게 — 이미지 도구 없이 여백을 잘라 낸다.
+ * 바깥 상자가 box 의 비율을 갖고, 안의 그림을 그만큼 키워 box 의 왼쪽 위가 상자 모서리에 오게 옮긴다.
+ * 폭을 정하면(`w-…`) 높이는 비율로, 높이를 정하면(`h-…`) 폭이 비율로 따라온다. 좁으면 폭이 줄어든다(max-w-full)
+ */
+function CropImg({ logo }: { logo: LogoCrop }) {
+  const [w] = logo.size
+  const [x0, y0, x1, y1] = logo.box
+  const bw = x1 - x0
+  const bh = y1 - y0
+  return (
+    <span
+      className={'relative block max-w-full shrink-0 overflow-hidden ' + logo.cls}
+      style={{ aspectRatio: `${bw} / ${bh}` }}
+    >
+      <img
+        src={logo.src}
+        alt={logo.alt}
+        loading="lazy"
+        className="absolute h-auto max-w-none"
+        style={{ width: `${(w / bw) * 100}%`, left: `${(-x0 / bw) * 100}%`, top: `${(-y0 / bh) * 100}%` }}
+      />
+    </span>
+  )
+}
 
 export default function AboutPage() {
   return (
@@ -157,7 +233,7 @@ export default function AboutPage() {
           </ul>
         </section>
 
-        {/* 협력체계 — 로고 자리. 파일이 올 때까지 기관명 텍스트 (09-14 iSERI) */}
+        {/* 협력체계 — PC 는 엠블럼 + 이름표(시안 A), 휴대폰은 가로 로고(시안 B). 10-01 iSERI */}
         <section aria-labelledby="about-partners">
           <h2
             id="about-partners"
@@ -165,16 +241,39 @@ export default function AboutPage() {
           >
             협력체계
           </h2>
-          <ul className="mt-4 flex flex-wrap justify-center gap-3 rounded-2xl border border-line bg-subtle px-4 py-6 sm:gap-4 sm:px-6 sm:py-8">
-            {PARTNERS.map((name) => (
-              <li
-                key={name}
-                className="flex min-h-[3.25rem] items-center rounded-lg border border-line bg-surface px-5 text-sm font-semibold tracking-tight sm:text-[15px]"
-              >
-                {name}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4 rounded-2xl border border-line bg-subtle p-4 sm:p-6">
+            {/* PC — 시안 A. 로고 칸은 어두운 화면에서도 흰 바탕(글자색도 고정) */}
+            <ul className="hidden grid-cols-2 gap-4 md:grid lg:grid-cols-4">
+              {PARTNERS.map((p) => (
+                <li
+                  key={p.key}
+                  className="flex flex-col items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 pb-4 pt-5"
+                >
+                  <div className="flex h-[104px] w-full items-center justify-center">
+                    <CropImg logo={p.pc} />
+                  </div>
+                  <span className="mt-auto break-keep rounded-full bg-gray-100 px-4 py-1.5 text-center text-sm font-semibold leading-snug tracking-tight text-gray-800">
+                    {p.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {/* 휴대폰 — 시안 B. 가로 로고 · 로고에 없는 이름은 아래 작은 글 */}
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:hidden">
+              {PARTNERS.map((p) => (
+                <li
+                  key={p.key}
+                  className="flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-3"
+                >
+                  <CropImg logo={p.mobile} />
+                  {p.caption && (
+                    <span className="text-xs font-semibold text-gray-600">{p.caption}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       </div>
     </>
