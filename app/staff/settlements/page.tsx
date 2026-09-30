@@ -487,6 +487,10 @@ function SettlementRow({
               </a>
             </>
           )}
+          {/* 반영이 끝난 건도 다시 올릴 수 있게 (09-30) — 시트 열·폴더 구조가 바뀌었을 때(D-117)
+              옛 건을 새 모양으로 다시 쓰는 길. 몇 번 눌러도 결과가 같다(파일은 중복 업로드 안 됨) */}
+          {' · '}
+          <SyncRetry id={row.id} onDone={onSaved} inline />
         </p>
       ) : row.status !== 'draft' ? (
         <p className="mt-3 text-xs text-ink-subtle">
