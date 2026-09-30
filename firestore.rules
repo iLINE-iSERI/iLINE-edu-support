@@ -269,18 +269,35 @@ service cloud.firestore {
                && id == request.resource.data.applicationId + '_' + string(settlementRound(request.resource.data))
                && exists(/databases/$(database)/documents/support_settlements/$(request.resource.data.applicationId))));
 
-      // 제출 후에는 신청자가 수정할 수 없다. 반려된 회차만 고쳐서 다시 낸다.
-      // 확인 완료(approved)/반려는 담당자만.
+      // 본인 수정 — 반려된 회차 다시 내기 + (D-118 · 09-30) **「제출 완료」 회차 고치기**.
+      // 확인 완료(approved)·지급 완료(paid) 뒤에는 못 고친다(돈이 걸린 서류). 확인 완료/반려는 담당자만.
       // D-117: 바꿀 수 있는 칸을 못 박는다(resubmitSettlement 가 쓰는 것만) — 「시험」 표시·지급일 같은
-      //        담당자·서버 칸은 여기 없으므로 못 건드린다. 증빙서류는 여전히 한 장 이상
+      //        담당자·서버 칸은 여기 없으므로 못 건드린다. 증빙서류는 여전히 한 장 이상.
+      // D-118: ⓐ 제출 완료 상태에서 고칠 때는 editCount 가 **정확히 1** 늘고 lastEditedAt 이 **지금**이어야 한다
+      //        (담당자 카드 「수정됨」 근거 — 안 고친 척 못 하게). 담당자 메모(reviewNote)·처음 제출 시각은 못 바꾼다.
+      //        ⓑ 반려 뒤 다시 내기는 editCount 를 안 늘려도 통과(D-117 화면), 늘린다면 ⓐ와 같은 조건.
+      //        lib/types `canEditSettlement` 와 같은 상태 목록이다
+      function settlementEditStamped() {
+        return request.resource.data.get('editCount', 0) == resource.data.get('editCount', 0) + 1
+          && request.resource.data.get('lastEditedAt', null) == request.time;
+      }
+      function settlementSelfUpdateOk() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['status', 'bankInfo', 'receipts', 'reviewNote', 'submittedAt', 'updatedAt',
+                                'editCount', 'lastEditedAt'])
+          && hasSettlementFiles(request.resource.data)
+          && (resource.data.status != 'submitted'
+                || (settlementEditStamped() && !changed.hasAny(['reviewNote', 'submittedAt'])))
+          && (resource.data.status == 'submitted'
+                || !changed.hasAny(['editCount', 'lastEditedAt'])
+                || settlementEditStamped());
+      }
       allow update: if isStaff()
         || (isMember()
             && resource.data.uid == request.auth.uid
-            && resource.data.status in ['draft', 'rejected']
+            && resource.data.status in ['draft', 'rejected', 'submitted']
             && request.resource.data.status == 'submitted'
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'bankInfo', 'receipts', 'reviewNote', 'submittedAt', 'updatedAt'])
-            && hasSettlementFiles(request.resource.data));
+            && settlementSelfUpdateOk());
 
       allow delete: if false;
     }

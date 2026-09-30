@@ -13,6 +13,10 @@
  *   · 「한 건씩」: 들어온 순서대로. 「팀별로」: 프로그램 → 팀(개인 프로그램이면 사람)으로 묶어 본다
  *   · 회차는 **사람마다** 센다 — 팀 묶음은 보기용이다(대표자 1차 ≠ 팀 1차)
  *   · 「승인」은 「확인 완료」로 부른다(저장값은 그대로 approved)
+ *
+ * D-118 (09-30) — 학생이 「제출 완료」 회차를 **확인 완료 전까지** 고칠 수 있다.
+ *   · 고친 건은 「수정됨 · 시각 · n회」 — 보완을 요청했다면 이것으로 들어온 것을 안다(반려하지 않아도 된다)
+ *   · 확인 완료·반려는 화면에 떠 있던 상태·고친 횟수와 문서가 같을 때만 저장된다 — 보지 못한 파일을 확인 완료하지 않게
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -31,7 +35,7 @@ import {
 import { listAllApplications, listAllPrograms } from '@/lib/firebase/staff'
 import { toYmd } from '@/lib/reservations/window'
 import { fileUrl } from '@/lib/firebase/applications'
-import { firestoreErrorMessage } from '@/lib/firebase/errors'
+import { firestoreErrorMessage, actionErrorMessage, UserFacingError } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   DEFAULT_SETTLEMENT_DOC,
@@ -397,13 +401,18 @@ function SettlementRow({
     setBusy(true)
     setMsg('')
     try {
-      await reviewSettlement(row.id, status, note, reviewerUid)
+      // 화면에 떠 있던 것과 문서가 같을 때만 (D-118) — 그 사이 학생이 고쳤으면 막고 목록을 새로 부른다
+      await reviewSettlement(row.id, status, note, reviewerUid, {
+        status: row.status,
+        editCount: row.editCount ?? 0,
+      })
       setMsg(status === 'approved' ? '확인 완료로 표시했습니다.' : '반려했습니다.')
       await requestSettlementSync(row.id)
       onSaved()
     } catch (e) {
       console.error('[iLINE] 정산 처리 실패:', e)
-      setMsg(firestoreErrorMessage(e))
+      setMsg(actionErrorMessage(e))
+      if (e instanceof UserFacingError) onSaved()
     } finally {
       setBusy(false)
     }
@@ -423,6 +432,12 @@ function SettlementRow({
         <span className="text-xs text-ink-subtle">
           {row.submittedAt?.toDate().toLocaleString('ko-KR')} 제출
         </span>
+        {/* 학생이 고친 흔적 (D-118) — 보완을 요청했다면 이것으로 들어온 것을 안다 */}
+        {(row.editCount ?? 0) > 0 && (
+          <span className="rounded-full bg-status-revision/10 px-2.5 py-1 text-xs font-bold text-status-revision">
+            수정됨 · {row.lastEditedAt?.toDate().toLocaleString('ko-KR')} · {row.editCount}회
+          </span>
+        )}
       </div>
 
       <p className="mt-2 font-bold">

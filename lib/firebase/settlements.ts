@@ -14,6 +14,11 @@
 //   · 회차는 사람(신청서)마다 센다 — 팀 회차가 아니다(팀은 담당자 화면의 보기용 묶음)
 //   · 증빙서류는 공고마다 종류가 있다(`settlementDocsOf`) — 파일마다 docKind·docLabel
 //   · 앞 정산이 처리 중이어도 새 회차를 낼 수 있다. 반려된 회차는 그 회차만 고쳐 다시 낸다
+//
+// D-118 (09-30) — **「제출 완료」 상태에서도 본인이 고친다** — 담당자가 「확인 완료」를 누르기 전까지.
+//   담당자가 회의록 보완을 요청했는데 학생이 고칠 길이 없어, 따로 받아 드라이브에 손으로 넣은 일이 있었다.
+//   고칠 때마다 editCount +1 · lastEditedAt → 담당자 카드 「수정됨」. 담당자의 확인 완료·반려는
+//   화면에 떠 있던 것과 문서가 같을 때만 저장된다(`reviewSettlement` 의 expected)
 
 import {
   collection,
@@ -24,18 +29,24 @@ import {
   where,
   setDoc,
   updateDoc,
+  runTransaction,
   serverTimestamp,
+  increment,
   Timestamp,
   deleteField,
 } from 'firebase/firestore'
 import { ref, uploadBytes, deleteObject } from 'firebase/storage'
 import { getDb, getStorageClient, getAuthClient, COL, STORAGE_ROOT } from './config'
+import { UserFacingError } from './errors'
 import {
+  SETTLEMENT_STATUS_LABEL,
+  canEditSettlement,
   settlementRoundOf,
   type AttachedFile,
   type Settlement,
   type Application,
   type SettlementDocKind,
+  type SettlementStatus,
 } from '@/lib/types'
 
 /**
@@ -130,12 +141,17 @@ export async function submitSettlement(
 }
 
 /**
- * 반려된 정산을 고쳐서 다시 내는 경우.
+ * 낸 정산을 고친다 — **반려된 회차 다시 내기**와 **「제출 완료」 회차 고치기**(D-118) 둘 다.
  *
- * 기존 영수증은 **기본으로 남고**, 신청자가 뺀 것(`keepReceipts` 에 없는 것)만
+ * 기존 파일은 **기본으로 남고**, 신청자가 뺀 것(`keepReceipts` 에 없는 것)만
  * Storage 에서 지운다 (09-12 iSERI: "기존 파일이 뭔지 알고 고칠 수 있어야").
  * 삭제 실패는 무시한다 — 목록에서 빠지면 담당자 화면에도 안 보이고,
  * 드라이브 사본은 동기화가 휴지통으로 보낸다.
+ *
+ * 둘의 차이 (규칙이 같은 구분을 한다):
+ *   · 반려 뒤 다시 내기 — 반려 사유를 지우고 제출 시각을 새로 (예전과 같음)
+ *   · 제출 완료 고치기 — **담당자 메모와 처음 제출 시각은 그대로**. 규칙이 이 둘을 못 바꾸게 막는다
+ * 둘 다 editCount +1 · lastEditedAt → 담당자 카드 「수정됨」.
  */
 export async function resubmitSettlement(
   settlement: Settlement,
@@ -145,8 +161,17 @@ export async function resubmitSettlement(
   // D-117: 회차마다 번호가 달라서 계산하지 않고 그 정산의 번호를 그대로 쓴다
   const id = settlement.id
 
+  // 그 사이 담당자가 확인 완료했으면 올리기 전에 멈춘다 — 파일만 올라가고 저장이 막히는 일을 줄인다
   const before = await getSettlement(id)
-  const prev = before?.receipts ?? []
+  if (!before) throw new UserFacingError('정산을 찾을 수 없습니다. 새로고침해 주세요.')
+  if (!canEditSettlement(before)) {
+    throw new UserFacingError(
+      `이 정산은 그 사이 「${SETTLEMENT_STATUS_LABEL[before.status]}」(으)로 바뀌어 고칠 수 없습니다. 새로고침해 확인해 주세요.`
+    )
+  }
+  const wasRejected = before.status !== 'submitted'
+
+  const prev = before.receipts ?? []
   const keep = input.keepReceipts ?? prev
   const keepPaths = new Set(keep.map((r) => r.storagePath))
   const removed = prev.filter((r) => !keepPaths.has(r.storagePath))
@@ -156,23 +181,28 @@ export async function resubmitSettlement(
     added.push(await uploadReceipt(uid, id, f.file, f.kind))
   }
 
-  for (const r of removed) {
-    await deleteObject(ref(getStorageClient(), r.storagePath)).catch((e) =>
-      console.warn('[iLINE] 뺀 영수증 삭제 실패(목록에서는 빠짐):', e)
-    )
-  }
-
   await updateDoc(doc(getDb(), COL.settlements, id), {
     status: 'submitted',
     // 계좌는 받지 않는다(D-108). 혹시 남아 있는 값이 있으면 이 기회에 지운다 —
     // 계좌 없이 낸 문서에는 원래 없으므로 아무 일도 일어나지 않는다
     bankInfo: deleteField(),
     receipts: [...keep, ...added],
-    // 반려 사유는 지운다 — 다시 낸 뒤에도 남아 있으면 아직 반려 상태로 보인다
-    reviewNote: '',
-    submittedAt: serverTimestamp(),
+    // D-118: 담당자 카드 「수정됨」 — 규칙이 정확히 1 늘고 시각이 지금인지 본다
+    editCount: increment(1),
+    lastEditedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    // 반려 뒤 다시 낼 때만 — 반려 사유를 지우고(남아 있으면 아직 반려로 보인다) 제출 시각을 새로.
+    // 제출 완료 상태에서 고칠 때는 담당자가 적어 둔 메모를 지우면 안 된다
+    ...(wasRejected ? { reviewNote: '', submittedAt: serverTimestamp() } : {}),
   })
+
+  // 뺀 파일은 저장이 **된 뒤에** 지운다 (D-118). 먼저 지우면, 그 사이 담당자가 확인 완료해
+  // 저장이 막혔을 때 문서가 **없는 파일**을 가리키게 된다. (새로 올린 파일이 남는 쪽이 낫다)
+  for (const r of removed) {
+    await deleteObject(ref(getStorageClient(), r.storagePath)).catch((e) =>
+      console.warn('[iLINE] 뺀 증빙서류 삭제 실패(목록에서는 빠짐):', e)
+    )
+  }
 }
 
 export async function getSettlement(id: string): Promise<Settlement | null> {
@@ -213,14 +243,33 @@ export async function reviewSettlement(
   id: string,
   status: 'approved' | 'rejected',
   reviewNote: string,
-  reviewerUid: string
+  reviewerUid: string,
+  /**
+   * 담당자 **화면에 떠 있던** 상태·고친 횟수 (D-118). 넘기면 저장 직전에 문서와 대조한다.
+   * 학생이 「제출 완료」 상태에서 고칠 수 있게 되어, 담당자가 **보지 못한 파일**을 확인 완료하는 일을 막는다
+   * (신청서의 `updateApplicationStatus` expectedStatus 와 같은 방식)
+   */
+  expected?: { status: SettlementStatus; editCount: number }
 ): Promise<void> {
-  await updateDoc(doc(getDb(), COL.settlements, id), {
-    status,
-    reviewNote: reviewNote.trim(),
-    reviewedBy: reviewerUid,
-    reviewedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const ref = doc(getDb(), COL.settlements, id)
+  await runTransaction(getDb(), async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) throw new UserFacingError('정산을 찾을 수 없습니다.')
+    const cur = snap.data() as Settlement
+    if (expected && (cur.status !== expected.status || (cur.editCount ?? 0) !== expected.editCount)) {
+      throw new UserFacingError(
+        cur.status !== expected.status
+          ? `이 정산은 그 사이 「${SETTLEMENT_STATUS_LABEL[cur.status]}」(으)로 바뀌었습니다. 목록을 새로 불러왔으니 다시 확인해 주세요.`
+          : '신청자가 그 사이 이 정산을 고쳤습니다(파일이 바뀌었을 수 있음). 목록을 새로 불러왔으니 파일을 다시 확인해 주세요.'
+      )
+    }
+    tx.update(ref, {
+      status,
+      reviewNote: reviewNote.trim(),
+      reviewedBy: reviewerUid,
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   })
 }
 

@@ -8,7 +8,10 @@
  *
  * D-117 (09-30) — **정산은 여러 번 낸다.** 비용이 생길 때마다 증빙서류를 올려 청구한다.
  *   · 회차 목록(1차·2차…) + [새 정산 제출하기]. 앞 회차가 처리 중이어도 새 회차를 낼 수 있다
- *   · 반려된 회차만 [N차 다시 제출] — 그 회차의 파일을 남기거나 빼고 더한다
+ *   · 반려된 회차만 [다시 제출] — 그 회차의 파일을 남기거나 빼고 더한다
+ *   · D-118 (09-30): 「제출 완료」 회차도 [고치기] — 담당자가 「확인 완료」를 누르기 전까지.
+ *     버튼에는 회차를 붙이지 않는다(iSERI — 줄 맨 앞에 이미 「1차」가 있다)
+ *     담당자가 보완을 요청하면 반려 없이 학생이 바로 고친다. 담당자 카드에는 「수정됨」
  *   · 증빙서류는 공고가 정한 **종류마다** 올리는 칸이 따로 있다(`settlementDocsOf`). 「필수」 종류가
  *     비면 제출이 막힌다. 공고에 종류가 없으면 「증빙서류」 한 칸
  *
@@ -24,10 +27,11 @@ import {
   nextSettlementRound,
 } from '@/lib/firebase/settlements'
 import { fileUrl } from '@/lib/firebase/applications'
-import { firestoreErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
+import { actionErrorMessage, firebaseErrorKind } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
   SETTLEMENT_STATUS_LABEL,
+  canEditSettlement,
   settlementDocsOf,
   settlementDocSummary,
   settlementRoundOf,
@@ -69,7 +73,7 @@ function kindIdOf(f: AttachedFile, kinds: SettlementDocKind[]): string {
 }
 
 const STATUS_TEXT: Partial<Record<Settlement['status'], string>> = {
-  submitted: '담당자가 확인한 뒤 지급됩니다.',
+  submitted: '담당자가 확인한 뒤 지급됩니다. 확인 전까지는 [고치기]로 파일을 바꾸거나 더할 수 있습니다.',
   approved: '담당자가 확인했습니다. 지급이 끝나면 여기에 표시됩니다.',
 }
 
@@ -130,13 +134,14 @@ export default function SettlementSection({
                 <span className="text-xs text-ink-subtle">
                   {s.submittedAt?.toDate().toLocaleDateString('ko-KR')} 제출 · {settlementDocSummary(s.receipts)}
                 </span>
-                {s.status === 'rejected' && !mode && (
+                {/* 반려 → 다시 제출 · 제출 완료 → 고치기 (D-118). 확인 완료·지급 완료 뒤에는 없다 */}
+                {canEditSettlement(s) && !mode && (
                   <Button
                     variant="secondary"
                     className="ml-auto"
                     onClick={() => setMode({ round: settlementRoundOf(s), settlement: s })}
                   >
-                    {settlementRoundOf(s)}차 다시 제출
+                    {s.status === 'submitted' ? '고치기' : '다시 제출'}
                   </Button>
                 )}
               </div>
@@ -215,6 +220,9 @@ function SettlementForm({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  /** 제출 완료 회차 고치기(D-118) — 반려 뒤 다시 내기와 문구만 다르다 */
+  const editing = settlement?.status === 'submitted'
+  const verb = !settlement ? '제출' : editing ? '고치기' : '다시 제출'
   const prev: AttachedFile[] = settlement?.receipts ?? []
   const kept = prev.filter((r) => !dropped.has(r.storagePath))
   const pickedCount = Object.values(picked).reduce((n, list) => n + list.length, 0)
@@ -274,10 +282,13 @@ function SettlementForm({
     } catch (err) {
       console.error('[iLINE] 정산 제출 실패:', err)
       setError(
-        firebaseErrorKind(err) === 'permission-denied' && !settlement
-          ? // 같은 회차가 이미 들어간 경우(탭 두 개 등) — 번호가 겹쳐 막힌다(D-117)
-            `${round}차 정산을 이미 내셨을 수 있습니다. 화면을 새로고침해 확인해 주세요.`
-          : firestoreErrorMessage(err)
+        firebaseErrorKind(err) === 'permission-denied'
+          ? settlement
+            ? // 고치는 사이 담당자가 확인 완료한 경우(D-118) — 규칙이 막는다
+              `담당자가 방금 ${round}차 정산 확인을 마쳤을 수 있습니다. 화면을 새로고침해 확인해 주세요.`
+            : // 같은 회차가 이미 들어간 경우(탭 두 개 등) — 번호가 겹쳐 막힌다(D-117)
+              `${round}차 정산을 이미 내셨을 수 있습니다. 화면을 새로고침해 확인해 주세요.`
+          : actionErrorMessage(err)
       )
     } finally {
       setBusy(false)
@@ -288,12 +299,18 @@ function SettlementForm({
     <form onSubmit={submit} noValidate className="mt-4 space-y-4 rounded-lg bg-surface p-4">
       <div>
         <p className="text-sm font-bold">
-          {round}차 정산 {settlement ? '다시 제출' : '제출'}
+          {round}차 정산 {verb}
         </p>
         <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
           사진 또는 PDF · 1장당 20MB 이하 · 한 번에 최대 {MAX_FILES}장. 이 회차에 쓴 비용의 증빙을 올려 주세요.
           다른 날 쓴 비용은 나중에 <strong>새 정산</strong>으로 따로 내시면 됩니다.
         </p>
+        {editing && (
+          <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+            이미 낸 파일을 빼거나 새 파일을 더할 수 있습니다. 고치면 담당자 화면에 <strong>「수정됨」</strong>으로
+            보입니다. 담당자가 「확인 완료」를 누른 뒤에는 고칠 수 없습니다.
+          </p>
+        )}
       </div>
 
       {kinds.map((k) => {
@@ -398,7 +415,7 @@ function SettlementForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={busy}>
-          {busy ? '제출 중…' : `${round}차 정산 ${settlement ? '다시 제출' : '제출'}`}
+          {busy ? '제출 중…' : editing ? '고친 내용 제출' : `${round}차 정산 ${verb}`}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>
           취소

@@ -921,6 +921,15 @@ export function settlementDocsOf(p?: Pick<Program, 'settlementDocs'> | null): Se
   return list.length > 0 ? list : [DEFAULT_SETTLEMENT_DOC]
 }
 
+/**
+ * 본인이 이 정산을 고칠 수 있는 상태인가 (D-118 · 09-30).
+ * 「제출 완료」도 된다 — 담당자가 「확인 완료」를 누르기 전까지. 확인 완료·지급 완료 뒤에는 막는다(돈이 걸린 서류).
+ * ⚠️ 보안 규칙(`firestore.rules` 정산 본인 update)과 같은 목록이다. 여기를 바꾸면 거기도
+ */
+export function canEditSettlement(s: Pick<Settlement, 'status'>): boolean {
+  return s.status === 'submitted' || s.status === 'rejected' || s.status === 'draft'
+}
+
 /** 회차 — 없으면 1차(D-117 이전 정산) */
 export function settlementRoundOf(s: Pick<Settlement, 'round'>): number {
   return s.round && s.round > 0 ? s.round : 1
@@ -1003,6 +1012,14 @@ export interface Settlement {
   paidBy?: string
   /** 지급 메모 — 담당자만 본다 (예: 지급일 변경 사유) */
   paidNote?: string
+
+  /**
+   * 본인이 고친 횟수·마지막 시각 (D-118 · 09-30) — 담당자 카드의 「수정됨」.
+   * 「제출 완료」 상태에서 고칠 때(확인 완료 전까지)와 반려 뒤 다시 낼 때 1씩 는다.
+   * 규칙이 **정확히 1 늘고 시각은 지금**인지 확인한다 — 담당자에게 「안 고쳤다」로 보이게 속이지 못하게
+   */
+  editCount?: number
+  lastEditedAt?: Timestamp
 
   /* 시트·드라이브 반영 상태 (09-12 · D-65) — 영수증은 드라이브 02_정산,
      시트는 「정산」 탭 한 줄. (계좌는 D-108 부터 아예 받지 않는다.) sheetRowId 가 있으면
