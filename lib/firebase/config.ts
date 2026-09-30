@@ -47,7 +47,12 @@ function getApp(): FirebaseApp {
 }
 
 export function getAuthClient(): Auth {
-  if (!_auth) _auth = getAuth(getApp())
+  if (!_auth) {
+    _auth = getAuth(getApp())
+    // Firebase 가 보내는 메일(이메일 인증 · 비밀번호 재설정)과 기본 확인 화면을 한국어로 (09-30).
+    // 지정하지 않으면 영어로 가서 학생이 스팸처럼 넘겼다
+    _auth.languageCode = 'ko'
+  }
   return _auth
 }
 

@@ -5,6 +5,7 @@ import { useAuth } from '@/components/auth/AuthProvider'
 import EmptyState from '@/components/ui/EmptyState'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import VerifyEmailNotice from '@/components/auth/VerifyEmailNotice'
 import { SITE } from '@/lib/config/site'
 import {
   createInquiry,
@@ -30,7 +31,8 @@ import { formatDateTime } from '@/lib/firebase/programs'
  */
 
 export default function InquiryView() {
-  const { status, member } = useAuth()
+  // 새로 가입한 이메일 계정은 인증 전에 새 문의를 못 쓴다(09-30). 지난 문의·답변은 그대로 본다
+  const { status, member, verifyNeeded } = useAuth()
   const [list, setList] = useState<Inquiry[] | null>(null)
   const [error, setError] = useState('')
   const [writing, setWriting] = useState(false)
@@ -70,12 +72,19 @@ export default function InquiryView() {
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="section-title">내 문의</h2>
-          {!writing && (
+          {!writing && !verifyNeeded && (
             <Button onClick={() => setWriting(true)}>새 문의 쓰기</Button>
           )}
         </div>
 
-        {writing && (
+        {verifyNeeded && (
+          <VerifyEmailNotice
+            className="mt-4"
+            reason="1:1 문의는 이메일 인증을 마친 뒤에 남길 수 있습니다."
+          />
+        )}
+
+        {writing && !verifyNeeded && (
           <InquiryForm
             me={member}
             onDone={async () => {
@@ -98,7 +107,7 @@ export default function InquiryView() {
               icon="inbox"
               title="아직 남긴 문의가 없습니다"
               description="궁금한 것을 남기면 담당자가 확인하고 이 자리에 답을 답니다. 답변이 달리면 마이페이지에도 표시됩니다."
-              primaryAction={{ label: '새 문의 쓰기', onClick: () => setWriting(true) }}
+              primaryAction={verifyNeeded ? undefined : { label: '새 문의 쓰기', onClick: () => setWriting(true) }}
             />
           </div>
         )}

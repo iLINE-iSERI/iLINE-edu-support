@@ -26,11 +26,75 @@ googleProvider.setCustomParameters({ prompt: 'select_account' })
 export async function signUpWithEmail(email: string, password: string) {
   const cred = await createUserWithEmailAndPassword(getAuthClient(), email, password)
   try {
-    await sendEmailVerification(cred.user)
+    await sendVerificationEmail(cred.user)
   } catch {
-    // 인증 메일 발송 실패가 가입 자체를 막지는 않게 한다
+    // 인증 메일 발송 실패가 가입 자체를 막지는 않게 한다 — 인증 안내 카드에서 다시 보낼 수 있다
   }
   return cred.user
+}
+
+/* ── 이메일 인증 (09-30 · 순서표 10번) ─────────────────────────────
+   iSERI 09-29 — *"이메일 계정을 통해 가입하는 시스템인데 확인할 방법이 없음"*(없는 주소로도 가입됨).
+   가입 때 인증 메일은 원래 보내고 있었지만 **아무 데서도 확인하지 않아** 안 눌러도 똑같이 쓸 수 있었다.
+
+   · **이 시각 이후에 만든 이메일·비밀번호 계정만** 인증을 요구한다. 그 전 회원(123 계정)은 막지 않는다 —
+     이미 신청·선정되어 오프라인에서 확인된 사람들이라 사이트 이용에 불편이 없어야 한다(iSERI 09-30)
+   · 가르는 기준은 **계정을 만든 시각**(Firebase 가 기록 — 화면에서 못 바꾼다)
+   · 구글 가입은 구글이 확인한 주소라 처음부터 「인증됨」
+   · 인증 전에 막는 것: 새 프로그램 신청 · 새 시설 예약 · 1:1 문의. 이미 낸 신청의 수정·정산·산출물은 막지 않는다
+   · 🔴 지금은 **화면만** 막는다. 보안 규칙(`request.auth.token.email_verified`)으로 막는 것은 10/7 뒤 */
+
+/** 이 시각 이후에 만든 이메일 계정만 인증을 요구한다 — 09-30 21:20 (그 전 계정 123개는 기존 회원) */
+export const EMAIL_VERIFY_REQUIRED_FROM = Date.parse('2026-09-30T21:20:00+09:00')
+
+/** 이메일·비밀번호로 만든 계정인가 (구글 계정은 처음부터 인증됨) */
+export function isPasswordAccount(user: User | null): boolean {
+  return Boolean(user?.providerData.some((p) => p.providerId === 'password'))
+}
+
+/**
+ * 인증을 마쳐야 쓸 수 있는 계정인가 — 새로 가입한 이메일 계정 + 아직 인증 전.
+ * `emailVerified` 를 따로 받는 까닭: `user.reload()` 뒤에도 User 객체는 같은 것이라
+ * 리액트가 바뀐 줄 모른다. AuthProvider 가 따로 들고 있는 값을 넘긴다.
+ */
+export function needsEmailVerification(
+  user: User | null,
+  emailVerified: boolean = Boolean(user?.emailVerified)
+): boolean {
+  if (!user || emailVerified || !isPasswordAccount(user)) return false
+  const created = Date.parse(user.metadata.creationTime ?? '')
+  return Number.isFinite(created) && created >= EMAIL_VERIFY_REQUIRED_FROM
+}
+
+/**
+ * 인증 메일 보내기. 링크를 눌러 인증을 마치면 [계속] 버튼이 사이트 마이페이지로 돌려보낸다.
+ * 돌아올 주소가 Firebase 「승인된 도메인」에 없으면 Firebase 가 거절하므로, 그때는 돌아올 주소 없이 다시 보낸다.
+ */
+export async function sendVerificationEmail(user: User): Promise<void> {
+  const url = typeof window !== 'undefined' ? `${window.location.origin}/mypage` : ''
+  try {
+    await sendEmailVerification(user, url ? { url } : undefined)
+  } catch (e) {
+    const code = errCode(e)
+    if (url && /continue-uri|unauthorized-domain/.test(code)) {
+      await sendEmailVerification(user)
+      return
+    }
+    throw e
+  }
+}
+
+/**
+ * 인증했는지 Firebase 에 다시 묻는다. 메일의 링크를 눌러도 이미 열려 있는 화면은 모른다 —
+ * 계정 정보를 새로 읽어야(`reload`) 바뀐다. 인증됐으면 로그인 토큰도 새로 받는다
+ * (토큰 안의 email_verified — 나중에 보안 규칙이 이것을 본다).
+ */
+export async function reloadEmailVerified(): Promise<boolean> {
+  const u = getAuthClient().currentUser
+  if (!u) return false
+  await u.reload()
+  if (u.emailVerified) await u.getIdToken(true)
+  return u.emailVerified
 }
 
 export async function signInWithEmail(email: string, password: string) {

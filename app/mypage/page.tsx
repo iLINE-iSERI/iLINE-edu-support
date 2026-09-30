@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import MemberGate from '@/components/auth/MemberGate'
+import VerifyEmailNotice from '@/components/auth/VerifyEmailNotice'
 import { useAuth } from '@/components/auth/AuthProvider'
 import {
   listMyApplications,
@@ -43,7 +44,7 @@ export default function MypagePage() {
 }
 
 function MypageContent() {
-  const { member, user } = useAuth()
+  const { member, user, verifyNeeded } = useAuth()
   const params = useSearchParams()
   const justSubmitted = params.get('submitted') === '1'
   const justEdited = params.get('edited') === '1'
@@ -111,6 +112,11 @@ function MypageContent() {
       />
 
       <div className="container-page space-y-8 py-8">
+        {/* 새로 가입한 이메일 계정 — 인증 전 (09-30). 기존 회원에게는 안 나온다 */}
+        {verifyNeeded && (
+          <VerifyEmailNotice reason="인증을 마치면 프로그램 신청 · 시설 예약 · 1:1 문의를 이용하실 수 있습니다." />
+        )}
+
         {justSubmitted && (
           <div
             role="status"

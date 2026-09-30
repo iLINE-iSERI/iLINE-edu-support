@@ -35,6 +35,7 @@ import MemberInfoForm, {
 } from '@/components/auth/MemberInfoForm'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { updateMember } from '@/lib/firebase/members'
+import { isPasswordAccount, sendVerificationEmail, authErrorMessage } from '@/lib/firebase/auth'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { memberTypeOf } from '@/lib/types'
 
@@ -120,6 +121,8 @@ function ProfileEditContent() {
             이메일은 로그인 계정과 묶여 있어 여기서 바꿀 수 없습니다. 변경이
             필요하시면 담당자에게 문의해 주세요.
           </p>
+          {/* 이메일 인증 (09-30) — 이메일로 가입한 계정만. 구글 계정은 처음부터 인증됨 */}
+          {isPasswordAccount(user) && <EmailVerifyRow />}
         </dl>
 
         <div className="mt-6">
@@ -155,5 +158,83 @@ function ProfileEditContent() {
         </div>
       </div>
     </>
+  )
+}
+
+/**
+ * 이메일 인증 한 줄 (09-30). 기존 회원(09-30 21:20 전 가입)에게는 **선택** — 막는 것이 없다.
+ * 새로 가입한 계정은 마이페이지 맨 위 안내 카드가 따로 있다.
+ */
+function EmailVerifyRow() {
+  const { user, emailVerified, verifyNeeded, recheckEmail } = useAuth()
+  const [sent, setSent] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  if (!user) return null
+  if (emailVerified) {
+    return (
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line pt-3">
+        <dt className="w-24 shrink-0 text-ink-muted">이메일 인증</dt>
+        <dd className="font-medium text-status-approved">인증됨 ✓</dd>
+      </div>
+    )
+  }
+
+  async function send() {
+    if (!user) return
+    setBusy(true)
+    setMsg('')
+    try {
+      await sendVerificationEmail(user)
+      setSent(true)
+      setMsg('메일을 보냈습니다. 링크를 누른 뒤 [다시 확인]을 눌러 주세요.')
+    } catch (e) {
+      setMsg(authErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function check() {
+    setBusy(true)
+    setMsg('')
+    try {
+      if (!(await recheckEmail())) setMsg('아직 인증되지 않았습니다.')
+    } catch {
+      setMsg('확인하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line pt-3">
+      <dt className="w-24 shrink-0 text-ink-muted">이메일 인증</dt>
+      <dd className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="font-medium">
+          인증 안 됨{!verifyNeeded && <span className="font-normal text-ink-subtle"> (선택)</span>}
+        </span>
+        <button
+          type="button"
+          onClick={send}
+          disabled={busy}
+          className="text-xs font-semibold text-brand-600 underline underline-offset-2 disabled:opacity-50 dark:text-brand-300"
+        >
+          인증 메일 {sent ? '다시 ' : ''}보내기
+        </button>
+        {sent && (
+          <button
+            type="button"
+            onClick={check}
+            disabled={busy}
+            className="text-xs font-semibold text-ink-muted underline underline-offset-2 disabled:opacity-50"
+          >
+            다시 확인
+          </button>
+        )}
+        {msg && <span className="w-full text-xs text-ink-muted">{msg}</span>}
+      </dd>
+    </div>
   )
 }

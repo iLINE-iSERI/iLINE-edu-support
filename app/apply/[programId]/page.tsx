@@ -43,7 +43,7 @@ function ProgramDetailContent() {
   const search = useSearchParams()
   /** 마이페이지 [수정하기]로 들어온 경우 (D-73) — 같은 화면을 수정 모드로 연다 */
   const wantsEdit = search.get('edit') === '1'
-  const { status, member, user } = useAuth()
+  const { status, member, user, verifyNeeded } = useAuth()
 
   const [program, setProgram] = useState<Program | null | 'notfound'>(null)
   /** 이미 신청했는가 — undefined: 확인 전, null: 안 함 */
@@ -113,6 +113,7 @@ function ProgramDetailContent() {
       user={user}
       mine={mine}
       wantsEdit={wantsEdit}
+      verifyNeeded={verifyNeeded}
     />
   )
 }

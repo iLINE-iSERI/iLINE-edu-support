@@ -9,6 +9,7 @@ import PosterViewer from '@/components/ui/PosterViewer'
 import StickyAside from '@/components/apply/StickyAside'
 import { seekApplication } from '@/lib/ui/formSeek'
 import ApplicationForm from '@/components/apply/ApplicationForm'
+import VerifyEmailNotice from '@/components/auth/VerifyEmailNotice'
 import { canEditMyself } from '@/lib/firebase/applications'
 import {
   getProgramPhase,
@@ -40,6 +41,7 @@ export default function ProgramDetailView({
   user,
   mine,
   wantsEdit,
+  verifyNeeded = false,
 }: {
   program: Program
   status: AuthStatus
@@ -48,6 +50,8 @@ export default function ProgramDetailView({
   /** 이미 신청했는가 — undefined: 확인 전, null: 안 함 */
   mine: Application | null | undefined
   wantsEdit: boolean
+  /** 새로 가입한 이메일 계정이 아직 인증 전 — 새 신청을 막는다 (09-30). 이미 낸 신청은 그대로 */
+  verifyNeeded?: boolean
 }) {
   const phase = getProgramPhase(program)
   const dday = phase === 'open' ? daysUntilClose(program) : null
@@ -184,6 +188,11 @@ export default function ProgramDetailView({
                 회원 등록
               </Button>
             </div>
+          ) : verifyNeeded && !mine ? (
+            <VerifyEmailNotice
+              className="-m-2 sm:m-0"
+              reason="프로그램 신청은 이메일 인증을 마친 뒤에 할 수 있습니다."
+            />
           ) : mine && wantsEdit && canEditMyself(mine, program, { tester: member?.role === 'tester' }) ? (
             <p className="text-sm text-ink-muted">
               아래에서 신청 내용을 고친 뒤 <strong>[수정 내용 저장]</strong>을
@@ -230,6 +239,7 @@ export default function ProgramDetailView({
           status === 'member' &&
           member &&
           user &&
+          !verifyNeeded &&
           mine === null && (
             <ApplicationForm program={program} member={member} uid={user.uid} />
           )}

@@ -32,7 +32,12 @@ import {
   type ReactNode,
 } from 'react'
 import type { User } from 'firebase/auth'
-import { onAuthChange, logOut as fbLogOut } from '@/lib/firebase/auth'
+import {
+  onAuthChange,
+  logOut as fbLogOut,
+  needsEmailVerification,
+  reloadEmailVerified,
+} from '@/lib/firebase/auth'
 import { getMember } from '@/lib/firebase/members'
 import { isFirebaseConfigured, getAuthClient } from '@/lib/firebase/config'
 import { firebaseErrorKind, firestoreErrorMessage } from '@/lib/firebase/errors'
@@ -57,6 +62,12 @@ interface AuthContextValue {
   /** 회원 등록 직후 등 상태를 다시 읽어야 할 때 */
   refresh: () => Promise<void>
   logout: () => Promise<void>
+  /** 계정의 「이메일 인증됨」 — user.emailVerified 는 reload 뒤에도 리액트가 모르므로 따로 든다 (09-30) */
+  emailVerified: boolean
+  /** 새로 가입한 이메일 계정인데 아직 인증 전 — 새 신청·예약·문의를 막는다 (lib/firebase/auth.ts) */
+  verifyNeeded: boolean
+  /** 인증했는지 Firebase 에 다시 묻는다 — 인증됐으면 true */
+  recheckEmail: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -67,6 +78,9 @@ const AuthContext = createContext<AuthContextValue>({
   isSetupIssue: false,
   refresh: async () => {},
   logout: async () => {},
+  emailVerified: false,
+  verifyNeeded: false,
+  recheckEmail: async () => false,
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -75,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSetupIssue, setIsSetupIssue] = useState(false)
+  const [emailVerified, setEmailVerified] = useState(false)
 
   /**
    * 마지막으로 시작한 조회의 번호.
@@ -95,6 +110,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setErrorMessage('')
     setIsSetupIssue(false)
     setUser(u)
+    setEmailVerified(Boolean(u?.emailVerified))
+
+    // 인증이 필요한 새 계정이면 한 번 새로 읽는다 — 로그인 정보는 브라우저에 저장된 것을 쓰므로,
+    // 다른 탭(메일의 링크)에서 인증한 뒤 사이트를 열면 여기서 새로 읽어야 「인증됨」이 보인다
+    if (u && needsEmailVerification(u)) {
+      reloadEmailVerified()
+        .then((ok) => {
+          if (latest() && ok) setEmailVerified(true)
+        })
+        .catch(() => {})
+    }
 
     if (!u) {
       setMember(null)
@@ -184,6 +210,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await load(current)
   }, [load])
 
+  const recheckEmail = useCallback(async () => {
+    const ok = await reloadEmailVerified()
+    setEmailVerified(ok)
+    return ok
+  }, [])
+
+  const verifyNeeded = status === 'member' && needsEmailVerification(user, emailVerified)
+
+  // 인증 대기 중이면 화면으로 돌아올 때마다 다시 묻는다 — 메일 앱에서 링크를 누르고 돌아오면
+  // 버튼을 누르지 않아도 풀린다. 너무 자주 묻지 않게 5초에 한 번까지
+  useEffect(() => {
+    if (!verifyNeeded) return
+    let last = 0
+    const check = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < 5000) return
+      last = Date.now()
+      void recheckEmail().catch(() => {})
+    }
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [verifyNeeded, recheckEmail])
+
   const logout = useCallback(async () => {
     await fbLogOut()
     // 진행 중이던 조회가 뒤늦게 도착해 '회원'으로 되돌리지 못하게 번호를 올린다
@@ -205,6 +257,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isSetupIssue,
         refresh,
         logout,
+        emailVerified,
+        verifyNeeded,
+        recheckEmail,
       }}
     >
       {children}
