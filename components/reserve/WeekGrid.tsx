@@ -13,8 +13,9 @@
  * 위에 요일 탭, 아래 시각 목록.
  */
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import ReasonNote from './ReasonNote'
 import { START_HOURS, hourLabel } from '@/lib/config/venues'
 import {
   lockedReason,
@@ -77,6 +78,11 @@ export default function WeekGrid({
    */
   const [hint, setHint] = useState<{ date: string; hour: number; state: string } | null>(null)
   useEffect(() => setHint(null), [week.monday, occupancy])
+  // 격자가 길어(9줄) 위쪽 칸을 누르면 아래 안내가 화면 밖일 수 있다 — 보이는 곳까지만 당겨 온다(09-30)
+  const hintRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (hint) hintRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [hint])
 
   const remaining = (date: string, hour: number) =>
     totalSeats - (occupancy.get(`${date}_${hour}`)?.size ?? 0)
@@ -193,12 +199,9 @@ export default function WeekGrid({
       </div>
 
       {locked && (
-        <p
-          role="status"
-          className="mt-3 rounded-lg bg-subtle p-3 text-sm leading-relaxed text-ink-muted"
-        >
+        <ReasonNote className="mt-3">
           {reason} 급하시면 화면 위의 문의처로 연락해 주세요.
-        </p>
+        </ReasonNote>
       )}
 
       {/* ── 넓은 화면: 5열 격자 ── */}
@@ -228,20 +231,19 @@ export default function WeekGrid({
         </div>
 
         {hint && (
-          <p
-            role="status"
-            className="mt-3 flex flex-wrap items-center gap-x-2 rounded-lg bg-subtle p-3 text-sm leading-relaxed text-ink-muted"
-          >
-            <span className="font-semibold text-ink">
-              {shortDate(hint.date)} {hourLabel(hint.hour)}
-            </span>
-            <span>{reasonOf(hint.state as CellState)}</span>
-            {(hint.state === 'mine' || hint.state === 'busy') && (
-              <Link href="/reserve/mine" className="font-semibold text-brand-600 underline dark:text-brand-300">
-                내 예약 보기
-              </Link>
-            )}
-          </p>
+          <div ref={hintRef} className="mt-3 scroll-mb-4">
+            <ReasonNote>
+              <strong className="mr-1.5">
+                {shortDate(hint.date)} {hourLabel(hint.hour)}
+              </strong>
+              {reasonOf(hint.state as CellState)}
+              {(hint.state === 'mine' || hint.state === 'busy') && (
+                <Link href="/reserve/mine" className="ml-1.5 font-semibold underline">
+                  내 예약 보기
+                </Link>
+              )}
+            </ReasonNote>
+          </div>
         )}
       </div>
 
@@ -290,7 +292,7 @@ export default function WeekGrid({
                   }
                 >
                   <span className="font-semibold">{hourLabel(h)}</span>
-                  <span>
+                  <span className={disabled && !isSel && !locked ? 'font-medium text-warn-ink' : ''}>
                     {state === 'past'
                       ? '예약 마감 지남'
                       : state === 'closed'

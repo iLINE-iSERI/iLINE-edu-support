@@ -22,6 +22,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import StatusBanner from './StatusBanner'
 import WeekGrid, { type GridSelection } from './WeekGrid'
 import SeatPicker from './SeatPicker'
+import ReasonNote from './ReasonNote'
 import ReservationCard, { timeRange } from './ReservationCard'
 import { VENUES, MEMBER_VENUES, BUILDING, venueOf, venueLabel, maxHoursFrom, hourLabel, seatLabel } from '@/lib/config/venues'
 import { SITE } from '@/lib/config/site'
@@ -433,13 +434,13 @@ export default function ReserveFlow() {
               })}
             </div>
             {!canTwoHours && (
-              <p className="mt-2 text-xs text-ink-subtle">
+              <ReasonNote className="mt-3">
                 {maxHoursFrom(sel.hour) < 2
                   ? '운영 시간이 18시까지라 이 시각에는 1시간만 가능합니다.'
                   : myBusy.has(`${sel.date}_${sel.hour + 1}`)
                     ? '다음 시간에 다른 공간 예약이 있어 2시간은 고를 수 없습니다.'
                     : '다음 시간이 차 있어 2시간은 고를 수 없습니다.'}
-              </p>
+              </ReasonNote>
             )}
           </div>
 
