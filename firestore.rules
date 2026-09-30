@@ -235,21 +235,52 @@ service cloud.firestore {
       allow list: if isStaff()
         || (isMember() && resource.data.uid == request.auth.uid);
 
-      // 문서 ID 를 신청번호로 쓰므로(D-39) 두 번째 제출은 create 가 아니라
-      // update 로 판정되고, 아래 조건에 걸려 거부된다 — 중복 제출이 구조적으로
-      // 막힌다. 스스로 '승인' 상태를 부여하는 것도 여기서 차단한다.
+      // ── D-117 (09-30) — 신청 1건에 정산 여러 번 + 규칙 보강 ─────────────
+      // 번호: 1차 = 신청번호, 2차부터 신청번호_2 … (lib/firebase/settlements.ts settlementIdOf).
+      //   같은 회차를 두 번 내면 두 번째 쓰기가 update 로 판정되어 아래 조건에 걸린다 —
+      //   중복 제출이 구조적으로 막힌다. 2차부터는 1차가 있어야 한다.
+      //   `round` 가 없으면 1차로 본다 — D-117 이전 화면이 내는 정산도 통과하게.
+      // 보안 보강(docs/2-학습/08-보안-점검-기준.md §6 3~5번 — 정산 부분만 여기서 먼저):
+      //   · 넣을 수 있는 칸을 목록으로 — 서버 전용 칸(sheetSkipped · sheetRowId · paidAt …)을 못 넣는다
+      //   · 증빙서류 한 장 이상(D-108 이 화면에만 있던 것)
+      //   · 자기의 **선정된** 신청 건이어야 한다(예전엔 확인하지 않았다)
+      function settlementRound(data) {
+        return data.get('round', 1);
+      }
+      function hasSettlementFiles(data) {
+        return data.receipts is list && data.receipts.size() > 0 && data.receipts.size() <= 50;
+      }
+      function ownsApprovedApplicationForSettlement(appId) {
+        let a = get(/databases/$(database)/documents/support_applications/$(appId)).data;
+        return a.uid == request.auth.uid && a.status == 'approved';
+      }
       allow create: if isMember()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.status in ['draft', 'submitted'];
+        && request.resource.data.status == 'submitted'
+        && request.resource.data.keys().hasOnly(
+             ['applicationId', 'uid', 'status', 'round', 'programId', 'programTitle',
+              'applicantName', 'receipts', 'submittedAt', 'createdAt', 'updatedAt'])
+        && settlementRound(request.resource.data) is int
+        && hasSettlementFiles(request.resource.data)
+        && ownsApprovedApplicationForSettlement(request.resource.data.applicationId)
+        && ((settlementRound(request.resource.data) == 1
+               && id == request.resource.data.applicationId)
+            || (settlementRound(request.resource.data) >= 2
+               && id == request.resource.data.applicationId + '_' + string(settlementRound(request.resource.data))
+               && exists(/databases/$(database)/documents/support_settlements/$(request.resource.data.applicationId))));
 
-      // 제출 후에는 신청자가 수정할 수 없다. 반려된 건만 고쳐서 다시 낸다.
-      // 승인/반려는 담당자만.
+      // 제출 후에는 신청자가 수정할 수 없다. 반려된 회차만 고쳐서 다시 낸다.
+      // 확인 완료(approved)/반려는 담당자만.
+      // D-117: 바꿀 수 있는 칸을 못 박는다(resubmitSettlement 가 쓰는 것만) — 「시험」 표시·지급일 같은
+      //        담당자·서버 칸은 여기 없으므로 못 건드린다. 증빙서류는 여전히 한 장 이상
       allow update: if isStaff()
         || (isMember()
             && resource.data.uid == request.auth.uid
-            && request.resource.data.uid == resource.data.uid
             && resource.data.status in ['draft', 'rejected']
-            && request.resource.data.status in ['draft', 'submitted']);
+            && request.resource.data.status == 'submitted'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'bankInfo', 'receipts', 'reviewNote', 'submittedAt', 'updatedAt'])
+            && hasSettlementFiles(request.resource.data));
 
       allow delete: if false;
     }

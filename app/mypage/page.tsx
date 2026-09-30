@@ -234,14 +234,12 @@ function MypageContent() {
 
                     {/* 정산 — 선정된 건에만 (D-19 / D-39).
                         아직 지급 대상이 아닌 사람에게 서류를 받을 이유가 없다.
-                        계좌는 D-108 부터 받지 않는다 */}
+                        계좌는 D-108 부터 받지 않는다. D-117 부터 여러 번(회차) 낸다 */}
                     {a.status === 'approved' && user && (
                       <SettlementSection
                         application={a}
-                        settlement={
-                          settlements.find((s) => s.applicationId === a.id) ??
-                          null
-                        }
+                        settlements={settlements.filter((s) => s.applicationId === a.id)}
+                        program={programs.find((p) => p.id === a.programId) ?? null}
                         uid={user.uid}
                         onDone={load}
                       />

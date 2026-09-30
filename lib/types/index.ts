@@ -359,6 +359,13 @@ export interface Program {
   outputGuide?: string
 
   /**
+   * 정산 증빙서류 종류 (D-117 · 09-30) — 담당자가 공고 화면에서 정한다(예: 영수증 · 회의록).
+   * 정산 화면에 종류마다 올리는 칸이 생기고, 「필수」인 종류가 비면 제출이 막힌다.
+   * **없으면 「증빙서류」 한 칸(필수)** — `settlementDocsOf` 가 채운다. 빈 배열은 저장하지 않는다
+   */
+  settlementDocs?: SettlementDocKind[]
+
+  /**
    * 포스터 (D-81 · 09-18). 담당자가 프로그램 화면에서 올린다.
    * 공개 경로(`support/public/programs/{id}/`)라 로그인 안 한 방문자도 본다 —
    * 그래서 `url` 을 문서에 같이 둔다(홈·목록이 파일마다 주소를 다시 묻지 않게).
@@ -590,6 +597,13 @@ export interface AttachedFile {
   fileName: string
   size: number
   uploadedAt: Timestamp
+  /**
+   * 정산 증빙서류의 종류 (D-117) — 공고 `settlementDocs` 의 `id`. 없으면 종류를 나누기 전
+   * (D-117 이전) 파일이다 — 「증빙서류」로 본다
+   */
+  docKind?: string
+  /** 낼 때의 종류 이름 사본 — 나중에 담당자가 종류 이름을 바꿔도 낸 기록은 그대로 */
+  docLabel?: string
 }
 
 export interface Application {
@@ -863,8 +877,8 @@ export function teamNameOf(
 
 /* ─────────────────────────────────────────────────────────────
    정산 — support_settlements/{id}
-   신청 1건 : 정산 1건 (v0.11). 팀이어도 각자 신청하므로 개인 단위.
-   팀 공동 경비는 다루지 않는다 (D-18).
+   신청 1건 : 정산 여러 번 (D-117 · 09-30. 그 전 v0.11 은 1건 : 1건).
+   팀이어도 각자 신청하므로 개인 단위. 팀 공동 경비는 다루지 않는다 (D-18).
    ───────────────────────────────────────────────────────────── */
 
 /**
@@ -880,9 +894,48 @@ export type SettlementStatus = 'draft' | 'submitted' | 'approved' | 'paid' | 're
 export const SETTLEMENT_STATUS_LABEL: Record<SettlementStatus, string> = {
   draft: '작성 중',
   submitted: '제출 완료',
-  approved: '승인',
+  // D-117(09-30): 「승인」→「확인 완료」 — 운영진이 쓰는 말(담당자가 서류를 확인했고 지급 대기).
+  // 저장값은 그대로 'approved' 라 옛 기록도 새 이름으로 보인다
+  approved: '확인 완료',
   paid: '지급 완료',
   rejected: '반려',
+}
+
+/**
+ * 정산 증빙서류 종류 한 줄 (D-117) — 공고마다 담당자가 정한다.
+ * `id` 는 이름표다 — 담당자가 이름(label)을 고쳐도 이미 낸 파일과의 연결이 끊기지 않게
+ * (신청서 칸의 `fid` 와 같은 이유).
+ */
+export interface SettlementDocKind {
+  id: string
+  label: string
+  required: boolean
+}
+
+/** 공고에 종류가 없을 때의 기본 — 「증빙서류」 한 칸(필수). D-117 이전 파일도 이것으로 본다 */
+export const DEFAULT_SETTLEMENT_DOC: SettlementDocKind = { id: 'doc', label: '증빙서류', required: true }
+
+/** 이 공고의 증빙서류 종류 — 비어 있으면 기본 한 칸 */
+export function settlementDocsOf(p?: Pick<Program, 'settlementDocs'> | null): SettlementDocKind[] {
+  const list = (p?.settlementDocs ?? []).filter((k) => k.label?.trim())
+  return list.length > 0 ? list : [DEFAULT_SETTLEMENT_DOC]
+}
+
+/** 회차 — 없으면 1차(D-117 이전 정산) */
+export function settlementRoundOf(s: Pick<Settlement, 'round'>): number {
+  return s.round && s.round > 0 ? s.round : 1
+}
+
+/** 종류별 개수 한 줄 — 「영수증 3 · 회의록 1」. 시트 「증빙서류」 칸·화면이 같이 쓴다 */
+export function settlementDocSummary(files: Pick<AttachedFile, 'docLabel'>[] | undefined): string {
+  const counts = new Map<string, number>()
+  for (const f of files ?? []) {
+    const label = f.docLabel?.trim() || DEFAULT_SETTLEMENT_DOC.label
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  return Array.from(counts.entries())
+    .map(([label, n]) => `${label} ${n}`)
+    .join(' · ')
 }
 
 /**
@@ -890,20 +943,31 @@ export const SETTLEMENT_STATUS_LABEL: Record<SettlementStatus, string> = {
  *
  * 지출 항목을 줄 단위로 받지 않는다. 신청서에서와 같은 판단이다(D-29):
  * 회차마다 달라지는 항목을 미리 예측해 폼에 넣으려 하면 만들다 막힌다.
- * **계좌 3칸 + 영수증 파일**이 전부다.
+ * **증빙서류 파일**이 전부다(계좌는 D-108 에 뺐다).
  *
  * ⚠️ 금액 칸이 없다. 담당자가 영수증을 열어 읽고 직접 합산한다(09-06 확정).
- *    건수가 늘어 부담이 되면 숫자 한 칸을 추가하면 된다.
+ *    청구 금액 칸은 운영진 확인 뒤 정한다(D-117 보류).
  *
- * ⚠️ `bankInfo` 는 **시트·드라이브로 절대 내보내지 않는다**(D-38).
- *    사이트 안에서 담당자만 본다. 영수증은 드라이브 `02_정산` 으로 나간다.
+ * 증빙서류는 드라이브 `정산 / 프로그램 / 팀(개인이면 이름)` 으로 나간다(D-117).
  */
 export interface Settlement {
+  /**
+   * 정산 번호 (D-117) — **1차는 신청번호 그대로**, 2차부터 `신청번호_2` · `신청번호_3` …
+   * 1차를 신청번호로 둔 까닭: D-117 이전 정산(1차)이 그대로 이어지고, 「정산을 낸 선정 건은
+   * 취소 못 함」(D-116) 규칙이 `support_settlements/{신청번호}` 로 바로 확인된다.
+   * 같은 회차를 두 번 내면 번호가 겹쳐 두 번째가 막힌다(중복 제출 방지)
+   */
   id: string
   /** 어느 신청건에 대한 정산인가 — 선정된 건에만 붙는다 */
   applicationId: string
   uid: string
   status: SettlementStatus
+  /**
+   * 회차 (D-117 · 09-30) — **사람(신청서)마다** 1·2·3… 비용이 생길 때마다 따로 낸다.
+   * 팀의 회차가 아니다 — 팀 프로그램에서도 대표자가 낼 것·각자 낼 것(예: 교통비)이 섞일 수 있어
+   * 팀은 보기용 묶음일 뿐이다(iSERI 09-30). 없으면 1차(D-117 이전)
+   */
+  round?: number
 
   /** 신청 당시 정보 사본 — 신청서가 바뀌어도 정산 이력은 남는다 */
   programId: string
@@ -919,13 +983,13 @@ export interface Settlement {
    */
 
   /**
-   * 영수증·증빙 서류 — **한 장 이상 필수** (D-108).
+   * **증빙서류 전부** — 한 장 이상 필수 (D-108). 칸 이름은 옛 그대로 `receipts` 지만
+   * 영수증만이 아니다(D-117): 파일마다 `docKind`·`docLabel` 로 종류(영수증·회의록 …)가 붙는다.
+   * 종류 목록은 공고의 `settlementDocs`. 이름을 바꾸지 않은 까닭 — 규칙·옛 문서·동기화가
+   * 모두 이 칸을 본다.
    *
    * 예전에는 선택이었다(D-41) — 계좌가 정산의 본체였고 증빙은 곁들이는 것이어서.
-   * 계좌가 빠지니 **증빙이 정산의 전부**다. 파일 없이 낸 정산은 무엇을 낸 것인지
-   * 아무도 모른다. AI-EDU 의 회의록처럼 프로그램이 요구하는 증빙도 지금은 여기에
-   * 함께 올린다 — 「영수증」과 「별도 서류」를 나누고 프로그램마다 다르게 하는 것은
-   * 다음 판(남은-일 ① 의 5번)이다.
+   * 계좌가 빠지니 **증빙이 정산의 전부**다.
    */
   receipts: AttachedFile[]
 

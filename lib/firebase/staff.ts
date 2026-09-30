@@ -34,6 +34,7 @@ import {
   type Program,
   type ProgramField,
   type ProgramPoster,
+  type SettlementDocKind,
 } from '@/lib/types'
 import { cleanFields } from '@/lib/forms/fields'
 
@@ -212,6 +213,8 @@ export interface ProgramInput {
   outputOpensAt?: Date
   outputClosesAt?: Date
   outputGuide?: string
+  /** 정산 증빙서류 종류 (D-117) — 비어 있으면 저장 안 함(= 기본 「증빙서류」 한 칸) */
+  settlementDocs?: SettlementDocKind[]
   /** 포스터 (D-81) — 화면이 올린 결과를 그대로 넘긴다. 없으면 저장 안 함(= 지움) */
   poster?: ProgramPoster
   published: boolean
@@ -308,6 +311,15 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   put('outputOpensAt', input.outputOpensAt)
   put('outputClosesAt', input.outputClosesAt)
   put('outputGuide', input.outputGuide?.trim())
+
+  // 정산 증빙서류 종류 (D-117). 이름이 빈 줄은 버리고, 빈 배열이면 put 이 걸러 저장하지 않는다
+  // (= 기본 「증빙서류」 한 칸 — settlementDocsOf)
+  put(
+    'settlementDocs',
+    (input.settlementDocs ?? [])
+      .map((k) => ({ id: k.id, label: k.label.trim(), required: Boolean(k.required) }))
+      .filter((k) => k.label)
+  )
 
   // 포스터 (D-81). setDoc 덮어쓰기라 화면이 매번 넘겨야 남는다 — toForm/toInput 이 그렇게 한다
   put('poster', input.poster)

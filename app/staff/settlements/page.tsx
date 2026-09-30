@@ -5,12 +5,17 @@
  *
  * 🔴 **지급 계좌는 받지 않는다** (D-108 · 09-25). 예전에는 이 화면에 계좌가
  *    나왔고(누를 때만 펼침), 시트·드라이브로는 내보내지 않았다(D-38).
- *    지금은 **영수증·증빙 파일만** 확인한다.
+ *    지금은 **증빙서류 파일만** 확인한다.
  *
  * 금액 칸은 없다(09-06 확정). 담당자가 영수증을 열어 읽고 합산한다.
+ *
+ * D-117 (09-30) — 신청 1건에 정산이 **여러 번** 온다(1차·2차 …).
+ *   · 「한 건씩」: 들어온 순서대로. 「팀별로」: 프로그램 → 팀(개인 프로그램이면 사람)으로 묶어 본다
+ *   · 회차는 **사람마다** 센다 — 팀 묶음은 보기용이다(대표자 1차 ≠ 팀 1차)
+ *   · 「승인」은 「확인 완료」로 부른다(저장값은 그대로 approved)
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
@@ -23,12 +28,20 @@ import {
   requestSettlementSync,
   retrySettlementSync,
 } from '@/lib/firebase/settlements'
+import { listAllApplications, listAllPrograms } from '@/lib/firebase/staff'
 import { toYmd } from '@/lib/reservations/window'
 import { fileUrl } from '@/lib/firebase/applications'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
+  DEFAULT_SETTLEMENT_DOC,
   SETTLEMENT_STATUS_LABEL,
+  settlementDocSummary,
+  settlementRoundOf,
+  teamNameOf,
+  type Application,
+  type AttachedFile,
+  type Program,
   type Settlement,
   type SettlementStatus,
 } from '@/lib/types'
@@ -41,6 +54,18 @@ const FILTERS: SettlementStatus[] = [
   'draft',
 ]
 
+type View = 'each' | 'team'
+
+/** 팀별 보기의 한 묶음 — 팀 프로그램이면 팀, 개인 프로그램(또는 팀명 없음)이면 사람 */
+interface Group {
+  key: string
+  programTitle: string
+  label: string
+  isTeam: boolean
+  people: string[]
+  rows: Settlement[]
+}
+
 export default function StaffSettlementsPage() {
   return (
     <MemberGate requireStaff>
@@ -52,13 +77,26 @@ export default function StaffSettlementsPage() {
 function StaffSettlementsContent() {
   const { user } = useAuth()
   const [rows, setRows] = useState<Settlement[] | null>(null)
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [apps, setApps] = useState<Map<string, Application>>(new Map())
   const [filter, setFilter] = useState<SettlementStatus | ''>('')
+  const [programId, setProgramId] = useState('')
+  const [view, setView] = useState<View>('each')
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
     setError('')
     try {
-      setRows(await listAllSettlements())
+      // 팀명은 신청서에서 읽는다(teamNameOf) — 정산 문서에는 팀명이 없다.
+      // 제출하는 브라우저가 적은 팀명을 믿지 않으려는 것(보안 점검 08 B)
+      const [settlements, programList, applications] = await Promise.all([
+        listAllSettlements(),
+        listAllPrograms(),
+        listAllApplications(),
+      ])
+      setRows(settlements)
+      setPrograms(programList)
+      setApps(new Map(applications.map((a) => [a.id, a])))
     } catch (e) {
       console.error('[iLINE] 정산 목록 조회 실패:', e)
       setError(firestoreErrorMessage(e))
@@ -70,15 +108,73 @@ function StaffSettlementsContent() {
     void load()
   }, [load])
 
-  const shown = (rows ?? []).filter((s) => !filter || s.status === filter)
-  const count = (s: SettlementStatus) =>
-    (rows ?? []).filter((r) => r.status === s).length
+  const programOf = useCallback(
+    (id: string) => programs.find((p) => p.id === id) ?? null,
+    [programs]
+  )
+  const teamOf = useCallback(
+    (s: Settlement) => teamNameOf(apps.get(s.applicationId), programOf(s.programId)),
+    [apps, programOf]
+  )
+
+  // 정산이 들어온 프로그램만 고를 수 있게
+  const programOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const s of rows ?? []) {
+      if (!seen.has(s.programId)) {
+        seen.set(s.programId, programOf(s.programId)?.title || s.programTitle || s.programId)
+      }
+    }
+    return Array.from(seen.entries())
+  }, [rows, programOf])
+
+  const inProgram = (rows ?? []).filter((s) => !programId || s.programId === programId)
+  const shown = inProgram.filter((s) => !filter || s.status === filter)
+  const count = (st: SettlementStatus) => inProgram.filter((r) => r.status === st).length
+
+  const groups = useMemo<Group[]>(() => {
+    const map = new Map<string, Group>()
+    for (const s of shown) {
+      const team = teamOf(s)
+      const key = `${s.programId}::${team ? `team:${team}` : `uid:${s.uid}`}`
+      let g = map.get(key)
+      if (!g) {
+        g = {
+          key,
+          programTitle: programOf(s.programId)?.title || s.programTitle || s.programId,
+          label: team ? `${team} 팀` : s.applicantName || '이름없음',
+          isTeam: Boolean(team),
+          people: [],
+          rows: [],
+        }
+        map.set(key, g)
+      }
+      g.rows.push(s)
+      const name = s.applicantName || '이름없음'
+      if (!g.people.includes(name)) g.people.push(name)
+    }
+    const list = Array.from(map.values())
+    // 묶음 안: 사람 → 회차 순. 묶음끼리: 프로그램 → 이름 순
+    for (const g of list) {
+      g.rows.sort(
+        (a, b) =>
+          (a.applicantName ?? '').localeCompare(b.applicantName ?? '', 'ko') ||
+          settlementRoundOf(a) - settlementRoundOf(b)
+      )
+    }
+    return list.sort(
+      (a, b) =>
+        a.programTitle.localeCompare(b.programTitle, 'ko') || a.label.localeCompare(b.label, 'ko')
+    )
+  }, [shown, teamOf, programOf])
+
+  const selectCls = 'touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm'
 
   return (
     <>
       <PageHeader
         title="정산 관리"
-        description="제출된 영수증·증빙 서류를 확인해 승인하고, 지급한 뒤 지급 완료로 표시합니다."
+        description="제출된 증빙서류를 확인해 「확인 완료」로 표시하고, 지급한 뒤 지급 완료로 표시합니다."
       />
 
       <div className="container-page space-y-6 py-8">
@@ -105,10 +201,23 @@ function StaffSettlementsContent() {
 
         <div className="flex flex-wrap items-center gap-3">
           <select
+            value={programId}
+            onChange={(e) => setProgramId(e.target.value)}
+            aria-label="프로그램"
+            className={selectCls}
+          >
+            <option value="">전체 프로그램</option>
+            {programOptions.map(([id, title]) => (
+              <option key={id} value={id}>
+                {title}
+              </option>
+            ))}
+          </select>
+          <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as SettlementStatus | '')}
             aria-label="상태"
-            className="touch-target rounded-lg border border-line-strong bg-surface px-3 text-sm"
+            className={selectCls}
           >
             <option value="">전체 상태</option>
             {FILTERS.map((s) => (
@@ -117,6 +226,27 @@ function StaffSettlementsContent() {
               </option>
             ))}
           </select>
+          <div role="group" aria-label="보기" className="inline-flex overflow-hidden rounded-lg border border-line-strong">
+            {(
+              [
+                ['each', '한 건씩'],
+                ['team', '팀별로'],
+              ] as const
+            ).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                aria-pressed={view === v}
+                className={
+                  'touch-target px-4 text-sm font-semibold ' +
+                  (view === v ? 'bg-brand-600 text-white' : 'bg-surface text-ink-muted')
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={load}
@@ -126,7 +256,7 @@ function StaffSettlementsContent() {
           </button>
           {rows && (
             <span className="text-sm text-ink-subtle">
-              제출 {count('submitted')} · 승인(지급 대기) {count('approved')} · 지급 완료{' '}
+              제출 {count('submitted')} · 확인 완료(지급 대기) {count('approved')} · 지급 완료{' '}
               {count('paid')} · 반려 {count('rejected')}
             </span>
           )}
@@ -148,29 +278,83 @@ function StaffSettlementsContent() {
             title="정산 내역이 없습니다"
             desc="선정된 참여자가 정산을 제출하면 이곳에 표시됩니다."
           />
-        ) : (
+        ) : view === 'each' ? (
           <ul className="space-y-3">
             {shown.map((s) => (
               <SettlementRow
                 key={s.id}
                 row={s}
+                team={teamOf(s)}
                 reviewerUid={user?.uid ?? ''}
                 onSaved={load}
               />
             ))}
           </ul>
+        ) : (
+          <div className="space-y-6">
+            <p className="text-xs leading-relaxed text-ink-subtle">
+              팀 프로그램은 신청서의 팀명으로, 개인 프로그램은 사람으로 묶었습니다.
+              <strong> 회차(1차·2차)는 사람마다 셉니다</strong> — 같은 팀이어도 각자 낸 차수입니다.
+            </p>
+            {groups.map((g) => {
+              const waiting = g.rows.filter((r) => r.status === 'submitted').length
+              return (
+                <section key={g.key} className="space-y-3">
+                  <div className="border-b border-line pb-2">
+                    <p className="text-xs font-semibold text-ink-subtle">{g.programTitle}</p>
+                    <h2 className="font-bold">
+                      {g.label}
+                      <span className="ml-2 text-sm font-semibold text-ink-muted">
+                        정산 {g.rows.length}건{waiting > 0 && ` · 확인 대기 ${waiting}`}
+                      </span>
+                    </h2>
+                    {g.isTeam && (
+                      <p className="mt-0.5 text-xs text-ink-subtle">낸 사람: {g.people.join(', ')}</p>
+                    )}
+                  </div>
+                  <ul className="space-y-3">
+                    {g.rows.map((s) => (
+                      <SettlementRow
+                        key={s.id}
+                        row={s}
+                        team={teamOf(s)}
+                        grouped
+                        reviewerUid={user?.uid ?? ''}
+                        onSaved={load}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )
+            })}
+          </div>
         )}
       </div>
     </>
   )
 }
 
+/** 증빙서류를 종류별로 — 종류가 안 붙은 옛 파일은 「증빙서류」 */
+function byDocKind(files: AttachedFile[] | undefined): [string, AttachedFile[]][] {
+  const map = new Map<string, AttachedFile[]>()
+  for (const f of files ?? []) {
+    const label = f.docLabel?.trim() || DEFAULT_SETTLEMENT_DOC.label
+    map.set(label, [...(map.get(label) ?? []), f])
+  }
+  return Array.from(map.entries())
+}
+
 function SettlementRow({
   row,
+  team,
+  grouped = false,
   reviewerUid,
   onSaved,
 }: {
   row: Settlement
+  team: string | undefined
+  /** 팀별 보기 안 — 프로그램·팀은 묶음 제목에 있으므로 줄에서는 뺀다 */
+  grouped?: boolean
   reviewerUid: string
   onSaved: () => void
 }) {
@@ -214,7 +398,7 @@ function SettlementRow({
     setMsg('')
     try {
       await reviewSettlement(row.id, status, note, reviewerUid)
-      setMsg(status === 'approved' ? '승인했습니다.' : '반려했습니다.')
+      setMsg(status === 'approved' ? '확인 완료로 표시했습니다.' : '반려했습니다.')
       await requestSettlementSync(row.id)
       onSaved()
     } catch (e) {
@@ -225,9 +409,14 @@ function SettlementRow({
     }
   }
 
+  const kinds = byDocKind(row.receipts)
+
   return (
     <li className="rounded-2xl border border-line bg-surface shadow-card p-5">
       <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-bold text-brand-700">
+          {settlementRoundOf(row)}차
+        </span>
         <span className="rounded-full bg-subtle px-2.5 py-1 text-xs font-bold">
           {SETTLEMENT_STATUS_LABEL[row.status]}
         </span>
@@ -237,28 +426,38 @@ function SettlementRow({
       </div>
 
       <p className="mt-2 font-bold">
-        {row.applicantName || '이름없음'} · {row.programTitle || row.programId}
+        {row.applicantName || '이름없음'}
+        {!grouped && (
+          <>
+            {' · '}
+            {row.programTitle || row.programId}
+            {team && <span className="font-semibold text-ink-muted"> · {team} 팀</span>}
+          </>
+        )}
       </p>
 
-
-      {/* ── 영수증 ─────────────────────────────────────────── */}
-      <div className="mt-3">
+      {/* ── 증빙서류 — 종류별로 ─────────────────────────────── */}
+      <div className="mt-3 space-y-2">
         <p className="text-xs font-semibold text-ink-subtle">
           {row.receipts?.length
-            ? `영수증 ${row.receipts.length}장 — 금액은 파일을 열어 확인해 주세요`
-            : // 영수증은 선택이라 없는 것이 정상일 수 있다(D-41).
-              // 필요한 회차인데 안 왔다면 사유를 적어 반려하면 된다.
-              '영수증 없음 — 증빙이 필요한 프로그램이라면 사유를 적어 반려해 주세요'}
+            ? `증빙서류 ${row.receipts.length}개 (${settlementDocSummary(row.receipts)}) — 금액은 파일을 열어 확인해 주세요`
+            : // D-108 뒤로는 한 장 이상 필수라 옛 기록에서만 나온다
+              '증빙서류 없음 — 사유를 적어 반려해 주세요'}
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {row.receipts?.map((r) => (
-            <FileButton
-              key={r.storagePath}
-              path={r.storagePath}
-              label={r.fileName}
-            />
-          ))}
-        </div>
+        {kinds.map(([label, files]) => (
+          <div key={label}>
+            {kinds.length > 1 && (
+              <p className="text-xs font-bold text-ink-muted">
+                {label} {files.length}
+              </p>
+            )}
+            <div className="mt-1 flex flex-wrap gap-2">
+              {files.map((r) => (
+                <FileButton key={r.storagePath} path={r.storagePath} label={r.fileName} />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ── 드라이브·시트 반영 상태 (D-65) — "왜 드라이브에 없지?"를 여기서 */}
@@ -336,7 +535,7 @@ function SettlementRow({
                 disabled={busy}
                 className="touch-target rounded-lg bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
               >
-                승인
+                확인 완료
               </button>
               <button
                 type="button"
@@ -352,7 +551,7 @@ function SettlementRow({
         </div>
       </div>
 
-      {/* ── 지급 완료 (09-12) — 승인된 건에만. 이체는 사이트 밖에서 하므로
+      {/* ── 지급 완료 (09-12) — 확인 완료된 건에만. 이체는 사이트 밖에서 하므로
           "했다"는 사실만 날짜와 함께 남긴다. 되돌리기는 두지 않는다 —
           잘못 눌렀으면 메모로 남기고 담당자끼리 정리한다 ── */}
       {row.status === 'approved' && (

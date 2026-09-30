@@ -1,5 +1,5 @@
 /**
- * 정산 1건을 구글 드라이브(영수증)·시트(「정산」 탭)에 반영한다 (09-12 · D-65).
+ * 정산 1건을 구글 드라이브(증빙서류)·시트(「정산」 탭)에 반영한다 (09-12 · D-65 · D-117).
  *
  *   POST /api/sync/settlement
  *   Authorization: Bearer <Firebase ID 토큰>
@@ -11,16 +11,21 @@
  * ⚠️ 계좌는 읽지 않는다(D-38) — D-108(09-25)부터는 아예 받지 않는다.
  *    열을 늘릴 때 반출 범위 문서 먼저.
  *
- * 신청서 연동과 달리 **이미 반영된 건도 다시 돌린다** — 재제출·승인·지급 완료가
+ * 신청서 연동과 달리 **이미 반영된 건도 다시 돌린다** — 재제출·확인 완료·지급 완료가
  * 같은 줄에 반영되어야 하기 때문이다. 파일은 중복 업로드되지 않는다.
+ *
+ * D-117: 팀명(드라이브 팀 폴더 · 시트 「팀명」)은 **여기서 신청서·공고로 계산한다** —
+ *   정산 문서에는 팀명이 없고, 제출하는 브라우저가 적은 값은 믿지 않는다(보안 점검 08 B).
+ *   파일은 **이 정산의 Storage 자리**(`support/settlements/{주인}/{정산번호}/`)에 있는 것만
+ *   받는다 — Admin 권한으로 내려받으므로, 목록에 남의 경로를 적어 드라이브로 빼 가는 것을 막는다.
  */
 
 import { NextResponse } from 'next/server'
 import { adminDb, adminBucket, verifyRequester, isTesterUid } from '@/lib/server/admin'
 import { syncSettlement, type ReceiptBlob } from '@/lib/server/googleSync'
 import { getGoogleConfig } from '@/lib/server/env'
-import { COL } from '@/lib/firebase/config'
-import type { Settlement } from '@/lib/types'
+import { COL, STORAGE_ROOT } from '@/lib/firebase/config'
+import { teamNameOf, type Application, type Program, type Settlement } from '@/lib/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -74,7 +79,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ skipped: 'draft' })
   }
 
+  // 이 정산의 자리에 있는 파일만 (D-117 · 보안 점검 08 §6)
+  const prefix = `${STORAGE_ROOT}/settlements/${st.uid}/${st.id}/`
+  const outside = (st.receipts ?? []).filter((r) => !String(r.storagePath || '').startsWith(prefix))
+  if (outside.length > 0) {
+    const message = `증빙서류 경로가 이 정산의 자리가 아닙니다(${outside.length}개) — 반영하지 않았습니다.`
+    await ref.update({ driveSyncError: message }).catch(() => {})
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
+
   try {
+    // 팀명 — 신청서와 공고로 서버가 계산한다(teamNameOf 는 공고의 「팀명 칸」을 봐야 한다)
+    const [appSnap, programSnap] = await Promise.all([
+      db.collection(COL.applications).doc(st.applicationId).get(),
+      db.collection(COL.programs).doc(st.programId).get(),
+    ])
+    const team = teamNameOf(
+      appSnap.exists ? (appSnap.data() as Application) : null,
+      programSnap.exists ? (programSnap.data() as Program) : null
+    )
+
     const bucket = adminBucket()
     const receipts: ReceiptBlob[] = []
     for (const r of st.receipts ?? []) {
@@ -86,10 +110,11 @@ export async function POST(req: Request) {
         fileName: r.fileName,
         contentType: String(meta.contentType || 'application/octet-stream'),
         data,
+        docLabel: r.docLabel,
       })
     }
 
-    const result = await syncSettlement(st, receipts)
+    const result = await syncSettlement(st, receipts, { team })
     if (result.skipped) return NextResponse.json({ skipped: 'not-configured' })
 
     await ref.update({

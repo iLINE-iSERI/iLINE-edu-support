@@ -7,7 +7,13 @@
 //    이었다(D-39). 첫 정산이 들어오기 전에 없앴으므로 계좌가 담긴 문서는 없다.
 //    영수증은 드라이브로 나간다.
 //
-// 정산은 **선정된 신청건(approved)** 에만 붙는다. 신청 1건 : 정산 1건.
+// 정산은 **선정된 신청건(approved)** 에만 붙는다.
+//
+// D-117 (09-30) — **신청 1건 : 정산 여러 번.** 비용이 생길 때마다 따로 청구한다(iSERI · 운영).
+//   · 번호: 1차 = 신청번호 그대로(옛 정산이 그대로 1차), 2차부터 `신청번호_2` …
+//   · 회차는 사람(신청서)마다 센다 — 팀 회차가 아니다(팀은 담당자 화면의 보기용 묶음)
+//   · 증빙서류는 공고마다 종류가 있다(`settlementDocsOf`) — 파일마다 docKind·docLabel
+//   · 앞 정산이 처리 중이어도 새 회차를 낼 수 있다. 반려된 회차는 그 회차만 고쳐 다시 낸다
 
 import {
   collection,
@@ -24,23 +30,36 @@ import {
 } from 'firebase/firestore'
 import { ref, uploadBytes, deleteObject } from 'firebase/storage'
 import { getDb, getStorageClient, getAuthClient, COL, STORAGE_ROOT } from './config'
-import type { AttachedFile, Settlement, Application } from '@/lib/types'
+import {
+  settlementRoundOf,
+  type AttachedFile,
+  type Settlement,
+  type Application,
+  type SettlementDocKind,
+} from '@/lib/types'
 
 /**
- * 정산 문서 ID = 신청번호.
+ * 정산 문서 ID — **1차 = 신청번호**, 2차부터 `신청번호_2` (D-117).
  *
- * 신청 1건에 정산 1건이므로 신청번호를 그대로 쓴다. 그러면 **중복 제출이
- * 구조적으로 불가능**해진다 — 신청서에서 열쇠 문서를 따로 둔 것과 같은 효과를
- * 별도 장치 없이 얻는다. 규칙도 두 번째 쓰기를 update 로 판정한다.
+ * 번호가 회차로 정해져 있어 **같은 회차를 두 번 내면 두 번째가 막힌다**(규칙이 두 번째 쓰기를
+ * update 로 판정해 거부) — 탭 두 개·뒤로가기 재제출이 중복을 만들지 않는다.
+ * ⚠️ 보안 규칙이 같은 모양을 검사한다(`firestore.rules` 정산 create). 여기를 바꾸면 거기도.
  */
-export function settlementIdOf(applicationId: string): string {
-  return applicationId
+export function settlementIdOf(applicationId: string, round = 1): string {
+  return round <= 1 ? applicationId : `${applicationId}_${round}`
+}
+
+/** 이 신청 건의 다음 회차 — 낸 정산 중 가장 큰 회차 + 1 */
+export function nextSettlementRound(mine: Settlement[], applicationId: string): number {
+  const rounds = mine.filter((s) => s.applicationId === applicationId).map(settlementRoundOf)
+  return rounds.length ? Math.max(...rounds) + 1 : 1
 }
 
 async function uploadReceipt(
   uid: string,
   settlementId: string,
-  file: File
+  file: File,
+  kind: SettlementDocKind
 ): Promise<AttachedFile> {
   const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_')
   const path =
@@ -56,15 +75,19 @@ async function uploadReceipt(
     size: file.size,
     // ⚠️ 배열 안에는 serverTimestamp() 를 못 넣는다 (Firestore 제약).
     uploadedAt: Timestamp.now(),
+    // D-117: 어느 증빙서류인가 — 이름은 낸 때의 사본(담당자가 나중에 이름을 바꿔도 기록은 그대로)
+    docKind: kind.id,
+    docLabel: kind.label.trim(),
   }
 }
 
 export interface SettlementInput {
   application: Application
   uid: string
-  files: File[]
+  /** 새로 올릴 파일 — 증빙서류 종류와 함께 (D-117) */
+  files: { file: File; kind: SettlementDocKind }[]
   /**
-   * 재제출 때 **남길** 기존 영수증 (09-12). 없으면 전부 남긴다.
+   * 재제출 때 **남길** 기존 파일 (09-12). 없으면 전부 남긴다.
    * 여기서 빠진 파일은 Storage 에서 지우고, 드라이브 사본도 동기화 때 휴지통으로.
    */
   keepReceipts?: AttachedFile[]
@@ -77,21 +100,23 @@ export interface SettlementInput {
  * 아예 안 만들어지므로 '영수증 없는 정산'이 남지 않는다. (신청서와 같은 순서)
  */
 export async function submitSettlement(
-  input: SettlementInput
+  input: SettlementInput & { round: number }
 ): Promise<string> {
-  const { application, uid, files } = input
-  const id = settlementIdOf(application.id)
+  const { application, uid, files, round } = input
+  const id = settlementIdOf(application.id, round)
 
   const receipts: AttachedFile[] = []
   for (const f of files) {
-    receipts.push(await uploadReceipt(uid, id, f))
+    receipts.push(await uploadReceipt(uid, id, f.file, f.kind))
   }
 
   const now = serverTimestamp()
+  // ⚠️ 규칙이 넣을 수 있는 칸을 목록으로 못 박는다(D-117) — 여기 칸을 더하면 규칙도
   await setDoc(doc(getDb(), COL.settlements, id), {
     applicationId: application.id,
     uid,
     status: 'submitted',
+    round,
     programId: application.programId,
     programTitle: application.programTitle ?? '',
     applicantName: application.applicant?.name ?? '',
@@ -113,10 +138,12 @@ export async function submitSettlement(
  * 드라이브 사본은 동기화가 휴지통으로 보낸다.
  */
 export async function resubmitSettlement(
+  settlement: Settlement,
   input: SettlementInput
 ): Promise<void> {
-  const { application, uid, files } = input
-  const id = settlementIdOf(application.id)
+  const { uid, files } = input
+  // D-117: 회차마다 번호가 달라서 계산하지 않고 그 정산의 번호를 그대로 쓴다
+  const id = settlement.id
 
   const before = await getSettlement(id)
   const prev = before?.receipts ?? []
@@ -126,7 +153,7 @@ export async function resubmitSettlement(
 
   const added: AttachedFile[] = []
   for (const f of files) {
-    added.push(await uploadReceipt(uid, id, f))
+    added.push(await uploadReceipt(uid, id, f.file, f.kind))
   }
 
   for (const r of removed) {
@@ -174,7 +201,7 @@ export async function listAllSettlements(): Promise<Settlement[]> {
 }
 
 /**
- * 승인 / 반려.
+ * 확인 완료(저장값 approved) / 반려. D-117 에 「승인」을 「확인 완료」로 불렀다.
  *
  * ⚠️ `reviewNote` 는 **09-08(D-46)부터 신청자에게 보이지 않는다.**
  *    그래서 반려하면 신청자 화면에는 **'반려' 상태만** 뜨고 이유가 없다.
@@ -219,7 +246,7 @@ export async function markSettlementPaid(
 }
 
 /* ── 드라이브·시트 반영 (09-12 · D-65) ───────────────────────────
-   영수증은 드라이브 02_정산 폴더로, 정산 한 줄은 시트 「정산」 탭으로.
+   증빙서류는 드라이브 「정산」 폴더로(D-117: 프로그램 / 팀 또는 이름), 정산 한 줄은 시트 「정산」 탭으로.
    ⚠️ 계좌는 나가지 않는다 — 서버 쪽 googleSync.ts 가 읽지 않는다 (D-38). */
 
 async function callSettlementSync(settlementId: string) {

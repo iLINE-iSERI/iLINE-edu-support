@@ -18,6 +18,9 @@ import {
   APPLICATION_STATUS_LABEL,
   MEMBER_TYPE_LABEL,
   SETTLEMENT_STATUS_LABEL,
+  DEFAULT_SETTLEMENT_DOC,
+  settlementRoundOf,
+  settlementDocSummary,
   OUTPUT_STATUS_LABEL,
   INQUIRY_STATUS_LABEL,
   memberTypeOf,
@@ -717,39 +720,47 @@ export async function syncApplication(
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   정산 — 영수증 → 드라이브 `02_정산`, 시트 「정산」 탭 한 줄 (09-12 · D-65)
+   정산 — 증빙서류 → 드라이브 「정산」, 시트 「정산」 탭 한 줄 (09-12 · D-65 · D-117)
 
    ⚠️ **계좌는 여기서 읽지 않는다** (D-38) — 그리고 D-108(09-25)부터는 **아예
       받지 않는다.** 아래 열 목록에 은행·계좌번호·예금주가 없는 것은 실수가 아니다.
       열을 늘리기 전에 docs/4-기록/02-시트-드라이브-반출-범위.md 를 먼저 고칠 것.
 
    신청서 연동과 다른 점 둘:
-   ① **다시 돌려도 안전하다.** 정산은 반려 → 수정 → 재제출이 있고, 승인·지급
+   ① **다시 돌려도 안전하다.** 정산은 반려 → 수정 → 재제출이 있고, 확인 완료·지급
       완료로 상태가 바뀐다. 그래서 "한 번 올렸으면 건너뜀"이 아니라, 파일은
       appProperties(경로 해시) 로 알아보고 건너뛰고, 시트 줄은 **있으면 그 줄을 고친다.**
-   ② 파일이 여러 장이라 **사람마다 폴더**를 만든다:
-        02_정산 / 프로그램명 / 이름 / 01_영수증.jpg …
-      동명이인이 같은 프로그램에 있을 수 있으므로 사람 폴더는 이름이 아니라
-      appProperties 의 정산번호로 찾고, 이름이 겹치면 `이름 (2)` 로 짓는다.
+   ② 파일이 여러 장이라 폴더로 묶는다 (D-117 · 09-30 — 신청 1건에 정산 여러 번):
+        정산 / 프로그램명 / 팀명(개인이면 이름) / 01차_이름_영수증_01_원래이름.jpg …
+      · 폴더 이름(「정산」)은 무엇이든 된다 — 코드는 환경변수의 **ID로** 찾는다
+      · 팀·사람 폴더는 이름이 아니라 appProperties 의 **묶음 열쇠(uk)** 로 찾는다 —
+        동명이인·같은 이름의 팀·사람이 있어도 섞이지 않고, 이름이 겹치면 `이름 (2)`
+      · 한 폴더에 여러 사람·여러 회차가 모이므로 파일 이름에 **회차·이름·종류**를 넣고,
+        파일마다 정산번호(sid)를 붙여 **뺀 파일 정리는 그 정산의 파일끼리만** 비교한다
+      · 회차는 **사람마다** 센다 — 같은 팀 폴더의 「01차」가 여럿일 수 있다(대표자 1차 ≠ 팀 1차)
    ═══════════════════════════════════════════════════════════════ */
 
 const SETTLEMENT_SHEET = '정산'
 
-/** 「정산」 탭 머리글 — 반출 범위 문서 §1′ 과 일치해야 한다 */
 /** 「정산」 탭 — 고정 폭 열 없음 (폴더 링크는 '폴더 열기' 글자 + 링크) */
 const SETTLEMENT_FIXED_WIDTHS: ColumnWidths = {}
-const FOLDER_COL = 5
+/** H 증빙서류 폴더 */
+const FOLDER_COL = 7
 
+/** 「정산」 탭 머리글 — 반출 범위 문서 §1′ 과 일치해야 한다 (D-117 에 10열로) */
 const SETTLEMENT_HEADERS = [
-  '정산번호',
-  '프로그램명',
-  '이름',
-  '제출 일시',
-  '영수증 건수',
-  '드라이브 폴더',
-  '상태(사본)',
-  '지급일',
+  '정산번호',        // A — 1차는 신청번호, 2차부터 신청번호_2
+  '프로그램명',      // B
+  '팀명',            // C — 개인 프로그램이면 빈칸. 신청서에서 서버가 계산(teamNameOf)
+  '이름',            // D
+  '회차',            // E — 사람마다 1차·2차 …
+  '제출 일시',       // F
+  '증빙서류',        // G — 「영수증 3 · 회의록 1」
+  '증빙서류 폴더',   // H — 팀(개인이면 사람) 폴더
+  '상태',            // I — 제출 완료 / 확인 완료 / 지급 완료 / 반려 (사본 — 원본은 사이트)
+  '지급일',          // J
 ]
+const SETTLEMENT_LAST_COL = String.fromCharCode(64 + SETTLEMENT_HEADERS.length) // 'J'
 
 /** 드라이브 검색문(q)에 넣을 문자열 — 작은따옴표·역슬래시를 이스케이프 */
 function q(v: string): string {
@@ -791,28 +802,41 @@ async function folderByName(drive: Drive, parentId: string, name: string): Promi
   return res.data.id!
 }
 
+/** 정산 묶음 — 팀 프로그램이면 팀, 아니면 사람 (D-117) */
+export interface SettlementUnit {
+  /** 팀명 — 없으면 개인 */
+  team?: string
+}
+
 /**
- * 사람(정산 1건) 폴더 — **정산번호로** 찾는다. 동명이인 대비.
- * 없으면 이름으로 만들되, 같은 이름 폴더가 이미 있으면 `이름 (2)`.
+ * 팀·사람 폴더 — **묶음 열쇠(uk)로** 찾는다 (D-117).
+ *
+ * 열쇠는 `team:{팀명}` 또는 `uid:{uid}` 의 해시다 — appProperties 는 키+값 124바이트
+ * 제한이라 한글 팀명을 그대로 넣으면 넘칠 수 있다(receiptKey 와 같은 이유).
+ * 없으면 팀명(개인이면 이름)으로 만들되, 같은 이름 폴더가 이미 있으면 `이름 (2)`.
  */
-async function settlementFolder(
+async function unitFolder(
   drive: Drive,
   programFolderId: string,
-  st: Settlement
+  st: Settlement,
+  unit: SettlementUnit
 ): Promise<{ id: string; url: string }> {
-  const byId = await drive.files.list({
+  const uk = createHash('sha1')
+    .update(unit.team ? `team:${unit.team}` : `uid:${st.uid}`)
+    .digest('hex')
+  const byKey = await drive.files.list({
     q:
-      `appProperties has { key='settlementId' and value='${q(st.id)}' } ` +
+      `appProperties has { key='uk' and value='${uk}' } ` +
       `and '${programFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
     fields: 'files(id, webViewLink)',
     pageSize: 1,
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
   })
-  const hit = byId.data.files?.[0]
+  const hit = byKey.data.files?.[0]
   if (hit?.id) return { id: hit.id, url: hit.webViewLink || `https://drive.google.com/drive/folders/${hit.id}` }
 
-  const base = cleanName(st.applicantName || '')
+  const base = cleanName(unit.team || st.applicantName || '')
   const siblings = await drive.files.list({
     q:
       `'${programFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' ` +
@@ -832,7 +856,7 @@ async function settlementFolder(
       name,
       parents: [programFolderId],
       mimeType: 'application/vnd.google-apps.folder',
-      appProperties: { settlementId: st.id },
+      appProperties: { uk },
     },
     fields: 'id, webViewLink',
   })
@@ -845,6 +869,8 @@ export interface ReceiptBlob {
   fileName: string
   contentType: string
   data: Buffer
+  /** 증빙서류 종류 이름 (D-117) — 없으면 「증빙서류」 */
+  docLabel?: string
 }
 
 /**
@@ -859,11 +885,30 @@ function receiptKey(storagePath: string): string {
   return createHash('sha1').update(storagePath).digest('hex')
 }
 
-/** 영수증 한 장 — 이미 올라가 있으면 건너뛴다 (경로 해시로 판단) */
+/**
+ * 드라이브 파일 이름 (D-117) — `01차_홍길동_영수증_01_원래이름.jpg`.
+ * 한 폴더에 팀원 여럿·회차 여럿이 모이므로 회차·이름·종류를 앞에 둔다.
+ * 원래 이름은 줄이더라도 **확장자는 남긴다**(잘리면 드라이브가 파일을 못 연다).
+ */
+function receiptDriveName(st: Settlement, label: string, n: number, original: string): string {
+  const dot = original.lastIndexOf('.')
+  const ext = dot > 0 && original.length - dot <= 6 ? original.slice(dot) : ''
+  const stem = ext ? original.slice(0, dot) : original
+  return [
+    `${String(settlementRoundOf(st)).padStart(2, '0')}차`,
+    cleanName(st.applicantName || '', 20),
+    cleanName(label, 20),
+    String(n).padStart(2, '0'),
+    cleanName(stem, 60) + ext.replace(/[\\/:*?"<>|]/g, ''),
+  ].join('_')
+}
+
+/** 증빙서류 한 장 — 이미 올라가 있으면 건너뛴다 (경로 해시로 판단) */
 async function uploadReceipt(
   drive: Drive,
   folderId: string,
-  index: number,
+  st: Settlement,
+  n: number,
   r: ReceiptBlob
 ): Promise<'uploaded' | 'exists'> {
   const key = receiptKey(r.storagePath)
@@ -883,11 +928,11 @@ async function uploadReceipt(
   await drive.files.create({
     supportsAllDrives: true,
     requestBody: {
-      // 01_영수증.jpg — 제출 순서대로 번호를 붙여 폴더에서 순서가 보이게
-      name: `${String(index + 1).padStart(2, '0')}_${cleanName(r.fileName, 80)}`,
+      name: receiptDriveName(st, r.docLabel?.trim() || DEFAULT_SETTLEMENT_DOC.label, n, r.fileName),
       parents: [folderId],
       mimeType: r.contentType,
-      appProperties: { rk: key },
+      // sid — 이 파일이 어느 정산의 것인가(D-117). 뺀 파일 정리가 이것으로 범위를 좁힌다
+      appProperties: { rk: key, sid: st.id },
     },
     media: { mimeType: r.contentType, body: Readable.from(r.data) },
     fields: 'id',
@@ -895,12 +940,20 @@ async function uploadReceipt(
   return 'uploaded'
 }
 
-/** 사람 폴더 안에서 현재 목록에 없는 영수증(이 앱이 올린 것만)을 휴지통으로 */
-async function trashStaleReceipts(drive: Drive, folderId: string, current: ReceiptBlob[]) {
+/**
+ * 폴더 안에서 **이 정산(sid)의** 파일 중 현재 목록에 없는 것을 휴지통으로.
+ *
+ * 🔴 D-117 전에는 폴더 = 정산 1건이라 폴더 안 전부를 비교했다. 이제 한 폴더에 팀원들의
+ *    여러 회차가 모이므로 **sid 가 이 정산인 파일만** 본다 — 안 그러면 2차를 반영할 때
+ *    1차 파일이, 팀원 A 를 반영할 때 B 의 파일이 「뺀 파일」로 휴지통에 간다.
+ *    sid 가 없는 파일(사람이 넣은 것 · D-117 전 폴더의 것)은 건드리지 않는다.
+ */
+async function trashStaleReceipts(drive: Drive, folderId: string, st: Settlement, current: ReceiptBlob[]) {
   const keys = new Set(current.map((r) => receiptKey(r.storagePath)))
-  const paths = new Set(current.map((r) => r.storagePath))
   const res = await drive.files.list({
-    q: `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
+    q:
+      `'${folderId}' in parents and trashed = false ` +
+      `and appProperties has { key='sid' and value='${q(st.id)}' }`,
     fields: 'files(id, appProperties)',
     pageSize: 100,
     supportsAllDrives: true,
@@ -908,9 +961,7 @@ async function trashStaleReceipts(drive: Drive, folderId: string, current: Recei
   })
   for (const f of res.data.files ?? []) {
     const ap = f.appProperties ?? {}
-    // 이 앱이 올린 표시(rk 또는 옛 storagePath)가 없는 파일은 사람이 넣은 것 — 건드리지 않는다
-    if (!ap.rk && !ap.storagePath) continue
-    if ((ap.rk && keys.has(ap.rk)) || (ap.storagePath && paths.has(ap.storagePath))) continue
+    if (ap.rk && keys.has(ap.rk)) continue
     await drive.files.update({
       fileId: f.id!,
       supportsAllDrives: true,
@@ -919,7 +970,11 @@ async function trashStaleReceipts(drive: Drive, folderId: string, current: Recei
   }
 }
 
-/** 「정산」 탭이 없으면 만들고, 머리글이 비어 있으면 넣는다 */
+/**
+ * 「정산」 탭이 없으면 만들고, 머리글이 다르면 다시 쓴다.
+ * D-117 에 8열 → 10열로 바뀌었다 — 비어 있을 때만 쓰면 옛 머리글이 남는다(신청 탭 ensureHeaders 와 같은 방식).
+ * 값 줄은 건드리지 않는다 — 옛 줄은 [지금 반영] 때 그 줄이 새 순서로 다시 써진다.
+ */
 async function ensureSettlementSheet(
   sheets: ReturnType<typeof google.sheets>,
   sheetId: string
@@ -936,9 +991,12 @@ async function ensureSettlementSheet(
 
   const head = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
-    range: `'${SETTLEMENT_SHEET}'!A1:H1`,
+    range: `'${SETTLEMENT_SHEET}'!A1:${SETTLEMENT_LAST_COL}1`,
   })
-  if (!head.data.values?.[0]?.length) {
+  const first = (head.data.values?.[0] ?? []).map(String)
+  const same =
+    first.length === SETTLEMENT_HEADERS.length && SETTLEMENT_HEADERS.every((h, i) => first[i] === h)
+  if (!same) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
       range: `'${SETTLEMENT_SHEET}'!A1`,
@@ -948,6 +1006,28 @@ async function ensureSettlementSheet(
   }
   await setupHeader(sheets, sheetId, gid, SETTLEMENT_HEADERS.length)
   return gid
+}
+
+/**
+ * 한 줄의 링크 서식을 걷어 낸다 (D-117). 열이 바뀌어 옛 「폴더 열기」 링크가 다른 칸
+ * (지금의 「증빙서류」)에 남는 것을 막는다 — 값을 다시 써도 셀 서식(링크)은 남기 때문.
+ * 폴더 링크는 이 뒤에 linkCell 이 다시 건다.
+ */
+async function clearRowLinks(sheets: Sheets, spreadsheetId: string, gid: number, rowNo: number, columnCount: number) {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          repeatCell: {
+            range: { sheetId: gid, startRowIndex: rowNo - 1, endRowIndex: rowNo, startColumnIndex: 0, endColumnIndex: columnCount },
+            cell: { userEnteredFormat: { textFormat: { underline: false } } },
+            fields: 'userEnteredFormat.textFormat.link,userEnteredFormat.textFormat.underline',
+          },
+        },
+      ],
+    },
+  })
 }
 
 /** 지급일 — `2026-09-12` (한국 날짜). 시각은 의미 없어 뺀다 */
@@ -967,13 +1047,17 @@ export interface SettlementSyncResult {
 /**
  * 정산 1건을 드라이브·시트에 반영한다. **몇 번 돌려도 결과가 같다.**
  *
+ * `unit`(팀명)은 부르는 쪽(API)이 **신청서·공고로 계산해** 넘긴다 — 정산 문서에는 팀명이
+ * 없고, 제출하는 브라우저가 적은 값을 믿지 않는다(보안 점검 08 B).
+ *
  * `DRIVE_SETTLEMENT_FOLDER_ID` 가 없으면 오류로 알린다 — 조용히 건너뛰면
- * 담당자는 "영수증이 왜 드라이브에 없지?"를 알 길이 없다. (연동 자체가
+ * 담당자는 "증빙서류가 왜 드라이브에 없지?"를 알 길이 없다. (연동 자체가
  * 설정되지 않은 경우만 신청서와 같이 건너뛴다.)
  */
 export async function syncSettlement(
   st: Settlement,
-  receipts: ReceiptBlob[]
+  receipts: ReceiptBlob[],
+  unit: SettlementUnit
 ): Promise<SettlementSyncResult> {
   const c = clients()
   if (!c) return { skipped: true, uploaded: 0 }
@@ -981,29 +1065,34 @@ export async function syncSettlement(
 
   if (!cfg.settlementFolderId) {
     throw new Error(
-      '[설정 없음] 영수증 폴더 DRIVE_SETTLEMENT_FOLDER_ID 가 없습니다. ' +
-        '공유 드라이브 02_정산 폴더 ID 를 Vercel 환경변수에 넣어 주세요.'
+      '[설정 없음] 정산 폴더 DRIVE_SETTLEMENT_FOLDER_ID 가 없습니다. ' +
+        '공유 드라이브 「정산」 폴더 ID 를 Vercel 환경변수에 넣어 주세요.'
     )
   }
 
-  // ── 드라이브: 02_정산 / 프로그램 / 사람 / 파일 ─────────────────
+  // ── 드라이브: 정산 / 프로그램 / 팀(개인이면 사람) / 파일 ─────────
   const program = cleanName(st.programTitle || st.programId)
   const programFolder = await step('드라이브 폴더 · DRIVE_SETTLEMENT_FOLDER_ID 확인', () =>
     folderByName(drive, cfg.settlementFolderId!, program)
   )
-  const person = await step('드라이브 사람 폴더', () =>
-    settlementFolder(drive, programFolder, st)
+  const folder = await step(unit.team ? '드라이브 팀 폴더' : '드라이브 사람 폴더', () =>
+    unitFolder(drive, programFolder, st, unit)
   )
+  // 종류 안에서 01·02 … — 목록 순서대로
+  const perKind = new Map<string, number>()
   let uploaded = 0
   for (let i = 0; i < receipts.length; i++) {
-    const r = await step(`영수증 업로드 ${i + 1}/${receipts.length}`, () =>
-      uploadReceipt(drive, person.id, i, receipts[i])
+    const label = receipts[i].docLabel?.trim() || DEFAULT_SETTLEMENT_DOC.label
+    const n = (perKind.get(label) ?? 0) + 1
+    perKind.set(label, n)
+    const r = await step(`증빙서류 업로드 ${i + 1}/${receipts.length}`, () =>
+      uploadReceipt(drive, folder.id, st, n, receipts[i])
     )
     if (r === 'uploaded') uploaded++
   }
-  // 재제출 때 신청자가 뺀 영수증 — 드라이브 사본을 휴지통으로 (09-12).
-  // 원본 목록에 없는 파일이 드라이브에만 남으면 담당자가 낸 적 없는 영수증을 본다.
-  await step('뺀 영수증 정리', () => trashStaleReceipts(drive, person.id, receipts))
+  // 재제출 때 신청자가 뺀 파일 — 드라이브 사본을 휴지통으로 (09-12).
+  // 원본 목록에 없는 파일이 드라이브에만 남으면 담당자가 낸 적 없는 서류를 본다.
+  await step('뺀 증빙서류 정리', () => trashStaleReceipts(drive, folder.id, st, receipts))
 
   // ── 시트: 「정산」 탭 ────────────────────────────────────────
   const gid = await step('시트 「정산」 탭 · SHEET_ID 확인', () =>
@@ -1013,15 +1102,17 @@ export async function syncSettlement(
   const row = [
     st.id,
     st.programTitle || st.programId,
+    unit.team || '',
     st.applicantName || '',
+    `${settlementRoundOf(st)}차`,
     seoulStamp(st.submittedAt?.toDate?.()),
-    String(st.receipts?.length ?? 0),
-    person.url,
+    settlementDocSummary(st.receipts),
+    folder.url,
     SETTLEMENT_STATUS_LABEL[st.status] ?? st.status,
     seoulDate(st.paidAt?.toDate?.()),
   ]
 
-  // 이미 줄이 있으면 **그 줄을 고친다** — 재제출·승인·지급 완료가 같은 줄에 반영되게
+  // 이미 줄이 있으면 **그 줄을 고친다** — 재제출·확인 완료·지급 완료가 같은 줄에 반영되게
   const existing = await step('시트 줄 찾기', () =>
     findSheetRow(sheets, cfg.sheetId, SETTLEMENT_SHEET, st.id, Number(st.sheetRowId) || 0)
   )
@@ -1029,7 +1120,7 @@ export async function syncSettlement(
     await step('시트 줄 갱신', () =>
       sheets.spreadsheets.values.update({
         spreadsheetId: cfg.sheetId,
-        range: `'${SETTLEMENT_SHEET}'!A${existing}:H${existing}`,
+        range: `'${SETTLEMENT_SHEET}'!A${existing}:${SETTLEMENT_LAST_COL}${existing}`,
         valueInputOption: 'RAW',
         requestBody: { values: [row] },
       })
@@ -1037,11 +1128,12 @@ export async function syncSettlement(
     await step('시트 줄 서식', () =>
       formatRow(sheets, cfg.sheetId, gid, existing, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false)
     )
-    await step('폴더 링크', () => linkCell(sheets, cfg.sheetId, gid, existing, FOLDER_COL, person.url, '폴더 열기'))
+    await step('옛 링크 걷기', () => clearRowLinks(sheets, cfg.sheetId, gid, existing, SETTLEMENT_HEADERS.length))
+    await step('폴더 링크', () => linkCell(sheets, cfg.sheetId, gid, existing, FOLDER_COL, folder.url, '폴더 열기'))
     await step('열 너비 맞춤', () =>
       fitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_SHEET, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
     )
-    return { sheetRow: existing, driveUrl: person.url, uploaded }
+    return { sheetRow: existing, driveUrl: folder.url, uploaded }
   }
 
   const appended = await step('시트에 줄 추가', () =>
@@ -1062,13 +1154,13 @@ export async function syncSettlement(
     await step('시트 줄 서식', () =>
       formatRow(sheets, cfg.sheetId, gid, rowNo, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false)
     )
-    await step('폴더 링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, FOLDER_COL, person.url, '폴더 열기'))
+    await step('폴더 링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, FOLDER_COL, folder.url, '폴더 열기'))
     await step('열 너비 맞춤', () =>
       fitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_SHEET, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
     )
   }
 
-  return { sheetRow: rowNo, driveUrl: person.url, uploaded }
+  return { sheetRow: rowNo, driveUrl: folder.url, uploaded }
 }
 
 /* =====================================================================

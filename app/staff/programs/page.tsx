@@ -47,6 +47,7 @@ import type {
   ProgramPoster,
   ProgramField,
   ProgramFieldKind,
+  SettlementDocKind,
 } from '@/lib/types'
 
 /* ── 날짜 칸 ↔ Timestamp ───────────────────────────────────────────
@@ -109,6 +110,8 @@ interface FormState {
   outputOpensAt: string
   outputClosesAt: string
   outputGuide: string
+  /** 정산 증빙서류 종류 (D-117) — 비우면 「증빙서류」 한 칸 */
+  settlementDocs: SettlementDocKind[]
   /** 포스터 (D-81) — 저장된 것. 새로 고른 파일은 posterFile(폼 밖 상태)에 */
   poster: ProgramPoster | null
   published: boolean
@@ -119,7 +122,7 @@ interface FormState {
  * 담당자가 만든 줄은 `row-<fid>` 로 담는다 (D-99) — 인덱스가 아니라 이름표를 쓰는
  * 이유는 `ProgramField.fid` 주석 참고(줄이 움직여도 오류가 그 줄에 붙어 있어야 한다).
  */
-type FieldKey = keyof FormState | `row-${string}`
+type FieldKey = keyof FormState | `row-${string}` | `sdoc-${string}`
 type FieldErrors = Partial<Record<FieldKey, string>>
 
 const EMPTY: FormState = {
@@ -145,6 +148,7 @@ const EMPTY: FormState = {
   outputOpensAt: '',
   outputClosesAt: '',
   outputGuide: '',
+  settlementDocs: [],
   poster: null,
   // 새 공고는 항상 비공개로 시작한다. 미리보기가 없으므로,
   // 공개로 시작하면 작성 중인 내용이 그대로 학생에게 보인다.
@@ -176,6 +180,7 @@ function toForm(p: Program): FormState {
     outputOpensAt: toInputValue(p.outputOpensAt),
     outputClosesAt: toInputValue(p.outputClosesAt),
     outputGuide: p.outputGuide ?? '',
+    settlementDocs: (p.settlementDocs ?? []).map((k) => ({ ...k })),
     poster: p.poster ?? null,
     published: Boolean(p.published),
   }
@@ -385,6 +390,24 @@ function StaffProgramsContent() {
     setErrors((e) => ({ ...e, [`row-${fid}`]: undefined }))
   }
 
+  /* 정산 증빙서류 종류 (D-117) — 이름표(id)는 한 번 붙으면 바뀌지 않는다(이름을 고쳐도 낸 파일과 이어지게) */
+  const addDoc = () =>
+    setForm((f) => ({
+      ...f,
+      settlementDocs: [...f.settlementDocs, { id: newFieldId(), label: '', required: true }],
+    }))
+  const setDoc = (id: string, patch: Partial<SettlementDocKind>) => {
+    setForm((f) => ({
+      ...f,
+      settlementDocs: f.settlementDocs.map((k) => (k.id === id ? { ...k, ...patch } : k)),
+    }))
+    setErrors((e) => ({ ...e, [`sdoc-${id}`]: undefined }))
+  }
+  const removeDoc = (id: string) => {
+    setForm((f) => ({ ...f, settlementDocs: f.settlementDocs.filter((k) => k.id !== id) }))
+    setErrors((e) => ({ ...e, [`sdoc-${id}`]: undefined }))
+  }
+
   function openNew() {
     setForm(EMPTY)
     setPosterFile(null)
@@ -444,6 +467,7 @@ function StaffProgramsContent() {
       outputOpensAt: fromInputValue(f.outputOpensAt),
       outputClosesAt: fromInputValue(f.outputClosesAt),
       outputGuide: f.outputGuide,
+      settlementDocs: f.settlementDocs,
       poster: f.poster ?? undefined,
       published: f.published,
     }
@@ -483,6 +507,7 @@ function StaffProgramsContent() {
       'id', 'title', 'year', 'opensAt', 'closesAt', 'activityStart', 'activityEnd',
       ...form.fields.map((f) => `row-${f.fid}` as const),
       'outputClosesAt',
+      ...form.settlementDocs.map((k) => `sdoc-${k.id}` as const),
     ]
     const first = ORDER.find((k) => found[k])
     if (!first) return
@@ -531,6 +556,17 @@ function StaffProgramsContent() {
     const oCloses = fromInputValue(form.outputClosesAt)
     if (oOpens && oCloses && oOpens >= oCloses) {
       found.outputClosesAt = '제출 시작보다 빠릅니다'
+    }
+
+    // 정산 증빙서류 종류 (D-117) — 이름이 비었거나 겹치면 안 된다(학생 화면에서 칸이 구분되지 않는다)
+    {
+      const seen = new Set<string>()
+      for (const k of form.settlementDocs) {
+        const label = k.label.trim()
+        if (!label) found[`sdoc-${k.id}`] = '이름을 적거나 [빼기]를 눌러 주세요'
+        else if (seen.has(label)) found[`sdoc-${k.id}`] = '같은 이름이 이미 있습니다'
+        seen.add(label)
+      }
     }
 
     // 담당자가 만든 칸 (D-99) — 규칙은 lib/forms/fields.ts 한 곳에 있다.
@@ -1111,6 +1147,59 @@ function StaffProgramsContent() {
                   className={inputCls()}
                 />
               </Field>
+            </div>
+
+            {/* ── 정산 증빙서류 (D-117 · 09-30) ─────────────── */}
+            <div className="space-y-3 rounded-xl bg-subtle p-4">
+              <div>
+                <h3 className="font-bold">정산 증빙서류</h3>
+                <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
+                  선정된 사람이 정산할 때 올리는 서류의 <strong>종류</strong>입니다(예: 영수증 · 회의록).
+                  정산 화면에 종류마다 올리는 칸이 생기고, <strong>필수</strong>인 종류가 비면 제출이 막힙니다.
+                  비워 두면 「증빙서류」 한 칸(필수)으로 받습니다. 파일은 사진·PDF.
+                  이름을 바꿔도 이미 낸 정산의 기록은 그대로입니다.
+                </p>
+              </div>
+              {form.settlementDocs.map((k) => {
+                const err = errors[`sdoc-${k.id}`]
+                return (
+                  <div key={k.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <input
+                      id={`pf-sdoc-${k.id}`}
+                      value={k.label}
+                      onChange={(e) => setDoc(k.id, { label: e.target.value })}
+                      placeholder="예: 영수증"
+                      aria-label="증빙서류 종류 이름"
+                      aria-invalid={Boolean(err)}
+                      className={inputCls(err) + ' !mt-0 min-w-[10rem] flex-1'}
+                    />
+                    <label className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={k.required}
+                        onChange={(e) => setDoc(k.id, { required: e.target.checked })}
+                        className="size-4"
+                      />
+                      필수
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeDoc(k.id)}
+                      className="text-xs font-semibold text-ink-muted underline underline-offset-2"
+                    >
+                      빼기
+                    </button>
+                    {err && <p className="w-full text-xs font-semibold text-status-revision">{err}</p>}
+                  </div>
+                )
+              })}
+              <button
+                type="button"
+                onClick={addDoc}
+                className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-semibold"
+              >
+                + 증빙서류 종류 추가
+              </button>
             </div>
 
             <Check
