@@ -77,6 +77,11 @@ export function getStorageClient(): FirebaseStorage {
 /** Firestore 컬렉션 이름 — iLINE과 충돌하지 않도록 접두어 고정 */
 export const COL = {
   users: 'support_users',
+  /**
+   * 담당자 지정·회수 기록 (D-120) — **서버만 쓴다**(`/api/staff/role` · `scripts/grant-staff.mjs`).
+   * 규칙이 브라우저의 쓰기를 모두 막아 담당자도 고치거나 지우지 못한다.
+   */
+  roleChanges: 'support_role_changes',
   programs: 'support_programs',
   applications: 'support_applications',
   /**

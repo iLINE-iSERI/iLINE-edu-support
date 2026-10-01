@@ -14,12 +14,14 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore'
-import { getDb, COL } from './config'
+import { getDb, getAuthClient, COL } from './config'
+import { UserFacingError } from './errors'
 import type {
   SupportUser,
   Consent,
   ConsentPurpose,
   MemberType,
+  RoleChange,
 } from '@/lib/types'
 
 /** 현재 약관 버전 — 문구를 바꾸면 반드시 올린다 (동의 이력 추적용) */
@@ -42,6 +44,43 @@ export async function listMembers(): Promise<SupportUser[]> {
   return snap.docs
     .map((d) => ({ uid: d.id, ...d.data() }) as SupportUser)
     .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
+}
+
+/**
+ * 담당자 지정·회수 기록 전체 (D-120) — 담당자만 읽는다. 최근 것부터.
+ * 몇 건 안 되므로 통째로 읽고 화면이 사람별로 나눈다(색인을 만들 일이 없다).
+ */
+export async function listRoleChanges(): Promise<RoleChange[]> {
+  const snap = await getDocs(collection(getDb(), COL.roleChanges))
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as RoleChange)
+    .sort((a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0))
+}
+
+/**
+ * 담당자로 지정 / 담당자 권한 회수 (D-120) — 서버(`/api/staff/role`)가 한다.
+ *
+ * 회원 문서의 `role` 은 규칙이 브라우저에서 못 바꾸게 막는다(담당자도). 서버가 요청자를 다시
+ * 확인하므로, 이 함수를 부를 수 있다는 것만으로 권한이 생기지는 않는다.
+ * 서버가 거절한 까닭(자기 회수 · 인증 안 된 계정 등)은 그대로 화면에 보인다.
+ */
+export async function changeStaffRole(
+  uid: string,
+  action: 'grant' | 'revoke',
+  reason: string
+): Promise<void> {
+  const token = await getAuthClient().currentUser?.getIdToken()
+  if (!token) throw new UserFacingError('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.')
+
+  const res = await fetch('/api/staff/role', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ uid, action, reason }),
+  }).catch(() => null)
+  if (!res) throw new UserFacingError('네트워크 연결을 확인해 주세요.')
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new UserFacingError(data.error || '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.')
 }
 
 export interface RegisterInput {

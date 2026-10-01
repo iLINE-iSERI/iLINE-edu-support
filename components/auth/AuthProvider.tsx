@@ -37,6 +37,7 @@ import {
   logOut as fbLogOut,
   needsEmailVerification,
   reloadEmailVerified,
+  syncStaffClaim,
 } from '@/lib/firebase/auth'
 import { getMember } from '@/lib/firebase/members'
 import { isFirebaseConfigured, getAuthClient } from '@/lib/firebase/config'
@@ -144,6 +145,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const m = await getMember(u.uid)
       if (!latest()) return
       setMember(m)
+      // 담당자로 지정·회수됐으면 토큰도 맞춘다 — 다시 로그인하지 않아도 첨부가 열리고 닫힌다(D-120)
+      if (m) void syncStaffClaim(u, m.role === 'staff')
       // 문서가 없다 = 확실히 미등록. 이때만 unregistered.
       if (!m) setStatus('unregistered')
       else if (m.status === 'withdrawn') setStatus('withdrawn')

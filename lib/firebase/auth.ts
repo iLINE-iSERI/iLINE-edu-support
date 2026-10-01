@@ -97,6 +97,24 @@ export async function reloadEmailVerified(): Promise<boolean> {
   return u.emailVerified
 }
 
+/**
+ * 담당자 권한 표시를 로그인 토큰에 맞춘다 (D-120 · 10-02).
+ *
+ * 담당자 권한은 두 곳에 있다 — 회원 문서 `role`(관리 화면 · Firestore 규칙)과 로그인 토큰의
+ * `supportStaff`(Storage 첨부·PDF — Storage 규칙은 Firestore 를 못 읽는다). 토큰은 한 번 받으면
+ * 최대 1시간 그대로라, 예전에는 지정·회수된 사람이 **로그아웃 뒤 다시 로그인**해야 첨부가 열렸다.
+ * 사이트를 열 때 둘이 다르면 토큰을 새로 받는다 → **새로고침만 하면 된다.**
+ * 토큰 읽기는 브라우저에 있는 것을 써서 네트워크를 쓰지 않고, 다를 때만 새로 받는다.
+ */
+export async function syncStaffClaim(user: User, isStaff: boolean): Promise<void> {
+  try {
+    const t = await user.getIdTokenResult()
+    if ((t.claims.supportStaff === true) !== isStaff) await user.getIdToken(true)
+  } catch {
+    // 못 맞춰도 로그인·화면은 그대로 — 다음에 사이트를 열 때 다시 한다
+  }
+}
+
 export async function signInWithEmail(email: string, password: string) {
   const cred = await signInWithEmailAndPassword(getAuthClient(), email, password)
   return cred.user

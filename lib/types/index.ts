@@ -85,7 +85,7 @@ export interface SupportUser {
   uid: string
   /** 회원가입 시 인증한 이메일 — 별도로 받지 않는다 */
   email: string
-  /** 'google' | 'password' */
+  /** 'google.com' | 'password' — Firebase 의 providerId 그대로 */
   authProvider: string
 
   name: string
@@ -110,6 +110,30 @@ export interface SupportUser {
   createdAt: Timestamp
   updatedAt: Timestamp
 }
+
+/**
+ * 담당자 지정·회수 기록 한 건 (D-120 · 10-02) — `support_role_changes`
+ *
+ * 개인정보 안전성 확보조치 기준의 「접근 권한 부여·변경·말소 내역」에 해당한다.
+ * 이름·이메일은 담지 않고 **uid 만** — 회원 문서는 지우지 않으므로(탈퇴도 상태 표시)
+ * 화면이 회원 목록에서 이름을 찾는다.
+ */
+export interface RoleChange {
+  id: string
+  /** 역할이 바뀐 사람 */
+  uid: string
+  from: SupportRole
+  to: SupportRole
+  /** 바꾼 담당자 — 관리 도구(`scripts/grant-staff.mjs`)로 바꿨으면 null */
+  by: string | null
+  via: 'site' | 'script'
+  /** 왜 — 지정·회수 모두 반드시 적는다 */
+  reason: string
+  at: Timestamp
+}
+
+/** 담당자 지정·회수 사유 길이 상한 — 화면과 서버가 같은 값을 쓴다 */
+export const ROLE_REASON_MAX = 200
 
 /**
  * 이 **신청건**의 활동 사진을 갤러리·자료집에 써도 되는가 (D-44).
