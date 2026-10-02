@@ -638,22 +638,9 @@ function StaffProgramsContent() {
       />
 
       <div className="container-page space-y-6 py-10">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-4 text-sm">
-            <Link
-              href="/staff"
-              className="font-semibold text-ink-muted underline underline-offset-2"
-            >
-              ← 관리
-            </Link>
-            <Link
-              href="/staff/notices"
-              className="font-semibold text-ink-muted underline underline-offset-2"
-            >
-              공지 관리
-            </Link>
-          </div>
-          {editingId === null && (
+        {/* 돌아가기·공지 관리 링크는 머리말 위 관리 메뉴 줄로 옮겼다 (10-02 · components/staff/StaffNav) */}
+        {editingId === null && (
+          <div>
             <button
               type="button"
               onClick={openNew}
@@ -661,8 +648,8 @@ function StaffProgramsContent() {
             >
               새 프로그램 등록
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* 폼과 무관한 오류만 여기 — 입력 오류는 각 칸 옆에 붙는다 */}
         {pageError && (

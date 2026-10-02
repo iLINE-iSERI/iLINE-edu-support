@@ -163,15 +163,7 @@ function StaffOutputsContent() {
       />
 
       <div className="container-page space-y-6 py-8">
-        <div className="flex flex-wrap gap-2">
-          <Link href="/staff" className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold">
-            ← 신청 관리
-          </Link>
-          <Link href="/staff/programs" className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold">
-            프로그램 관리 →
-          </Link>
-        </div>
-
+        {/* 돌아가기·프로그램 관리 링크는 머리말 위 관리 메뉴 줄로 옮겼다 (10-02 · components/staff/StaffNav) */}
         {/* 프로그램 · 필터 */}
         <div className="flex flex-wrap gap-3">
           <select

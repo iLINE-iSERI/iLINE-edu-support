@@ -1,7 +1,12 @@
 'use client'
 
 /**
- * 담당자 화면 (W3 · D-10)
+ * 담당자 화면 — 「신청 관리」 (W3 · D-10)
+ *
+ * 10-02 sunbell — 이름을 「관리」에서 **「신청 관리」**로. 다른 관리 화면으로 가는 버튼 묶음은 모든 관리
+ * 화면 머리말 위의 관리 메뉴 줄(`components/staff/StaffNav.tsx`)로 옮겼다. 헤더의 [관리]는 그대로 이 화면으로 온다.
+ * (09-12 에 「신청 관리」→「관리」로 바꿨던 까닭 — 이 화면이 다른 관리 일까지 품어서 — 은 버튼 묶음을 줄로
+ * 빼면서 없어졌다.)
  *
  * 백오피스가 아니다. 담당자가 사이트에서 해야 하는 **단 하나의 일** —
  * 신청 상태를 바꾸고 사유를 남기는 것 — 만 담는다(D-7).
@@ -15,7 +20,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import Badge from '@/components/ui/Badge'
@@ -30,7 +34,6 @@ import {
 } from '@/lib/firebase/staff'
 import { listPublishedPrograms } from '@/lib/firebase/programs'
 import { fileUrl, requestSync } from '@/lib/firebase/applications'
-import { countOpenInquiries } from '@/lib/firebase/inquiries'
 import { firestoreErrorMessage, actionErrorMessage } from '@/lib/firebase/errors'
 import { SHOW_REVIEW_NOTE_TO_APPLICANT } from '@/lib/config/site'
 import {
@@ -86,11 +89,6 @@ function StaffContent() {
   const [q, setQ] = useState('')
   const [apps, setApps] = useState<Application[] | null>(null)
   const [error, setError] = useState('')
-  /** 답변 대기 문의 수 — 「문의 관리」 버튼 배지 (D-93). 실패해도 화면은 그대로 */
-  const [openInquiries, setOpenInquiries] = useState(0)
-  useEffect(() => {
-    countOpenInquiries().then(setOpenInquiries).catch(() => {})
-  }, [])
 
   const load = useCallback(async () => {
     setError('')
@@ -143,66 +141,11 @@ function StaffContent() {
   return (
     <>
       <PageHeader
-        title="관리"
-        description="신청 목록입니다 — 상태를 바꾸고 사유를 남깁니다. 프로그램·공지·정산·산출물·예약·문의·회원 관리는 아래 버튼으로. 목록 정리와 집계는 구글 스프레드시트에서 하세요."
+        title="신청 관리"
+        description="신청 목록입니다 — 상태를 바꾸고 사유를 남깁니다. 다른 관리 일은 위 「관리」 줄에서. 목록 정리와 집계는 구글 스프레드시트에서 하세요."
       />
 
       <div className="container-page space-y-6 py-8">
-        {/* 담당자가 사이트에서 할 수 있는 다른 일로 가는 길.
-            여기 없으면 주소를 외워서 들어가야 한다. */}
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/staff/programs"
-            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
-          >
-            프로그램 관리 →
-          </Link>
-          <Link
-            href="/staff/notices"
-            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
-          >
-            공지 관리 →
-          </Link>
-          <Link
-            href="/staff/settlements"
-            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
-          >
-            정산 관리 →
-          </Link>
-          <Link
-            href="/staff/outputs"
-            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
-          >
-            산출물 관리 →
-          </Link>
-          <Link
-            href="/staff/reservations"
-            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
-          >
-            예약 관리 →
-          </Link>
-          <Link
-            href="/staff/inquiries"
-            className={
-              'touch-target inline-flex items-center justify-center gap-2 rounded-lg border px-5 text-sm font-semibold ' +
-              (openInquiries > 0 ? 'border-warn bg-warn-soft text-warn-ink' : 'border-line-strong')
-            }
-          >
-            문의 관리 →
-            {openInquiries > 0 && (
-              <span className="rounded-full bg-warn px-2 py-0.5 text-xs font-bold text-white">
-                {openInquiries}
-              </span>
-            )}
-          </Link>
-          <Link
-            href="/staff/members"
-            className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold"
-          >
-            회원 관리 →
-          </Link>
-        </div>
-
         {/* 필터 */}
         <div className="flex flex-wrap gap-3">
           <input

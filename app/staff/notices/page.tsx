@@ -269,14 +269,9 @@ function StaffNoticesContent() {
       />
 
       <div className="container-page space-y-6 py-10">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/staff"
-            className="text-sm font-semibold text-ink-muted underline underline-offset-2"
-          >
-            ← 관리
-          </Link>
-          {editingId === null && (
+        {/* 돌아가기 링크는 머리말 위 관리 메뉴 줄로 옮겼다 (10-02 · components/staff/StaffNav) */}
+        {editingId === null && (
+          <div>
             <button
               type="button"
               onClick={openNew}
@@ -284,8 +279,8 @@ function StaffNoticesContent() {
             >
               새 공지 작성
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* 폼이 닫혀 있을 때의 오류(목록 조회 실패 등)만 여기 표시한다.
             폼이 열려 있으면 저장 버튼 옆에 붙는다 — 누른 자리에서 결과를 본다 */}

@@ -20,7 +20,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import MemberGate from '@/components/auth/MemberGate'
@@ -182,27 +181,7 @@ function StaffSettlementsContent() {
       />
 
       <div className="container-page space-y-6 py-8">
-        <div className="flex flex-wrap gap-4 text-sm">
-          <Link
-            href="/staff"
-            className="font-semibold text-ink-muted underline underline-offset-2"
-          >
-            ← 관리
-          </Link>
-          <Link
-            href="/staff/programs"
-            className="font-semibold text-ink-muted underline underline-offset-2"
-          >
-            프로그램 관리
-          </Link>
-          <Link
-            href="/staff/notices"
-            className="font-semibold text-ink-muted underline underline-offset-2"
-          >
-            공지 관리
-          </Link>
-        </div>
-
+        {/* 돌아가기·다른 관리 화면 링크는 머리말 위 관리 메뉴 줄로 옮겼다 (10-02 · components/staff/StaffNav) */}
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={programId}

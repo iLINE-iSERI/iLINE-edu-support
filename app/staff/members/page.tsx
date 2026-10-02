@@ -196,15 +196,7 @@ function StaffMembersContent() {
       />
 
       <div className="container-page space-y-6 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/staff"
-            className="text-sm font-semibold text-ink-muted underline underline-offset-2"
-          >
-            ← 관리
-          </Link>
-        </div>
-
+        {/* 돌아가기 링크는 머리말 위 관리 메뉴 줄로 옮겼다 (10-02 · components/staff/StaffNav) */}
         {/* 개인정보 화면이라는 것을 늘 보이게 */}
         <p className="rounded-lg bg-subtle px-3 py-2 text-sm leading-relaxed text-ink-muted">
           🔒 <strong className="font-semibold">개인정보가 모두 보이는 화면입니다.</strong> 화면 공유·출력·캡처를
@@ -427,8 +419,11 @@ function MemberRow({
               </ul>
             )}
             <p className="mt-1 text-xs text-ink-subtle">
-              신청 내용·상태 변경은 <Link href="/staff" className="underline underline-offset-2">관리</Link>{' '}
-              화면의 신청 목록에서 합니다.
+              신청 내용·상태 변경은{' '}
+              <Link href="/staff" className="underline underline-offset-2">
+                신청 관리
+              </Link>
+              에서 합니다.
             </p>
           </section>
 

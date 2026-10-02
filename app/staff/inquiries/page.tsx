@@ -10,7 +10,6 @@
  */
 
 import { Suspense, useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
@@ -72,12 +71,7 @@ function Inner() {
         description="회원이 남긴 1:1 문의입니다. 답을 달면 회원 화면과 시트에 바로 반영됩니다. 사유·메모가 아니라 회원에게 그대로 보이는 글입니다."
       />
       <div className="container-page space-y-6 py-8">
-        <div className="flex flex-wrap gap-2">
-          <Link href="/staff" className="touch-target inline-flex items-center justify-center rounded-lg border border-line-strong px-5 text-sm font-semibold">
-            ← 신청 관리
-          </Link>
-        </div>
-
+        {/* 돌아가기 링크는 머리말 위 관리 메뉴 줄로 옮겼다 (10-02 · components/staff/StaffNav) */}
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm">
             <span className="sr-only">상태</span>

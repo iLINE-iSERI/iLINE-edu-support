@@ -1,29 +1,70 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+
+export interface SubNavItem {
+  href: string
+  label: string
+  /** 칸 옆 숫자(귤색) — 관리 메뉴의 답변 대기 문의 수 등. 0 이면 안 보임 */
+  badge?: number
+  /** `prefix` 줄에서도 이 칸만은 주소가 똑같을 때만 켠다 — 관리 메뉴의 「신청」(`/staff`) */
+  exact?: boolean
+}
 
 /**
  * 하위 메뉴 탭.
  * D-24: 모바일에서 항목이 넘치면 가로 스크롤되게 하되,
  *       본문 자체가 밀리지는 않도록 컨테이너 안에서만 스크롤한다.
+ *
+ * 10-02 관리 메뉴 줄(`components/staff/StaffNav.tsx`)이 같은 부품을 쓰면서 셋을 더했다 — 모양이 하나로 맞게.
+ *   · `label`  — 줄 맨 앞 이름표(「관리」)
+ *   · `prefix` — 하위 주소도 그 칸으로(`/staff/reservations/board` → 「예약」). 없으면 지금처럼 주소가 똑같을 때만
+ *   · 지금 칸이 화면 밖이면 줄을 옆으로 밀어 보이게 — 휴대폰에서 뒤쪽 칸(「회원」)에 있을 때
  */
 export default function SubNav({
   items,
+  label,
+  prefix = false,
+  ariaLabel = '하위 메뉴',
 }: {
-  items: readonly { href: string; label: string }[]
+  items: readonly SubNavItem[]
+  label?: string
+  prefix?: boolean
+  ariaLabel?: string
 }) {
   const pathname = usePathname()
+  const navRef = useRef<HTMLElement>(null)
+
+  const isActive = (item: SubNavItem) =>
+    pathname === item.href || (prefix && !item.exact && pathname.startsWith(item.href + '/'))
+
+  // 지금 칸이 줄 밖으로 나가 있으면 줄만 옆으로 민다(scrollIntoView 는 페이지까지 움직일 수 있어 쓰지 않는다)
+  useEffect(() => {
+    const nav = navRef.current
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!nav || !active) return
+    const a = active.getBoundingClientRect()
+    const n = nav.getBoundingClientRect()
+    if (a.left < n.left || a.right > n.right) nav.scrollLeft += a.left - n.left - 16
+  }, [pathname])
 
   return (
     <div className="border-b border-line bg-surface">
       <div className="container-page">
         <nav
-          className="-mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0"
-          aria-label="하위 메뉴"
+          ref={navRef}
+          className="-mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+          aria-label={ariaLabel}
         >
+          {label && (
+            <span className="shrink-0 pr-1 text-xs font-extrabold tracking-wide text-ink-subtle">
+              {label}
+            </span>
+          )}
           {items.map((item) => {
-            const active = pathname === item.href
+            const active = isActive(item)
             return (
               <Link
                 key={item.href}
@@ -40,6 +81,11 @@ export default function SubNav({
                 }
               >
                 {item.label}
+                {(item.badge ?? 0) > 0 && (
+                  <span className="ml-1.5 rounded-full bg-warn px-1.5 py-0.5 text-xs font-bold text-white">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             )
           })}
