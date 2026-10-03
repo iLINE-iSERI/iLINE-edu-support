@@ -117,6 +117,10 @@ FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
 SHEET_ID=
 DRIVE_FOLDER_ID=
+
+# 회원 시트 (D-125) — 평소엔 넣지 않는다(꺼짐). 로컬 시험 때만 시험용 스프레드시트와 함께:
+# MEMBER_SHEET_ID=시험용 스프레드시트 ID      ← 운영 시트에 「회원」 탭을 만들지 않게
+# NEXT_PUBLIC_MEMBER_SHEET_ENABLED=1          ← 시험이 끝나면 두 줄 다 지우고 개발 서버를 다시 켠다
 ```
 
 > ⚠️ 이름은 **정확히 이대로** 써야 합니다. `FIREBASE_ADMIN_…`, `GOOGLE_SHEETS_ID`
