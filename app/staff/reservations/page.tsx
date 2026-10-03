@@ -12,10 +12,11 @@
  * [전달 완료]는 **화면에 떠 있던 건만** 확정.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import MemberGate from '@/components/auth/MemberGate'
 import EmptyState from '@/components/ui/EmptyState'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { useTestView } from '@/components/staff/TestView'
 import {
   loadDeliveryList,
   deliverReservations,
@@ -48,7 +49,19 @@ function deliveredLabel(r: Reservation): string {
 
 function Content() {
   const { user } = useAuth()
-  const [data, setData] = useState<DeliveryList | null>(null)
+  const [raw, setData] = useState<DeliveryList | null>(null)
+  // D-124: 행정실 명단에는 테스트 계정 예약을 「시험 데이터」 스위치와 **상관없이 늘** 뺀다 — 사이트 밖(행정실)으로
+  // 나가는 것이라. 예약에는 「시험」 표시가 없어 주인으로 가려내므로 테스트 계정 목록을 읽을 때까지(ready) 기다린다.
+  // [전달 완료]는 화면에 떠 있던 ID 만 처리하므로 여기서 빼면 전달에서도 빠진다
+  const { isTest, ready, showTests } = useTestView()
+  const data = useMemo<DeliveryList | null>(
+    () =>
+      raw && ready
+        ? { ...raw, fresh: raw.fresh.filter((r) => !isTest(r)), cancelled: raw.cancelled.filter((r) => !isTest(r)) }
+        : null,
+    [raw, ready, isTest]
+  )
+  const testCount = raw && ready ? [...raw.fresh, ...raw.cancelled].filter(isTest).length : 0
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
@@ -150,6 +163,13 @@ function Content() {
         {actionError && (
           <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">
             {actionError}
+          </p>
+        )}
+
+        {/* 시험 데이터를 켜고 있으면 왜 시험 예약이 여기 없는지 알려 준다 */}
+        {showTests && testCount > 0 && (
+          <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn-ink">
+            시험 예약 {testCount}건은 행정실 명단에서 늘 빠집니다 — 「예약 현황」에서 보세요.
           </p>
         )}
 

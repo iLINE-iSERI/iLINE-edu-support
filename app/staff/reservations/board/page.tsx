@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import MemberGate from '@/components/auth/MemberGate'
 import EmptyState from '@/components/ui/EmptyState'
+import { useTestView } from '@/components/staff/TestView'
 import {
   listReservationsOn,
   staffCancelReservation,
@@ -35,7 +36,10 @@ function Content() {
   const todayYmd = toYmd(new Date())
   const [monday, setMonday] = useState(() => mondayOf(new Date()))
   const [day, setDay] = useState(todayYmd)
-  const [list, setList] = useState<Reservation[] | null>(null)
+  const [rawList, setList] = useState<Reservation[] | null>(null)
+  // D-124: 「시험 데이터」 스위치가 꺼져 있으면 테스트 계정 예약을 현황·날짜별 건수에서 뺀다(주인으로 가려냄)
+  const { visible, isTest } = useTestView()
+  const list = useMemo(() => (rawList === null ? null : visible(rawList)), [rawList, visible])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
@@ -171,6 +175,7 @@ function Content() {
                                 {RESERVATION_STATUS_LABEL[r.status]}
                               </span>
                               {r.source === 'staff' && <span className="rounded-full bg-subtle px-2 py-0.5 text-xs font-semibold text-ink-subtle">담당자 추가</span>}
+                              {isTest(r) && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-xs font-bold text-warn-ink">시험</span>}
                               <span className="ml-auto font-mono text-xs text-ink-subtle">{r.code}</span>
                               {cancelling !== r.id && (
                                 <button type="button" onClick={() => { setCancelling(r.id); setNote('') }} className="text-xs font-semibold text-ink-muted underline">취소</button>

@@ -30,6 +30,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { useTestView } from '@/components/staff/TestView'
 import { APPLICATION_TONE } from '@/lib/ui/statusTone'
 import { changeStaffRole, listMembers, listRoleChanges } from '@/lib/firebase/members'
 import { listAllApplications } from '@/lib/firebase/staff'
@@ -97,7 +98,13 @@ export default function StaffMembersPage() {
 
 function StaffMembersContent() {
   const { user } = useAuth()
-  const [members, setMembers] = useState<SupportUser[] | null>(null)
+  const [allMembers, setMembers] = useState<SupportUser[] | null>(null)
+  // D-124: 「시험 데이터」 스위치가 꺼져 있으면 테스트 계정을 목록·회원 수에서 뺀다(회원 문서의 역할로 바로 안다)
+  const { showTests } = useTestView()
+  const members = useMemo(
+    () => (allMembers === null ? null : showTests ? allMembers : allMembers.filter((m) => m.role !== 'tester')),
+    [allMembers, showTests]
+  )
   const [appsByUid, setAppsByUid] = useState<Map<string, Application[]>>(new Map())
   const [changes, setChanges] = useState<RoleChange[]>([])
   const [error, setError] = useState('')
@@ -107,6 +114,10 @@ function StaffMembersContent() {
   const [q, setQ] = useState('')
   const [type, setType] = useState<MemberType | ''>('')
   const [kind, setKind] = useState<Kind>('')
+  // 「테스트 계정」 거르기를 고른 채 시험 데이터를 끄면 빈 목록이 남는다 — 「전체」로 되돌린다
+  useEffect(() => {
+    if (!showTests && kind === 'tester') setKind('')
+  }, [showTests, kind])
 
   /** 회원 목록 + 담당자 변경 기록 — 처음과, 담당자를 지정·회수한 뒤에 다시 읽는다 */
   const loadMembers = useCallback(async () => {
@@ -150,9 +161,9 @@ function StaffMembersContent() {
   /** 이름 찾기 — 기록에는 uid 만 있다(회원 문서는 지우지 않으므로 늘 찾힌다) */
   const nameOf = useMemo(() => {
     const map = new Map<string, string>()
-    for (const m of members ?? []) map.set(m.uid, m.name || m.email || '(이름 없음)')
+    for (const m of allMembers ?? []) map.set(m.uid, m.name || m.email || '(이름 없음)')
     return map
-  }, [members])
+  }, [allMembers])
 
   const changesByUid = useMemo(() => {
     const map = new Map<string, RoleChange[]>()
@@ -201,7 +212,8 @@ function StaffMembersContent() {
         <p className="rounded-lg bg-subtle px-3 py-2 text-sm leading-relaxed text-ink-muted">
           🔒 <strong className="font-semibold">개인정보가 모두 보이는 화면입니다.</strong> 화면 공유·출력·캡처를
           조심해 주세요. 시트로 내보내지 않습니다. 담당자 지정·회수는 회원을 펼친 맨 아래 「담당자
-          권한」에서 합니다. 테스트 계정 지정은 지금처럼 관리 도구로 합니다.
+          권한」에서 합니다. 테스트 계정 지정은 지금처럼 관리 도구로 합니다. 테스트 계정은 관리 줄 오른쪽의 「시험 데이터」를
+          켜면 보입니다.
         </p>
 
         {error && (
@@ -258,7 +270,9 @@ function StaffMembersContent() {
               className="mt-1.5 block rounded-xl border border-line-strong bg-surface p-3 text-base"
             >
               <option value="">전체</option>
-              {(Object.keys(KIND_LABEL) as Exclude<Kind, ''>[]).map((k) => (
+              {(Object.keys(KIND_LABEL) as Exclude<Kind, ''>[])
+                .filter((k) => showTests || k !== 'tester')
+                .map((k) => (
                 <option key={k} value={k}>
                   {KIND_LABEL[k]}
                 </option>

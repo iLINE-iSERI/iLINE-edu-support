@@ -9,7 +9,7 @@
  * `?id=` 로 오면(시트 링크) 그 문의를 펼쳐 둔다.
  */
 
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
@@ -17,6 +17,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { useTestView } from '@/components/staff/TestView'
 import {
   listAllInquiries,
   answerInquiry,
@@ -44,7 +45,10 @@ function Inner() {
   const params = useSearchParams()
   const focusId = params.get('id') || ''
 
-  const [rows, setRows] = useState<Inquiry[] | null>(null)
+  const [rawRows, setRows] = useState<Inquiry[] | null>(null)
+  // D-124: 「시험 데이터」 스위치가 꺼져 있으면 테스트 계정 문의를 목록·건수에서 뺀다
+  const { visible } = useTestView()
+  const rows = useMemo(() => (rawRows === null ? null : visible(rawRows)), [rawRows, visible])
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<'' | InquiryStatus>('open')
 
@@ -131,6 +135,7 @@ function InquiryRow({
   const [answer, setAnswer] = useState(i.answer ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const { isTest } = useTestView()
 
   const send = async () => {
     if (!answer.trim()) {
@@ -189,6 +194,7 @@ function InquiryRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={INQUIRY_TONE[i.status]}>{INQUIRY_STATUS_LABEL[i.status]}</Badge>
+            {isTest(i) && <Badge tone="warn">시험</Badge>}
             <span className="text-sm font-semibold">{i.authorName}</span>
             <span className="text-xs text-ink-subtle">{i.authorEmail}</span>
             <span className="text-xs text-ink-subtle">· {formatDateTime(i.createdAt)}</span>

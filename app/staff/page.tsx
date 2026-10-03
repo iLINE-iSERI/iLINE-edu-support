@@ -26,6 +26,7 @@ import Badge from '@/components/ui/Badge'
 import { APPLICATION_TONE } from '@/lib/ui/statusTone'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { useTestView } from '@/components/staff/TestView'
 import {
   listAllApplications,
   updateApplicationStatus,
@@ -87,8 +88,11 @@ function StaffContent() {
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('')
   /** 찾기 — 프로그램을 바꿔도 남겨 둔다(같은 사람을 다른 프로그램에서 찾을 때) */
   const [q, setQ] = useState('')
-  const [apps, setApps] = useState<Application[] | null>(null)
+  const [rawApps, setApps] = useState<Application[] | null>(null)
   const [error, setError] = useState('')
+  // D-124: 「시험 데이터」 스위치가 꺼져 있으면 테스트 계정 신청을 목록·건수에서 뺀다
+  const { visible } = useTestView()
+  const apps = useMemo(() => (rawApps === null ? null : visible(rawApps)), [rawApps, visible])
 
   const load = useCallback(async () => {
     setError('')
@@ -272,6 +276,7 @@ function ApplicationRow({
   const [note, setNote] = useState(app.reviewNote || '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const { isTest } = useTestView()
 
   const dirty = status !== app.status || note !== (app.reviewNote || '')
 
@@ -338,7 +343,7 @@ function ApplicationRow({
           {APPLICATION_STATUS_LABEL[app.status]}
         </Badge>
         {/* 테스트 계정이 낸 신청 (D-111) — 실제 신청과 섞여 세지 않도록 한눈에 */}
-        {app.sheetSkipped === 'tester' && <Badge tone="warn">시험</Badge>}
+        {isTest(app) && <Badge tone="warn">시험</Badge>}
         {/* 선정해 둔 사람이 스스로 빠진 것 (D-116) — 선정 인원을 다시 봐야 한다 */}
         {app.cancelledFromStatus === 'approved' && <Badge tone="warn">선정 뒤 취소</Badge>}
         <span className="text-xs text-ink-subtle">

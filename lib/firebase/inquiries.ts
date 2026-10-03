@@ -95,11 +95,14 @@ export async function listAllInquiries(): Promise<Inquiry[]> {
   return snap.docs.map((d) => toInquiry(d.id, d.data()))
 }
 
-/** 답변 대기 건수 — 관리 화면 배지 */
-export async function countOpenInquiries(): Promise<number> {
+/**
+ * 답변 대기 문의 — 관리 줄 「문의」 옆 숫자. 건수가 아니라 문서를 돌려준다 —
+ * 시험 데이터(D-124)를 빼고 세려면 누가 썼는지 봐야 해서.
+ */
+export async function listOpenInquiries(): Promise<Inquiry[]> {
   const q = query(collection(getDb(), COL.inquiries), where('status', '==', 'open'))
   const snap = await getDocs(q)
-  return snap.size
+  return snap.docs.map((d) => toInquiry(d.id, d.data()))
 }
 
 export async function getInquiry(id: string): Promise<Inquiry | null> {

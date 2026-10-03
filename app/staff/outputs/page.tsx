@@ -22,6 +22,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { useTestView } from '@/components/staff/TestView'
 import OutputCard from '@/components/outputs/OutputCard'
 import { listAllPrograms, listAllApplications } from '@/lib/firebase/staff'
 import {
@@ -61,8 +62,13 @@ function StaffOutputsContent() {
   const params = useSearchParams()
   const [programs, setPrograms] = useState<Program[]>([])
   const [programId, setProgramId] = useState(params.get('program') ?? '')
-  const [apps, setApps] = useState<Application[]>([])
-  const [rows, setRows] = useState<Output[] | null>(null)
+  const [rawApps, setApps] = useState<Application[]>([])
+  const [rawRows, setRows] = useState<Output[] | null>(null)
+  // D-124: 「시험 데이터」 스위치가 꺼져 있으면 테스트 계정의 선정 건·산출물을 빼고 센다
+  // (안 그러면 시험 팀이 「아직 안 낸 팀」에 끼거나 낸 수에 잡힌다)
+  const testView = useTestView()
+  const apps = useMemo(() => testView.visible(rawApps), [rawApps, testView])
+  const rows = useMemo(() => (rawRows === null ? null : testView.visible(rawRows)), [rawRows, testView])
   const [filter, setFilter] = useState<Filter>('')
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
@@ -265,6 +271,7 @@ function StaffOutputsContent() {
               const writing = noteFor === o.id
               return (
                 <div key={o.id} className="space-y-2">
+                  {testView.isTest(o) && <Badge tone="warn">시험 — 테스트 계정이 올린 것</Badge>}
                   <OutputCard
                     output={o}
                     who="staff"

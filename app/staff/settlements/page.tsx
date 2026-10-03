@@ -22,8 +22,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
+import Badge from '@/components/ui/Badge'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { useTestView } from '@/components/staff/TestView'
 import {
   listAllSettlements,
   reviewSettlement,
@@ -79,7 +81,10 @@ export default function StaffSettlementsPage() {
 
 function StaffSettlementsContent() {
   const { user } = useAuth()
-  const [rows, setRows] = useState<Settlement[] | null>(null)
+  const [rawRows, setRows] = useState<Settlement[] | null>(null)
+  // D-124: 「시험 데이터」 스위치가 꺼져 있으면 테스트 계정 정산을 목록·건수·팀 묶음에서 뺀다
+  const { visible } = useTestView()
+  const rows = useMemo(() => (rawRows === null ? null : visible(rawRows)), [rawRows, visible])
   const [programs, setPrograms] = useState<Program[]>([])
   const [apps, setApps] = useState<Map<string, Application>>(new Map())
   const [filter, setFilter] = useState<SettlementStatus | ''>('')
@@ -347,6 +352,7 @@ function SettlementRow({
   // 지급 완료 (09-12) — 이체한 날짜를 고른다. 기본은 오늘
   const [paidDate, setPaidDate] = useState(toYmd(new Date()))
   const [paidNote, setPaidNote] = useState('')
+  const { isTest } = useTestView()
 
   async function markPaid() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(paidDate)) {
@@ -411,6 +417,8 @@ function SettlementRow({
         <span className="text-xs text-ink-subtle">
           {row.submittedAt?.toDate().toLocaleString('ko-KR')} 제출
         </span>
+        {/* 테스트 계정이 낸 것 (D-124) — 「시험 데이터」를 켰을 때만 목록에 나온다 */}
+        {isTest(row) && <Badge tone="warn">시험</Badge>}
         {/* 학생이 고친 흔적 (D-118) — 보완을 요청했다면 이것으로 들어온 것을 안다 */}
         {(row.editCount ?? 0) > 0 && (
           <span className="rounded-full bg-status-revision/10 px-2.5 py-1 text-xs font-bold text-status-revision">

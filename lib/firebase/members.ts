@@ -9,10 +9,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   setDoc,
   updateDoc,
   serverTimestamp,
   Timestamp,
+  where,
 } from 'firebase/firestore'
 import { getDb, getAuthClient, COL } from './config'
 import { UserFacingError } from './errors'
@@ -44,6 +46,15 @@ export async function listMembers(): Promise<SupportUser[]> {
   return snap.docs
     .map((d) => ({ uid: d.id, ...d.data() }) as SupportUser)
     .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
+}
+
+/**
+ * 지금 테스트 계정인 회원의 uid (D-124) — 관리 화면이 시험 데이터를 가려낼 때 쓴다.
+ * 예약에는 「시험」 표시(`sheetSkipped`)가 없어 주인으로만 알 수 있다. 몇 개뿐이라 한 번 읽는다.
+ */
+export async function listTesterUids(): Promise<string[]> {
+  const snap = await getDocs(query(collection(getDb(), COL.users), where('role', '==', 'tester')))
+  return snap.docs.map((d) => d.id)
 }
 
 /**
