@@ -76,7 +76,7 @@ export default function Header() {
         <div className="flex h-16 items-center justify-between gap-4">
           <Link
             href="/"
-            className="flex min-w-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-2.5"
             aria-label={`${SITE.programName} 홈`}
           >
             {/* 사업 명칭이 길어서(09-06 확정) 한 줄에 다 넣으면 모바일에서
@@ -84,6 +84,11 @@ export default function Header() {
             <span className="truncate text-base font-extrabold leading-tight tracking-tight text-brand-600 sm:text-lg dark:text-brand-300">
               {SITE.programName}
             </span>
+            {/* D-121 (10-03 sunbell · 시안 2안) — 사업명과 창의재단 사이 구분선 1px · 높이 11px · 좌우 10px(gap-2.5).
+                둘이 한 덩어리로 읽혀 사업명이 주인공이 되게 가른다. 창의재단을 더 밀어내는 것이 아니다.
+                창의재단과 **같은 `lg:` 분기** — 1024px 미만에서 창의재단이 감춰질 때 선만 덩그러니 남지 않게.
+                색은 `--border`(line) 토큰 · 장식이라 aria-hidden */}
+            <span aria-hidden="true" className="hidden h-[11px] w-px shrink-0 bg-line lg:block" />
             <span className="hidden shrink-0 truncate text-xs text-ink-subtle lg:inline">
               {SITE.funder}
             </span>

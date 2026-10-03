@@ -4,7 +4,9 @@ import { SITE } from '@/lib/config/site'
 /**
  * 푸터 (09-06 개정)
  *
- * 위: 사업 주체 — 제주대학교 · 한국과학창의재단, 그 아래 작게 운영 기관
+ * 위: 사업 주체 — 한국과학창의재단 · 제주대학교, 그 아래 작게 운영 기관
+ *   (D-121 · 10-03 — 예전에는 「제주대학교 · 한국과학창의재단」으로 홈 카드와 **반대 순서**였다.
+ *    두 기관을 함께 적을 때는 사업 총괄 기관이 앞 — `lib/config/site.ts` 의 표기 순서 규칙)
  * 아래: **문의처를 눈에 보이게** 편다
  *
  * 문의처를 FAQ 안에만 두면 "어디로 물어보나"를 찾아 헤매게 된다.
@@ -20,7 +22,7 @@ export default function Footer() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="font-semibold text-[#E2E8F0]">
-              {SITE.university} · {SITE.funder}
+              {SITE.funder} · {SITE.university}
             </p>
             <p className="mt-1 text-xs">{SITE.operator} 운영</p>
           </div>
