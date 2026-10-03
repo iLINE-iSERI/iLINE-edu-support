@@ -20,7 +20,7 @@ import MemberInfoForm, {
   type MemberInfoValues,
 } from '@/components/auth/MemberInfoForm'
 import { useAuth } from '@/components/auth/AuthProvider'
-import { registerMember } from '@/lib/firebase/members'
+import { registerMember, requestMemberSync } from '@/lib/firebase/members'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 
 function RegisterForm() {
@@ -68,6 +68,8 @@ function RegisterForm() {
           consents: { personal_info: values.personalInfo },
         }
       )
+      // 회원 시트(D-125) — 기다리지 않는다. 스위치가 꺼져 있으면 아무것도 안 함
+      void requestMemberSync()
       await refresh()
       router.replace(next)
     } catch (err) {

@@ -35,7 +35,7 @@ import {
   signInWithGoogle,
   authErrorMessage,
 } from '@/lib/firebase/auth'
-import { registerMember } from '@/lib/firebase/members'
+import { registerMember, requestMemberSync } from '@/lib/firebase/members'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 
 function SignupFlow() {
@@ -135,6 +135,8 @@ function SignupFlow() {
         // 초상권은 프로그램 신청서에서 받는다 (D-44).
         consents: { personal_info: values.personalInfo },
       })
+      // 회원 시트(D-125) — 기다리지 않는다. 스위치가 꺼져 있으면 아무것도 안 함
+      void requestMemberSync()
 
       await refresh()
       router.replace(next)

@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore'
 import { getDb, getAuthClient, COL } from './config'
 import { UserFacingError } from './errors'
+import { MEMBER_SHEET_ENABLED } from '@/lib/config/memberSheet'
 import type {
   SupportUser,
   Consent,
@@ -46,6 +47,47 @@ export async function listMembers(): Promise<SupportUser[]> {
   return snap.docs
     .map((d) => ({ uid: d.id, ...d.data() }) as SupportUser)
     .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
+}
+
+/**
+ * 회원 시트(D-125) — **내 줄**을 맞춰 달라고 서버에 알린다. 가입 완료·회원정보 수정 뒤에 부른다.
+ * 스위치가 꺼져 있으면 아무것도 하지 않는다. 기다리지 않아도 되고 실패해도 조용하다 — 화면을 옮겨도
+ * 요청이 끊기지 않게 `keepalive`, 그래도 못 갔으면 담당자 화면의 「시트와 다름」 표시가 잡는다.
+ */
+export async function requestMemberSync(): Promise<void> {
+  if (!MEMBER_SHEET_ENABLED) return
+  try {
+    const token = await getAuthClient().currentUser?.getIdToken()
+    if (!token) return
+    await fetch('/api/sync/member', {
+      method: 'POST',
+      keepalive: true,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  } catch (e) {
+    console.warn('[iLINE] 회원 시트 반영 요청 실패(회원 정보는 정상 저장됨):', e)
+  }
+}
+
+export interface MemberFullSyncSummary {
+  written: number
+  appended: number
+  removed: { tester: number; duplicate: number; orphan: number }
+}
+
+/** 회원 시트 [전체 반영] (D-125) — 담당자. 서버가 요청자를 다시 확인한다 */
+export async function syncAllMembersNow(): Promise<MemberFullSyncSummary> {
+  const token = await getAuthClient().currentUser?.getIdToken()
+  if (!token) throw new UserFacingError('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.')
+  const res = await fetch('/api/sync/members', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => null)
+  if (!res) throw new UserFacingError('네트워크 연결을 확인해 주세요.')
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new UserFacingError(data.error || '반영하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  if (data.skipped) throw new UserFacingError('서버에 구글 연동 설정이 없거나 연동이 꺼져 있습니다.')
+  return data as MemberFullSyncSummary
 }
 
 /**

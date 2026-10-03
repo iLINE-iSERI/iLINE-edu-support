@@ -24,6 +24,11 @@ export interface GoogleConfig {
    * 못 넣었다고 이미 돌던 연동까지 멈추면 안 되기 때문이다.
    */
   settlementFolderId: string | null
+  /**
+   * 「회원」 탭이 들어갈 스프레드시트 (D-125 · 10-03). **선택** — 없으면 `sheetId`(운영 시트).
+   * 로컬 시험 때 운영 시트에 회원 탭을 만들지 않으려고 둔다 — `.env.local` 에만 시험용 시트 ID 를 넣는다.
+   */
+  memberSheetId: string
 }
 
 export function getGoogleConfig(): GoogleConfig | null {
@@ -46,5 +51,6 @@ export function getGoogleConfig(): GoogleConfig | null {
     sheetId,
     driveFolderId,
     settlementFolderId,
+    memberSheetId: process.env.MEMBER_SHEET_ID || sheetId,
   }
 }

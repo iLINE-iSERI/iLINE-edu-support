@@ -28,6 +28,7 @@ import { NextResponse } from 'next/server'
 import { FieldValue } from 'firebase-admin/firestore'
 import { adminAuth, adminDb, verifyRequester } from '@/lib/server/admin'
 import { getGoogleConfig } from '@/lib/server/env'
+import { syncMemberAndRecord } from '@/lib/server/memberSheet'
 import { COL } from '@/lib/firebase/config'
 import { ROLE_REASON_MAX, type SupportRole } from '@/lib/types'
 
@@ -155,6 +156,10 @@ export async function POST(req: Request) {
         500
       )
     }
+
+    // 회원 시트(D-125)의 「구분」 칸 — 역할 변경은 서버가 하는 일이라 서버가 직접 맞춘다.
+    // 스위치가 꺼져 있으면 아무것도 안 하고, 실패하면 기록만 남는다(회원 관리의 「시트와 다름」 표시)
+    if (changed) await syncMemberAndRecord(uid)
 
     return NextResponse.json({ ok: true, role: to, changed })
   } catch (e) {

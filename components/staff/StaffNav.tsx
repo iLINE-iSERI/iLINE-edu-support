@@ -14,6 +14,8 @@
  * 담당자에게만 보인다 — 화면마다 `MemberGate requireStaff` 가 막지만, 그 판정 전에도 줄이 먼저 그려지면 안 되므로.
  * 답변 대기 문의 수(D-93 — 예전 「문의 관리 →」 버튼의 숫자)는 화면을 옮길 때마다 다시 센다(답을 달면 줄어들게).
  *
+ * D-125 — 「회원」 옆 숫자는 **시트와 다른 회원 수**(회원 시트 스위치가 켜져 있을 때만).
+ *
  * D-124 — 줄 오른쪽 끝에 「시험 데이터 보기」 스위치(`components/staff/TestView.tsx`). 켜져 있으면 줄 아래 귤색 띠 —
  * 켜 둔 채 잊고 실제 업무 숫자로 착각하지 않게. 문의 숫자도 스위치를 따른다.
  */
@@ -24,7 +26,12 @@ import SubNav from '@/components/ui/SubNav'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useTestView } from '@/components/staff/TestView'
 import { listOpenInquiries } from '@/lib/firebase/inquiries'
+import { listMembers } from '@/lib/firebase/members'
+import { MEMBER_SHEET_ENABLED, memberSheetBehind } from '@/lib/config/memberSheet'
 import type { Inquiry } from '@/lib/types'
+
+/** 회원 관리가 [전체 반영]을 마치면 보내는 알림 — 「회원」 옆 숫자를 다시 센다 */
+export const MEMBER_SHEET_EVENT = 'iline:member-sheet-synced'
 
 export default function StaffNav() {
   const { member } = useAuth()
@@ -39,6 +46,20 @@ export default function StaffNav() {
       .then(setOpenInquiries)
       .catch(() => {})
   }, [isStaff, pathname])
+
+  // D-125 — 시트와 다른 회원 수(「회원」 옆 숫자). 스위치가 켜져 있을 때만 · 회원 목록은 관리 화면에 들어올 때 한 번과
+  // [전체 반영] 뒤에만 읽는다(화면을 옮길 때마다 회원 전부를 읽지 않게)
+  const [sheetBehind, setSheetBehind] = useState(0)
+  useEffect(() => {
+    if (!isStaff || !MEMBER_SHEET_ENABLED) return
+    const count = () =>
+      listMembers()
+        .then((list) => setSheetBehind(list.filter((m) => memberSheetBehind(m)).length))
+        .catch(() => {})
+    void count()
+    window.addEventListener(MEMBER_SHEET_EVENT, count)
+    return () => window.removeEventListener(MEMBER_SHEET_EVENT, count)
+  }, [isStaff])
 
   if (!isStaff) return null
 
@@ -56,7 +77,7 @@ export default function StaffNav() {
           { href: '/staff/outputs', label: '산출물' },
           { href: '/staff/reservations', label: '예약' },
           { href: '/staff/inquiries', label: '문의', badge: visible(openInquiries).length },
-          { href: '/staff/members', label: '회원' },
+          { href: '/staff/members', label: '회원', badge: sheetBehind },
         ]}
         trailing={
           // 10-03 sunbell — 처음 판(text-xs · ink-subtle · 「시험 데이터」)은 글자가 흐려 잘 안 보였다 →

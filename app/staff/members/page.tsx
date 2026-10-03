@@ -31,8 +31,10 @@ import Button from '@/components/ui/Button'
 import MemberGate from '@/components/auth/MemberGate'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useTestView } from '@/components/staff/TestView'
+import { MEMBER_SHEET_EVENT } from '@/components/staff/StaffNav'
+import { MEMBER_SHEET_ENABLED, memberSheetBehind } from '@/lib/config/memberSheet'
 import { APPLICATION_TONE } from '@/lib/ui/statusTone'
-import { changeStaffRole, listMembers, listRoleChanges } from '@/lib/firebase/members'
+import { changeStaffRole, listMembers, listRoleChanges, syncAllMembersNow } from '@/lib/firebase/members'
 import { listAllApplications } from '@/lib/firebase/staff'
 import { formatDate, formatDateTime } from '@/lib/firebase/programs'
 import { actionErrorMessage, firestoreErrorMessage } from '@/lib/firebase/errors'
@@ -235,6 +237,12 @@ function StaffMembersContent() {
           </p>
         )}
 
+        {/* 회원 시트 (D-125) — 꺼져 있으면 한 줄 안내, 켜져 있으면 시트와 다른 회원 수 + [전체 반영] */}
+        <MemberSheetBox
+          behind={(allMembers ?? []).filter((m) => memberSheetBehind(m)).length}
+          onDone={loadMembers}
+        />
+
         {/* 찾기 */}
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[14rem] flex-1">
@@ -355,6 +363,7 @@ function MemberRow({
               {k === 'staff' && <Badge tone="info">담당자</Badge>}
               {k === 'tester' && <Badge tone="warn">테스트</Badge>}
               {k === 'withdrawn' && <Badge tone="voided">탈퇴</Badge>}
+              {memberSheetBehind(m) && <Badge tone="warn">시트 반영 안 됨</Badge>}
             </p>
             <p className="mt-1 text-sm text-ink-muted">{sub}</p>
           </div>
@@ -379,6 +388,18 @@ function MemberRow({
                 <Row key={label} label={label} value={value} />
               ))}
               <Row label="가입 방식" value={PROVIDER_LABEL[m.authProvider] ?? m.authProvider} />
+              {MEMBER_SHEET_ENABLED && m.role !== 'tester' && (
+                <Row
+                  label="회원 시트"
+                  value={
+                    m.sheetSyncError
+                      ? `반영 실패 — ${m.sheetSyncError}`
+                      : m.sheetSyncedAt
+                        ? `${formatDateTime(m.sheetSyncedAt)} 반영${memberSheetBehind(m) ? ' · 그 뒤 정보가 바뀜' : ''}`
+                        : '아직 반영 안 됨'
+                  }
+                />
+              )}
               <Row label="가입" value={formatDateTime(m.createdAt)} />
               {m.updatedAt &&
                 m.createdAt &&
@@ -646,6 +667,89 @@ function StaffRoleSection({
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * 회원 시트 상자 (D-125 · 10-03) — 시트 「회원」 탭과 사이트가 다른지 + [전체 반영].
+ *
+ * 가입·정보 수정·담당자 지정은 저절로 반영되므로 평소엔 「같습니다」. 쓰다 실패했거나 저장 뒤 브라우저를 닫아
+ * 쓰러 가지 못한 회원이 있으면 귤색으로 몇 명인지 보인다(관리 줄 「회원」 옆 숫자와 같은 판정).
+ * 스위치가 꺼져 있으면(처리방침 개정 시행 전) 한 줄 안내만 — 시트로 아무것도 나가지 않는다는 것을 담당자도 알게.
+ */
+function MemberSheetBox({ behind, onDone }: { behind: number; onDone: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  if (!MEMBER_SHEET_ENABLED) {
+    return (
+      <p className="text-xs text-ink-subtle">
+        회원 시트 연동: <strong className="font-semibold">꺼짐</strong> — 처리방침 개정이 시행된 뒤 켭니다. 그 전에는
+        회원 정보가 시트로 나가지 않습니다.
+      </p>
+    )
+  }
+
+  const run = async () => {
+    setBusy(true)
+    setErr('')
+    setMsg('')
+    try {
+      const r = await syncAllMembersNow()
+      const rm = r.removed.tester + r.removed.duplicate + r.removed.orphan
+      setMsg(
+        `시트에 반영했습니다 — ${r.written}명(새 줄 ${r.appended})` +
+          (rm > 0
+            ? ` · 지운 줄 ${rm}(테스트 계정 ${r.removed.tester} · 겹친 줄 ${r.removed.duplicate} · 사이트에 없는 회원 ${r.removed.orphan})`
+            : '')
+      )
+      await onDone()
+      window.dispatchEvent(new Event(MEMBER_SHEET_EVENT))
+    } catch (e) {
+      setErr(actionErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className={
+        'rounded-xl border p-4 text-sm leading-relaxed ' +
+        (behind > 0 ? 'border-warn/50 bg-warn-soft text-warn-ink' : 'border-line bg-surface text-ink-muted')
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p>
+          {behind > 0 ? (
+            <>
+              <strong className="font-semibold">시트와 다른 회원 {behind}명</strong> — 시트 「회원」 탭이 사이트와
+              다릅니다. [전체 반영]으로 맞춰 주세요.
+            </>
+          ) : (
+            <>회원 시트: 사이트와 같습니다.</>
+          )}
+        </p>
+        <Button variant="secondary" onClick={run} disabled={busy}>
+          {busy ? '반영 중…' : '전체 반영'}
+        </Button>
+      </div>
+      {msg && (
+        <p role="status" className="mt-2 font-semibold">
+          {msg}
+        </p>
+      )}
+      {err && (
+        <p role="alert" className="mt-2 font-semibold text-status-revision">
+          {err}
+        </p>
+      )}
+      <p className="mt-2 text-xs opacity-80">
+        가입·회원정보 수정·담당자 지정은 저절로 시트에 반영됩니다. [전체 반영]은 처음 한 번과 어긋났을 때만 — 지금
+        사이트의 회원 전부로 시트를 맞춥니다(몇 번 눌러도 결과가 같습니다).
+      </p>
+    </div>
   )
 }
 

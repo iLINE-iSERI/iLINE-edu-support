@@ -109,6 +109,13 @@ export interface SupportUser {
 
   createdAt: Timestamp
   updatedAt: Timestamp
+
+  /**
+   * 회원 시트(D-125)에 마지막으로 반영한 시각 · 실패 사유 — **서버만 쓴다**(Admin).
+   * 본인 수정 규칙의 칸 목록에 없어 회원이 꾸밀 수 없다. 「시트와 다름」 판정은 `lib/config/memberSheet.ts`
+   */
+  sheetSyncedAt?: Timestamp
+  sheetSyncError?: string
 }
 
 /**

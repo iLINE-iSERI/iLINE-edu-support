@@ -25,11 +25,14 @@ import {
   INQUIRY_STATUS_LABEL,
   memberTypeOf,
   identityLine,
+  GRADE_LABEL,
   type Application,
   type Settlement,
   type Output,
   type Inquiry,
+  type SupportUser,
 } from '@/lib/types'
+import { MEMBER_SHEET_ENABLED } from '@/lib/config/memberSheet'
 
 const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
@@ -1428,4 +1431,276 @@ export async function syncInquiry(
     )
   }
   return { sheetRow: rowNo }
+}
+
+/* =====================================================================
+   회원 → 시트 「회원」 탭 (D-125 · 10-03)
+
+   반출 범위: docs/4-기록/02-시트-드라이브-반출-범위.md §1-5. 쓰임새는 회원 현황 집계·통계·검색.
+   🔴 처리방침 개정(위탁 목록에 「회원 정보」)이 시행된 뒤에 켠다 — `MEMBER_SHEET_ENABLED`(lib/config/memberSheet).
+   꺼져 있으면 아무것도 쓰지 않는다.
+
+   · **자동** — 가입 완료·회원정보 수정 때 회원 화면이, 담당자 지정·회수 때 서버가 그 회원의 줄을 쓴다(`syncMember`)
+   · **[전체 반영]** — 회원 관리 화면. 처음 한 번 + 어긋났을 때 고치기(`syncAllMembers`)
+   · 테스트 계정은 쓰지 않는다(D-111). 테스트 계정이 된 회원의 줄 · 같은 회원번호의 두 번째 줄 · 사이트에서
+     지워진 회원의 줄은 **[전체 반영]의 맨 끝에 한꺼번에 행 삭제**(아래 줄이 올라옴) — 「줄 찾기 → 쓰기」 사이에
+     위 줄이 지워져 다른 줄을 덮어쓰는 드문 겹침을 줄이려고 지우는 일은 여기서만 한다
+   · 🔴 **새 줄은 append 가 아니라 「A열 마지막 값 바로 아래」에 직접 쓴다** (10-03 sunbell — 다른 탭의 append 는
+     중간에 빈 줄이 있으면 그 빈자리에 끼워 쓸 수 있다). 그 대가로 두 가입이 동시에 오면 같은 줄을 둘이 쓸 수
+     있어(findSheetRow 주석) — **쓴 뒤 그 줄 A열을 다시 읽어 확인하고, 덮였으면 다음 줄에 다시 쓴다**(세 번까지)
+   ===================================================================== */
+
+const MEMBER_SHEET = '회원'
+
+const MEMBER_HEADERS = [
+  '회원번호',   // A — 자기 줄을 찾는 열쇠
+  '가입 일시',  // B
+  '구분',       // C — 일반 회원 / 담당자 (통계에서 담당자를 걸러내려고)
+  '회원 유형',  // D
+  '이름',       // E
+  '소속',       // F
+  '학과·전공',  // G
+  '학번',       // H — 학생만
+  '학년',       // I — 학생만 (학년별 통계 — 신청 탭처럼 「신분」 한 칸으로 합치지 않는다)
+  '직위',       // J — 교원·일반
+  '연락처',     // K
+  '상태',       // L — 활동 / 탈퇴(줄 회색)
+  '정보 수정',  // M
+]
+const MEMBER_LAST_COL = String.fromCharCode(64 + MEMBER_HEADERS.length) // 'M'
+/** 머리글 줄 오른쪽 빈 칸 — 「마지막 전체 반영: 시각」. N 은 비워 표와 붙어 보이지 않게 */
+const MEMBER_STAMP_CELL = 'O1'
+/** Firebase uid 모양 — 이 모양이 아닌 A열 값(사람이 적은 메모 등)은 「지워진 회원」으로 보지 않고 건드리지 않는다 */
+const UID_LIKE = /^[A-Za-z0-9]{20,40}$/
+
+function memberRowValues(m: SupportUser): string[] {
+  const type = memberTypeOf(m.memberType)
+  const student = type === 'student'
+  const created = m.createdAt?.toDate?.()
+  const updated = m.updatedAt?.toDate?.()
+  const edited = Boolean(created && updated && updated.getTime() - created.getTime() > 60_000)
+  return [
+    m.uid,
+    seoulStamp(created),
+    m.role === 'staff' ? '담당자' : '일반 회원',
+    MEMBER_TYPE_LABEL[type],
+    m.name ?? '',
+    m.affiliation ?? '',
+    m.major ?? '',
+    student ? m.studentId ?? '' : '',
+    student && m.grade ? GRADE_LABEL[m.grade] ?? m.grade : '',
+    student ? '' : m.position ?? '',
+    m.phone ?? '',
+    m.status === 'withdrawn' ? '탈퇴' : '활동',
+    edited ? seoulStamp(updated) : '',
+  ]
+}
+
+async function ensureMemberSheet(sheets: Sheets, spreadsheetId: string): Promise<number> {
+  const info = await sheetInfo(sheets, spreadsheetId, MEMBER_SHEET)
+  let gid = info.gid
+  if (!info.exists) {
+    const created = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: [{ addSheet: { properties: { title: MEMBER_SHEET } } }] },
+    })
+    gid = created.data.replies?.[0]?.addSheet?.properties?.sheetId ?? 0
+  }
+  // 머리글이 다르면 다시 쓴다(열을 바꿨을 때 — 정산 탭과 같은 방식)
+  const head = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${MEMBER_SHEET}'!A1:${MEMBER_LAST_COL}1`,
+  })
+  const current = (head.data.values?.[0] ?? []).map((v) => String(v ?? ''))
+  if (current.join('|') !== MEMBER_HEADERS.join('|')) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${MEMBER_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [MEMBER_HEADERS] },
+    })
+  }
+  await setupHeader(sheets, spreadsheetId, gid, MEMBER_HEADERS.length)
+  return gid
+}
+
+/** A열 값(앞뒤 공백 제거) — 인덱스 0 이 1행(머리글). 길이 = 마지막으로 값이 있는 줄 번호 */
+async function memberColumnA(sheets: Sheets, spreadsheetId: string): Promise<string[]> {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${MEMBER_SHEET}'!A:A`,
+    majorDimension: 'COLUMNS',
+  })
+  return (res.data.values?.[0] ?? []).map((v) => String(v ?? '').trim())
+}
+
+/** 줄 서식 요청 — 가운데 정렬, 탈퇴면 회색(취소된 신청 줄과 같은 색). 바탕색은 탈퇴 줄만 건드린다 */
+function memberRowFormat(gid: number, fromRow: number, toRow: number, muted: boolean): object {
+  const fmt: Record<string, unknown> = { horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE', wrapStrategy: 'CLIP' }
+  let fields = 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy'
+  if (muted) {
+    fmt.backgroundColor = { red: 0.93, green: 0.93, blue: 0.93 }
+    fmt.textFormat = { foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 } }
+    fields += ',backgroundColor,textFormat.foregroundColor'
+  }
+  return {
+    repeatCell: {
+      range: { sheetId: gid, startRowIndex: fromRow - 1, endRowIndex: toRow, startColumnIndex: 0, endColumnIndex: MEMBER_HEADERS.length },
+      cell: { userEnteredFormat: fmt },
+      fields: fields + ')',
+    },
+  }
+}
+
+export interface MemberSyncResult {
+  skipped?: 'disabled' | 'not-configured'
+  sheetRow?: number
+}
+
+/** 회원 1명의 줄 — 있으면 그 줄을 고치고, 없으면 맨 아래에 새로. 테스트 계정은 부르는 쪽이 거른다 */
+export async function syncMember(m: SupportUser): Promise<MemberSyncResult> {
+  if (!MEMBER_SHEET_ENABLED) return { skipped: 'disabled' }
+  const c = clients()
+  if (!c) return { skipped: 'not-configured' }
+  const { cfg, sheets } = c
+  const sid = cfg.memberSheetId
+
+  const gid = await step('시트 「회원」 탭 · 회원 시트 ID 확인', () => ensureMemberSheet(sheets, sid))
+  const row = memberRowValues(m)
+  const muted = m.status === 'withdrawn'
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const colA = await step('시트 줄 찾기', () => memberColumnA(sheets, sid))
+    const found = colA.findIndex((v, i) => i > 0 && v === m.uid)
+    const rowNo = found > 0 ? found + 1 : Math.max(2, colA.length + 1)
+    await step(found > 0 ? '시트 줄 갱신' : '시트에 줄 추가', () =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId: sid,
+        range: `'${MEMBER_SHEET}'!A${rowNo}:${MEMBER_LAST_COL}${rowNo}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      })
+    )
+    if (found <= 0) {
+      // 새 줄 — 그 사이 다른 가입이 같은 줄을 썼는지 확인. 덮였으면 다시 찾아 그다음 줄에
+      const check = await step('시트 줄 확인', () =>
+        sheets.spreadsheets.values.get({ spreadsheetId: sid, range: `'${MEMBER_SHEET}'!A${rowNo}` })
+      )
+      if (String(check.data.values?.[0]?.[0] ?? '').trim() !== m.uid) continue
+    }
+    await step('시트 줄 서식', () =>
+      sheets.spreadsheets.batchUpdate({
+        spreadsheetId: sid,
+        requestBody: { requests: [memberRowFormat(gid, rowNo, rowNo, muted)] },
+      })
+    )
+    await step('열 너비 맞춤', () => fitColumns(sheets, sid, gid, MEMBER_SHEET, MEMBER_HEADERS.length, {}))
+    return { sheetRow: rowNo }
+  }
+  throw new Error('[시트에 줄 추가] 다른 줄 쓰기와 세 번 겹쳤습니다 — 회원 관리의 [전체 반영]으로 맞춰 주세요')
+}
+
+export interface MemberFullSyncResult {
+  skipped?: 'disabled' | 'not-configured'
+  /** 고친 줄 + 새 줄 */
+  written: number
+  appended: number
+  removed: { tester: number; duplicate: number; orphan: number }
+  /** 시트에 줄이 있게 된 회원 — 부르는 쪽이 회원 문서에 반영 시각을 적는다 */
+  syncedUids: string[]
+}
+
+/**
+ * [전체 반영] — 지금 사이트의 회원 전부로 「회원」 탭을 맞춘다. 몇 번 불러도 결과가 같다.
+ * API 를 몇 번만 부르도록 한꺼번에 쓴다(값 한 번 · 서식 한 번 · 행 삭제 한 번) — 줄마다 부르면 시트 사용 한도에 걸린다.
+ */
+export async function syncAllMembers(members: SupportUser[], at: Date): Promise<MemberFullSyncResult> {
+  const empty: MemberFullSyncResult = { written: 0, appended: 0, removed: { tester: 0, duplicate: 0, orphan: 0 }, syncedUids: [] }
+  if (!MEMBER_SHEET_ENABLED) return { ...empty, skipped: 'disabled' }
+  const c = clients()
+  if (!c) return { ...empty, skipped: 'not-configured' }
+  const { cfg, sheets } = c
+  const sid = cfg.memberSheetId
+
+  const gid = await step('시트 「회원」 탭 · 회원 시트 ID 확인', () => ensureMemberSheet(sheets, sid))
+  const testers = new Set(members.filter((m) => m.role === 'tester').map((m) => m.uid))
+  const keep = members.filter((m) => m.role !== 'tester')
+  const keepUids = new Set(keep.map((m) => m.uid))
+
+  // 지금 시트의 줄을 한 번 읽어 — 회원별 첫 줄 · 지울 줄
+  const colA = await step('시트 줄 읽기', () => memberColumnA(sheets, sid))
+  const rowOf = new Map<string, number>()
+  const removeRows: number[] = []
+  const removed = { tester: 0, duplicate: 0, orphan: 0 }
+  colA.forEach((v, i) => {
+    if (i === 0 || !v) return
+    const rowNo = i + 1
+    if (testers.has(v)) {
+      removeRows.push(rowNo)
+      removed.tester++
+    } else if (keepUids.has(v)) {
+      if (rowOf.has(v)) {
+        removeRows.push(rowNo)
+        removed.duplicate++
+      } else rowOf.set(v, rowNo)
+    } else if (UID_LIKE.test(v)) {
+      // 사이트에서 지워진 회원(시험 계정 정리 등)의 줄 — 사본만 남아 있으면 안 된다
+      removeRows.push(rowNo)
+      removed.orphan++
+    }
+  })
+
+  // 값 — 있는 줄은 그 자리에, 없는 회원은 맨 아래부터 차례로
+  let next = Math.max(2, colA.length + 1)
+  let appended = 0
+  const data = keep.map((m) => {
+    let r = rowOf.get(m.uid)
+    if (!r) {
+      r = next++
+      appended++
+    }
+    return { m, r }
+  })
+  if (data.length > 0) {
+    await step('시트에 쓰기', () =>
+      sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sid,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: data.map(({ m, r }) => ({
+            range: `'${MEMBER_SHEET}'!A${r}:${MEMBER_LAST_COL}${r}`,
+            values: [memberRowValues(m)],
+          })),
+        },
+      })
+    )
+  }
+
+  // 서식 — 전부 가운데 정렬 한 번 + 탈퇴 줄 회색. 그다음 행 삭제(지우면 줄 번호가 바뀌므로 서식 뒤에, 아래에서 위로)
+  const requests: object[] = []
+  const lastRow = Math.max(next - 1, colA.length)
+  if (lastRow >= 2) requests.push(memberRowFormat(gid, 2, lastRow, false))
+  for (const { m, r } of data) if (m.status === 'withdrawn') requests.push(memberRowFormat(gid, r, r, true))
+  for (const rowNo of [...removeRows].sort((a, b) => b - a)) {
+    requests.push({
+      deleteDimension: { range: { sheetId: gid, dimension: 'ROWS', startIndex: rowNo - 1, endIndex: rowNo } },
+    })
+  }
+  if (requests.length > 0) {
+    await step('시트 서식 · 줄 지우기', () =>
+      sheets.spreadsheets.batchUpdate({ spreadsheetId: sid, requestBody: { requests } })
+    )
+  }
+
+  await step('마지막 전체 반영 시각', () =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId: sid,
+      range: `'${MEMBER_SHEET}'!${MEMBER_STAMP_CELL}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[`마지막 전체 반영: ${seoulStamp(at)}`]] },
+    })
+  )
+  await step('열 너비 맞춤', () => fitColumns(sheets, sid, gid, MEMBER_SHEET, MEMBER_HEADERS.length, {}))
+
+  return { written: data.length, appended, removed, syncedUids: keep.map((m) => m.uid) }
 }

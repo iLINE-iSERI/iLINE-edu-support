@@ -34,7 +34,7 @@ import MemberInfoForm, {
   type MemberInfoValues,
 } from '@/components/auth/MemberInfoForm'
 import { useAuth } from '@/components/auth/AuthProvider'
-import { updateMember } from '@/lib/firebase/members'
+import { updateMember, requestMemberSync } from '@/lib/firebase/members'
 import { isPasswordAccount, sendVerificationEmail, authErrorMessage } from '@/lib/firebase/auth'
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { memberTypeOf } from '@/lib/types'
@@ -71,6 +71,8 @@ function ProfileEditContent() {
         position: v.position.trim(),
         phone: v.phone.replace(/[^0-9]/g, ''),
       })
+      // 회원 시트(D-125) — 기다리지 않는다. 스위치가 꺼져 있으면 아무것도 안 함
+      void requestMemberSync()
 
       // 헤더·마이페이지가 들고 있는 회원 정보를 새로 읽어온다.
       // 이걸 빼면 저장은 됐는데 화면은 옛 값을 보여준다.

@@ -65,6 +65,17 @@ export async function verifyRequester(
 }
 
 /**
+ * 요청자가 **지금** 담당자인가 — 로그인 토큰의 `supportStaff` **와** 회원 문서(role·status) 둘 다.
+ * 회수된 사람의 토큰에는 표시가 최대 1시간 남아 있어 토큰만 믿으면 안 된다(D-120 과 같은 기준).
+ */
+export async function verifyStaffRequester(authHeader: string | null): Promise<{ uid: string } | null> {
+  const who = await verifyRequester(authHeader)
+  if (!who?.isStaff) return null
+  const me = (await adminDb().collection('support_users').doc(who.uid).get()).data()
+  return me?.role === 'staff' && me?.status === 'active' ? { uid: who.uid } : null
+}
+
+/**
  * 이 uid 가 **테스트 계정**인가 (D-111 · 09-26) — 그 사람이 낸 것은 시트·드라이브로 보내지 않는다.
  *
  * 🔴 **요청한 사람이 아니라 문서 주인으로 판단한다.** 담당자가 테스트 계정 신청의 상태를
