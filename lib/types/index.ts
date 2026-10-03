@@ -135,20 +135,6 @@ export interface RoleChange {
 /** 담당자 지정·회수 사유 길이 상한 — 화면과 서버가 같은 값을 쓴다 */
 export const ROLE_REASON_MAX = 200
 
-/**
- * 이 **신청건**의 활동 사진을 갤러리·자료집에 써도 되는가 (D-44).
- *
- * ⚠️ 회원이 아니라 **신청서**를 받는다. 초상권 동의는 프로그램마다 따로
- *    받으므로 "이 사람이 동의했는가"라는 질문 자체가 성립하지 않는다.
- *    같은 사람이 A 프로그램은 동의하고 B 프로그램은 거부할 수 있다.
- *    사진을 올릴 때는 **그 사진이 나온 프로그램의 신청건**을 봐야 한다.
- */
-export function hasPortraitConsent(
-  application: { applicant?: { portraitConsent?: boolean } } | null
-): boolean {
-  return application?.applicant?.portraitConsent === true
-}
-
 /* ─────────────────────────────────────────────────────────────
    프로그램 — support_programs/{programId}
    
@@ -413,21 +399,6 @@ export interface ProgramPoster {
   size?: number
 }
 
-/**
- * 단체 프로그램 신청 시 제출하는 팀원 정보.
- * 종이 양식(역할·이름·학번·전공·학년·연락처·이메일)과 같은 항목이다.
- */
-export interface TeamMember {
-  /** 역할 — '팀장' | '팀원' 등 자유 입력 */
-  role: string
-  name: string
-  studentId: string
-  major: string
-  grade: string
-  phone: string
-  email: string
-}
-
 /* ─────────────────────────────────────────────────────────────
    신청서 — support_applications/{appId}   (D-29)
 
@@ -654,17 +625,16 @@ export interface Application {
   participationType: ParticipationType
 
   /**
-   * ⚠️ **지금 코드는 아래 세 칸을 채우지 않는다.** 팀원 명단 입력은 만들지 않았다
-   *    (신청서 설계 §3 — 실제로 필요한 프로그램이 나오면 그때 붙인다).
+   * ⚠️ **지금 코드는 이 칸을 채우지 않는다.** 팀원 명단 입력은 만들지 않았다
+   *    (신청서 설계 §3 — 실제로 필요한 프로그램이 나오면 그때 붙인다. 그때 쓰려고
+   *    자리만 잡아 두었던 `teamMembers`·`teamConsentConfirmed` 는 쓰는 곳이 없어
+   *    10-03 유지보수 파트 2 에서 지웠다).
    *    팀명은 전용 양식이면 `formValues.teamName`, 「칸 추가」면 담당자가
    *    `isTeamName` 으로 표시한 칸의 `formValues[fid]` 에 있다. **읽을 때는 반드시
    *    `teamNameOf(app, program)` 을 쓴다** — 공고를 넘겨야 어느 칸인지 안다
    *    (D-104 가 찾고 D-105 가 고쳤다).
    */
   teamName?: string
-  teamMembers?: TeamMember[]
-  /** 팀원 전원의 개인정보 제공 동의를 받았다는 대표자 확인 (위와 같이 지금은 안 씀) */
-  teamConsentConfirmed?: boolean
 
   /** 제출 시점의 신청자 정보 사본 (D-29) */
   applicant: ApplicantSnapshot

@@ -109,13 +109,6 @@ export function fieldsOf(p: Pick<Program, 'formFields'>): ProgramField[] {
   return p.formFields ?? []
 }
 
-/** 첨부 칸 — 공고당 하나뿐이다 */
-export function attachmentField(
-  p: Pick<Program, 'formFields'>
-): ProgramField | undefined {
-  return fieldsOf(p).find((f) => f.kind === 'attachment')
-}
-
 /** 담당자·신청자 화면에 보이는 이름 (첨부는 고정) */
 export function fieldTitle(f: ProgramField): string {
   return f.kind === 'attachment' ? '첨부 서류' : (f.label ?? '').trim()

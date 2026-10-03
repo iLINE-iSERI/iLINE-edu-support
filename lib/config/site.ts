@@ -39,11 +39,6 @@ export const SITE = {
   retentionYears: 3,
 } as const
 
-/** 문의처가 아직 등록되지 않았는지 */
-export function hasContactInfo(): boolean {
-  return Boolean(SITE.contact.email || SITE.contact.phone)
-}
-
 /**
  * 담당자가 적은 사유를 **신청자에게 보여줄지** (D-46 · 09-08 교수님 확정).
  *
