@@ -14,7 +14,7 @@
  * 담당자에게만 보인다 — 화면마다 `MemberGate requireStaff` 가 막지만, 그 판정 전에도 줄이 먼저 그려지면 안 되므로.
  * 답변 대기 문의 수(D-93 — 예전 「문의 관리 →」 버튼의 숫자)는 화면을 옮길 때마다 다시 센다(답을 달면 줄어들게).
  *
- * D-124 — 줄 오른쪽 끝에 「시험 데이터」 스위치(`components/staff/TestView.tsx`). 켜져 있으면 줄 아래 귤색 띠 —
+ * D-124 — 줄 오른쪽 끝에 「시험 데이터 보기」 스위치(`components/staff/TestView.tsx`). 켜져 있으면 줄 아래 귤색 띠 —
  * 켜 둔 채 잊고 실제 업무 숫자로 착각하지 않게. 문의 숫자도 스위치를 따른다.
  */
 
@@ -59,14 +59,21 @@ export default function StaffNav() {
           { href: '/staff/members', label: '회원' },
         ]}
         trailing={
-          <label className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap py-3 text-xs text-ink-subtle">
+          // 10-03 sunbell — 처음 판(text-xs · ink-subtle · 「시험 데이터」)은 글자가 흐려 잘 안 보였다 →
+          // 메뉴 칸과 같은 크기·색, 켜져 있으면 귤색 굵게(띠와 같은 색)
+          <label
+            className={
+              'flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-3 py-3 text-sm transition-colors hover:bg-ink/5 ' +
+              (showTests ? 'font-bold text-warn-ink' : 'font-medium text-ink-muted hover:text-ink')
+            }
+          >
             <input
               type="checkbox"
               checked={showTests}
               onChange={(e) => setShowTests(e.target.checked)}
               className="h-4 w-4 accent-warn"
             />
-            시험 데이터
+            시험 데이터 보기
           </label>
         }
       />

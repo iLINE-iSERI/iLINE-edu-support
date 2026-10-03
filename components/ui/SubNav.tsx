@@ -22,7 +22,7 @@ export interface SubNavItem {
  *   · `label`  — 줄 맨 앞 이름표(「관리」)
  *   · `prefix` — 하위 주소도 그 칸으로(`/staff/reservations/board` → 「예약」). 없으면 지금처럼 주소가 똑같을 때만
  *   · 지금 칸이 화면 밖이면 줄을 옆으로 밀어 보이게 — 휴대폰에서 뒤쪽 칸(「회원」)에 있을 때
- * D-124 — `trailing`: 줄 오른쪽 끝에 붙이는 것(관리 줄의 「시험 데이터」 스위치)
+ * D-124 — `trailing`: 줄 오른쪽 끝에 붙이는 것(관리 줄의 「시험 데이터 보기」 스위치)
  */
 export default function SubNav({
   items,

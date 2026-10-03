@@ -212,7 +212,7 @@ function StaffMembersContent() {
         <p className="rounded-lg bg-subtle px-3 py-2 text-sm leading-relaxed text-ink-muted">
           🔒 <strong className="font-semibold">개인정보가 모두 보이는 화면입니다.</strong> 화면 공유·출력·캡처를
           조심해 주세요. 시트로 내보내지 않습니다. 담당자 지정·회수는 회원을 펼친 맨 아래 「담당자
-          권한」에서 합니다. 테스트 계정 지정은 지금처럼 관리 도구로 합니다. 테스트 계정은 관리 줄 오른쪽의 「시험 데이터」를
+          권한」에서 합니다. 테스트 계정 지정은 지금처럼 관리 도구로 합니다. 테스트 계정은 관리 줄 오른쪽의 「시험 데이터 보기」를
           켜면 보입니다.
         </p>
 
