@@ -32,8 +32,12 @@ export async function POST(req: Request) {
   }
 
   let applicationId: string
+  // D-127: 시트에 줄이 없을 때만 넣는다 — 있으면 시트·드라이브·신청서 아무것도 쓰지 않는다(담당자 「시트에 없으면 다시 넣기」)
+  let onlyIfMissing = false
   try {
-    applicationId = String((await req.json()).applicationId || '')
+    const body = await req.json()
+    applicationId = String(body.applicationId || '')
+    onlyIfMissing = body.onlyIfMissing === true
   } catch {
     return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })
   }
@@ -77,12 +81,14 @@ export async function POST(req: Request) {
       pdf = buf
     }
 
-    const result = await syncApplication(app, pdf)
+    const result = await syncApplication(app, pdf, { onlyIfMissing })
     if (result.skipped) return NextResponse.json({ skipped: 'not-configured' })
+    if (result.alreadyThere) return NextResponse.json({ ok: true, ...result })
 
     await ref.update({
       sheetRowId: result.sheetRow ? String(result.sheetRow) : '',
-      driveFolderUrl: result.driveUrl || '',
+      // PDF 를 못 읽어 링크가 비면 예전 링크를 지우지 않는다(D-127 — 기존 값 지키기)
+      driveFolderUrl: result.driveUrl || app.driveFolderUrl || '',
       sheetSyncedAt: new Date(),
       driveSyncedAt: new Date(),
       driveSyncError: '',

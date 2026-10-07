@@ -472,6 +472,8 @@ function ApplicationRow({
               </a>
             </>
           )}
+          {' · '}
+          <SheetRestore id={app.id} />
         </p>
       ) : null}
 
@@ -609,6 +611,46 @@ function SyncRetry({ id, onDone }: { id: string; onDone: () => void }) {
       </button>
       {msg && <span className="text-ink-muted">{msg}</span>}
     </span>
+  )
+}
+
+/**
+ * 시트에 없으면 다시 넣기 (D-127 · 10-07) — 「반영 완료」로 보이는데 시트에 줄이 없는 건을 되살린다.
+ * 10-05 해커톤 마감 전, 시트 필터 때문에 새 줄 일곱 건이 다른 줄에 덮어써져 사라졌는데 화면은 「반영 완료」였다.
+ * **줄이 이미 있으면 시트·드라이브 아무것도 쓰지 않는다** — 담당자가 시트에서 고친 칸을 덮지 않게(sunbell).
+ */
+function SheetRestore({ id }: { id: string }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function run() {
+    setBusy(true)
+    setMsg('')
+    try {
+      const r = await retrySync(id, { onlyIfMissing: true })
+      if (r.skipped === 'tester') setMsg('시험 신청이라 시트로 보내지 않습니다.')
+      else if (r.alreadyThere) setMsg(`시트 ${r.sheetRow}행에 이미 있습니다 — 그대로 두었습니다.`)
+      // 목록을 다시 불러오지 않는다 — 화면에 보이는 값은 그대로라 메시지만 남기면 된다
+      else setMsg(`시트 ${r.sheetRow ?? ''}행에 넣었습니다.`)
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : '실패했습니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy}
+        className="underline underline-offset-2 hover:text-brand-600 disabled:opacity-50"
+      >
+        {busy ? '시트 확인 중…' : '시트에 없으면 다시 넣기'}
+      </button>
+      {msg && <span className="ml-1.5 font-semibold text-ink-muted">{msg}</span>}
+    </>
   )
 }
 

@@ -164,6 +164,8 @@ function clients() {
    · 줄 추가는 OVERWRITE (D-92 · 09-18): INSERT_ROWS 는 끼워 넣기라 **윗줄 서식을 물려받는다**
      — 첫 줄은 헤더(노란 바탕·굵게)를 그대로 물려받았다. OVERWRITE 는 아래 빈 칸에 써 넣어
      기본 서식으로 들어간다. 09-17 에 "담당자가 칠한 노란색" 이라 본 것도 사실은 이것.
+     → **D-127 (10-07) 에서 append 자체를 버렸다** — 필터가 켜져 있으면 숨은 줄을 덮어썼다.
+       지금은 빈 줄을 끼워 넣되 **아래 줄**의 서식을 물려받는다(`insertRowAfterLast`).
    ═══════════════════════════════════════════════════════════════ */
 
 type Sheets = ReturnType<typeof google.sheets>
@@ -301,9 +303,9 @@ async function fitColumns(
  * 아니면 A열 전체에서 찾는다. 같은 번호가 여러 줄이면 첫 줄에 쓴다(나머지는
  * `scripts/check-sheet-rows.mjs` 가 「중복」으로 알려 준다 — 여기서 지우지 않는다).
  *
- * 새 줄은 지금처럼 `append` 로 붙인다. 번호를 직접 계산해 쓰면 두 신청이 동시에 오면
- * **같은 줄을 둘이 쓴다** — `append` 는 구글이 한 줄씩 차례로 붙여 준다.
- * (빈 줄이 있으면 그 자리에 붙어 순서가 섞일 수는 있지만, 이제는 덮어쓰지 않는다.)
+ * 없으면(새 줄) `insertRowAfterLast` 로 끼워 넣는다(D-127). ⚠️ 예전에는 「`append` 는 구글이 한 줄씩
+ * 차례로 붙여 준다」고 믿고 append 를 썼는데 틀렸다 — 필터가 켜져 있으면 숨은 줄을 덮어쓰고, 거의
+ * 동시에 온 두 건이 같은 줄에 써졌다(10-03·10-05 해커톤 7건 · insertRowAfterLast 주석).
  *
  * `tab` 이 null 이면 **첫 번째 탭**(신청) — 이름이 아니라 위치로 찾는다.
  */
@@ -342,27 +344,102 @@ async function linkCell(
 ) {
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    requestBody: {
-      requests: [
+    requestBody: { requests: [linkCellRequest(gid, rowNo, colIndex, url, label)] },
+  })
+}
+
+/** linkCell 의 요청 하나 — 새 줄을 넣는 batchUpdate 에 함께 싣는다(D-127) */
+function linkCellRequest(gid: number, rowNo: number, colIndex: number, url: string, label: string): object {
+  return {
+    updateCells: {
+      range: { sheetId: gid, startRowIndex: rowNo - 1, endRowIndex: rowNo, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
+      rows: [
         {
-          updateCells: {
-            range: { sheetId: gid, startRowIndex: rowNo - 1, endRowIndex: rowNo, startColumnIndex: colIndex, endColumnIndex: colIndex + 1 },
-            rows: [
-              {
-                values: [
-                  {
-                    userEnteredValue: { stringValue: label },
-                    userEnteredFormat: { textFormat: { link: { uri: url }, underline: true } },
-                  },
-                ],
-              },
-            ],
-            fields: 'userEnteredValue,userEnteredFormat.textFormat.link,userEnteredFormat.textFormat.underline',
-          },
+          values: [
+            {
+              userEnteredValue: { stringValue: label },
+              userEnteredFormat: { textFormat: { link: { uri: url }, underline: true } },
+            },
+          ],
         },
       ],
+      fields: 'userEnteredValue,userEnteredFormat.textFormat.link,userEnteredFormat.textFormat.underline',
     },
+  }
+}
+
+/**
+ * 새 줄 넣기 (D-127 · 10-07) — **A열 마지막 값 바로 아래에 빈 줄을 하나 끼워 넣고, 그 줄을 채운다.**
+ * 끼워 넣기 · 값 · (부르는 쪽이 준) 서식·링크를 **한 번의 batchUpdate** 로 보낸다. 구글은 요청 하나를
+ * 통째로 처리하므로 두 건이 동시에 와도 각자 자기 빈 줄을 끼워 넣고 채운다 — **무엇도 덮어쓰지 않는다.**
+ * 서식·링크까지 같은 요청에 싣는 이유: 따로 보내면 그 사이 다른 건이 위에 끼어들어 줄 번호가 밀리고,
+ * 남의 줄에 링크가 걸린다.
+ *
+ * 🔴 **왜 append 를 버렸나.** 09-18 부터 `values.append`(OVERWRITE)로 새 줄을 붙였는데, append 는
+ *    「표의 끝」을 **구글이 짐작**한다. 시트에 필터가 켜져 있으면 **보이는 마지막 줄**을 끝으로 보고 그
+ *    아래 **숨은 줄에 덮어쓴다** — 새로 쓴 줄도 숨은 채라 다음 건이 또 같은 줄에 쓴다. 10-05 해커톤
+ *    마감 전날, 신청 탭 필터(프로그램명·상태) 때문에 **46행 한 줄에 여섯 건이 차례로 덮어써져** 시트에서
+ *    사라졌다(사이트·드라이브에는 그대로 · 10-07 운영 담당자 발견). 10-03 에는 0.8초 차이로 낸 두 건이
+ *    같은 41행에 써졌다. 예전 주석의 「append 는 한 줄씩 차례로 붙여 준다」는 틀린 믿음이었다.
+ *
+ * 자리는 A열(모든 탭에서 그 문서의 번호)로 정한다 — 필터·숨김과 상관없이 값이 있는 마지막 줄 다음.
+ * 두 건이 같은 자리를 계산해도 뒤에 온 쪽이 앞 줄을 한 칸 아래로 밀고 들어갈 뿐이다(순서만 바뀜 —
+ * 「신청 일시」 열로 정렬하면 된다). 서식은 **아래 줄**(빈 줄)에서 물려받는다(`inheritFromBefore:
+ * false`) — 윗줄이 머리글(노란 바탕·굵게)이나 회색 취소 줄이어도 옮겨 오지 않게(D-92 가 append 의
+ * INSERT_ROWS 를 버린 까닭과 같다). 시트 맨 아래라 물려받을 줄이 없는 경우를 따로 묻지 않으려고
+ * **맨 끝에 빈 줄 하나를 늘 먼저 덧붙인다** — 시트 크기를 읽는 요청이 하나 줄어든다(구글 시트 읽기 한도는
+ * 1분에 60번이고 운영 사이트 전체가 같이 쓴다 — 10-07 시험에서 걸려 봄). 시트는 새 줄마다 빈 줄 하나씩 길어진다.
+ *
+ * 돌려주는 값: 넣은 줄 번호(1부터). 열 너비는 열 전체를 다루므로 부르는 쪽이 따로 맞춘다.
+ */
+async function insertRowAfterLast(
+  sheets: Sheets,
+  spreadsheetId: string,
+  tab: string | null, // null = 첫 탭
+  gid: number,
+  values: (string | number)[],
+  extra: (rowNo: number) => object[]
+): Promise<number> {
+  const colRes = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: tab ? `'${tab}'!A:A` : 'A:A',
+    majorDimension: 'COLUMNS',
   })
+  // A열 값 개수 = 값이 있는 마지막 줄 번호(구글이 끝의 빈 칸은 잘라서 준다). 0부터 센 새 줄 자리와 같다
+  const at = Math.max(1, colRes.data.values?.[0]?.length ?? 0)
+  const rowNo = at + 1
+
+  const requests: object[] = [
+    // 끼워 넣을 자리 아래에 늘 줄이 있게(물려받을 서식 = 빈 줄) — 맨 끝에 하나
+    { appendDimension: { sheetId: gid, dimension: 'ROWS', length: 1 } },
+    {
+      insertDimension: {
+        range: { sheetId: gid, dimension: 'ROWS', startIndex: at, endIndex: at + 1 },
+        inheritFromBefore: false,
+      },
+    },
+    {
+      updateCells: {
+        start: { sheetId: gid, rowIndex: at, columnIndex: 0 },
+        // RAW 로 쓰던 것과 같다 — 글자는 글자로(전화번호·날짜가 숫자·날짜로 바뀌지 않게), 빈 값은 빈 칸
+        rows: [
+          {
+            values: values.map((v) =>
+              typeof v === 'number'
+                ? { userEnteredValue: { numberValue: v } }
+                : v === ''
+                  ? {}
+                  : { userEnteredValue: { stringValue: v } }
+            ),
+          },
+        ],
+        fields: 'userEnteredValue',
+      },
+    },
+    ...extra(rowNo),
+  ]
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } })
+  return rowNo
 }
 
 /**
@@ -379,6 +456,20 @@ async function formatRow(
   wrapCols: ColumnWidths,
   muted: boolean
 ) {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: rowFormatRequests(gid, rowNo, columnCount, wrapCols, muted) },
+  })
+}
+
+/** formatRow 의 요청들 — 새 줄을 넣는 batchUpdate 에 함께 싣는다(D-127) */
+function rowFormatRequests(
+  gid: number,
+  rowNo: number,
+  columnCount: number,
+  wrapCols: ColumnWidths,
+  muted: boolean
+): object[] {
   // 바탕색은 **취소 줄만** 회색으로 칠한다. 나머지 줄은 건드리지 않는다 — 흰색을 강제하면
   // 담당자가 손으로 칠한 색이 지워진다. (09-17 "노란색이 A~Q 만 흰색으로" 는 INSERT_ROWS 가
   // 헤더 서식을 물려준 것을 이 함수가 지우던 것 — D-92 에서 OVERWRITE 로 원인을 없앰)
@@ -414,7 +505,7 @@ async function formatRow(
       },
     })
   }
-  await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } })
+  return requests
 }
 
 /** 신청 탭에서 고정 폭으로 둘 열 — 긴 글이 오는 곳. 나머지는 자동 맞춤 */
@@ -593,16 +684,24 @@ export interface SyncResult {
   skipped?: true
   sheetRow?: number
   driveUrl?: string
+  /** `onlyIfMissing` 인데 시트에 이미 줄이 있어 아무것도 하지 않았다 */
+  alreadyThere?: true
 }
 
 /**
  * 신청 1건을 시트·드라이브에 반영한다.
  *
  * 설정이 없으면 조용히 건너뛴다(오류 아님) — 연동 전에도 사이트는 돌아야 한다.
+ *
+ * `onlyIfMissing` (D-127) — **시트에 그 번호의 줄이 없을 때만** 새 줄을 넣는다. 이미 있으면 시트도
+ * 드라이브도 **아무것도 쓰지 않는다**(담당자가 시트에서 손으로 고친 칸을 사이트 값으로 덮지 않게 —
+ * 10-07 sunbell 「기존 값들을 지킬 수 있게」). 드라이브 PDF 도 이미 있으면 내용을 바꾸지 않고 링크만 쓴다.
+ * 담당자 화면의 「시트에 없으면 다시 넣기」가 부른다 — append 가 덮어써 사라진 줄(10-05 해커톤 7건) 되살리기.
  */
 export async function syncApplication(
   app: Application,
-  pdf: Buffer | null
+  pdf: Buffer | null,
+  opts: { onlyIfMissing?: boolean } = {}
 ): Promise<SyncResult> {
   const c = clients()
   if (!c) return { skipped: true }
@@ -610,12 +709,20 @@ export async function syncApplication(
   const { cfg, sheets, drive } = c
   const ap = app.applicant
 
+  if (opts.onlyIfMissing) {
+    // 읽기만 — 머리글 손질(ensureHeaders)도 줄이 없을 때 아래에서 한다
+    const there = await step('시트 줄 찾기', () =>
+      findSheetRow(sheets, cfg.sheetId, null, app.id, Number(app.sheetRowId) || 0)
+    )
+    if (there > 1) return { sheetRow: there, alreadyThere: true }
+  }
+
   const edited = (app.editCount ?? 0) > 0
 
   let driveUrl = ''
   if (pdf) {
     driveUrl = await step('드라이브 업로드 · DRIVE_FOLDER_ID 확인', () =>
-      uploadPdf(drive, cfg.driveFolderId, app, pdf, edited)
+      uploadPdf(drive, cfg.driveFolderId, app, pdf, edited && !opts.onlyIfMissing)
     )
   }
 
@@ -691,33 +798,16 @@ export async function syncApplication(
     return { sheetRow: existing, driveUrl: driveUrl || undefined }
   }
 
-  const appended = await step('시트에 줄 추가', () =>
-    sheets.spreadsheets.values.append({
-      spreadsheetId: cfg.sheetId,
-      range: 'A1',
-      valueInputOption: 'RAW',
-      // OVERWRITE — 빈 칸에 써 넣는다 (D-92 · 09-18). INSERT_ROWS 는 줄을 **끼워 넣어** 바로 윗줄
-      // 서식을 물려받는다 — 시트가 비어 있으면 윗줄이 헤더라 노란 바탕·굵은 글씨가 새 줄에 그대로.
-      // 09-17 의 "노란색" 도 담당자가 칠한 게 아니라 이것이었다.
-      insertDataOption: 'OVERWRITE',
-      requestBody: { values: [row] },
-    })
+  // 새 줄 — 끼워 넣기·값·서식·PDF 링크를 한 번에 (D-127 · append 는 필터가 켜져 있으면 덮어썼다)
+  const rowNo = await step('시트에 줄 추가', () =>
+    insertRowAfterLast(sheets, cfg.sheetId, null, gid, row, (r) => [
+      ...rowFormatRequests(gid, r, HEADERS.length, APP_FIXED_WIDTHS, cancelled),
+      ...(driveUrl ? [linkCellRequest(gid, r, PDF_COL, driveUrl, 'PDF 열기')] : []),
+    ])
   )
-
-  // '신청현황!A5:N5' 같은 문자열에서 행 번호만 뽑는다
-  const updated = appended.data.updates?.updatedRange || ''
-  const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
-  if (rowNo) {
-    await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, rowNo, HEADERS.length, APP_FIXED_WIDTHS, cancelled)
-    )
-    if (driveUrl) {
-      await step('PDF 링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, PDF_COL, driveUrl, 'PDF 열기'))
-    }
-    await step('열 너비 맞춤', () =>
-      fitColumns(sheets, cfg.sheetId, gid, null, HEADERS.length, APP_FIXED_WIDTHS)
-    )
-  }
+  await step('열 너비 맞춤', () =>
+    fitColumns(sheets, cfg.sheetId, gid, null, HEADERS.length, APP_FIXED_WIDTHS)
+  )
 
   return { sheetRow: rowNo, driveUrl: driveUrl || undefined }
 }
@@ -1139,29 +1229,16 @@ export async function syncSettlement(
     return { sheetRow: existing, driveUrl: folder.url, uploaded }
   }
 
-  const appended = await step('시트에 줄 추가', () =>
-    sheets.spreadsheets.values.append({
-      spreadsheetId: cfg.sheetId,
-      range: `'${SETTLEMENT_SHEET}'!A1`,
-      valueInputOption: 'RAW',
-      // OVERWRITE — 빈 칸에 써 넣는다 (D-92 · 09-18). INSERT_ROWS 는 줄을 **끼워 넣어** 바로 윗줄
-      // 서식을 물려받는다 — 시트가 비어 있으면 윗줄이 헤더라 노란 바탕·굵은 글씨가 새 줄에 그대로.
-      // 09-17 의 "노란색" 도 담당자가 칠한 게 아니라 이것이었다.
-      insertDataOption: 'OVERWRITE',
-      requestBody: { values: [row] },
-    })
+  // 새 줄 — 끼워 넣기·값·서식·폴더 링크를 한 번에 (D-127)
+  const rowNo = await step('시트에 줄 추가', () =>
+    insertRowAfterLast(sheets, cfg.sheetId, SETTLEMENT_SHEET, gid, row, (r) => [
+      ...rowFormatRequests(gid, r, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false),
+      linkCellRequest(gid, r, FOLDER_COL, folder.url, '폴더 열기'),
+    ])
   )
-  const updated = appended.data.updates?.updatedRange || ''
-  const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
-  if (rowNo) {
-    await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, rowNo, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS, false)
-    )
-    await step('폴더 링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, FOLDER_COL, folder.url, '폴더 열기'))
-    await step('열 너비 맞춤', () =>
-      fitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_SHEET, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
-    )
-  }
+  await step('열 너비 맞춤', () =>
+    fitColumns(sheets, cfg.sheetId, gid, SETTLEMENT_SHEET, SETTLEMENT_HEADERS.length, SETTLEMENT_FIXED_WIDTHS)
+  )
 
   return { sheetRow: rowNo, driveUrl: folder.url, uploaded }
 }
@@ -1277,29 +1354,16 @@ export async function syncOutput(o: Output, openUrl: string): Promise<OutputSync
     return { sheetRow: existing }
   }
 
-  const appended = await step('시트에 줄 추가', () =>
-    sheets.spreadsheets.values.append({
-      spreadsheetId: cfg.sheetId,
-      range: `'${OUTPUT_SHEET}'!A1`,
-      valueInputOption: 'RAW',
-      // OVERWRITE — 빈 칸에 써 넣는다 (D-92 · 09-18). INSERT_ROWS 는 줄을 **끼워 넣어** 바로 윗줄
-      // 서식을 물려받는다 — 시트가 비어 있으면 윗줄이 헤더라 노란 바탕·굵은 글씨가 새 줄에 그대로.
-      // 09-17 의 "노란색" 도 담당자가 칠한 게 아니라 이것이었다.
-      insertDataOption: 'OVERWRITE',
-      requestBody: { values: [row] },
-    })
+  // 새 줄 — 끼워 넣기·값·서식·링크를 한 번에 (D-127)
+  const rowNo = await step('시트에 줄 추가', () =>
+    insertRowAfterLast(sheets, cfg.sheetId, OUTPUT_SHEET, gid, row, (r) => [
+      ...rowFormatRequests(gid, r, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS, muted),
+      linkCellRequest(gid, r, OUTPUT_LINK_COL, openUrl, '사이트에서 열기'),
+    ])
   )
-  const updated = appended.data.updates?.updatedRange || ''
-  const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
-  if (rowNo) {
-    await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, rowNo, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS, muted)
-    )
-    await step('링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, OUTPUT_LINK_COL, openUrl, '사이트에서 열기'))
-    await step('열 너비 맞춤', () =>
-      fitColumns(sheets, cfg.sheetId, gid, OUTPUT_SHEET, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS)
-    )
-  }
+  await step('열 너비 맞춤', () =>
+    fitColumns(sheets, cfg.sheetId, gid, OUTPUT_SHEET, OUTPUT_HEADERS.length, OUTPUT_FIXED_WIDTHS)
+  )
   return { sheetRow: rowNo }
 }
 
@@ -1410,26 +1474,16 @@ export async function syncInquiry(
     return { sheetRow: existing }
   }
 
-  const appended = await step('시트에 줄 추가', () =>
-    sheets.spreadsheets.values.append({
-      spreadsheetId: cfg.sheetId,
-      range: `'${INQUIRY_SHEET}'!A1`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'OVERWRITE', // D-92 — 헤더 서식을 물려받지 않게
-      requestBody: { values: [row] },
-    })
+  // 새 줄 — 끼워 넣기·값·서식·링크를 한 번에 (D-127)
+  const rowNo = await step('시트에 줄 추가', () =>
+    insertRowAfterLast(sheets, cfg.sheetId, INQUIRY_SHEET, gid, row, (r) => [
+      ...rowFormatRequests(gid, r, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS, muted),
+      linkCellRequest(gid, r, INQUIRY_LINK_COL, openUrl, '사이트에서 열기'),
+    ])
   )
-  const updated = appended.data.updates?.updatedRange || ''
-  const rowNo = Number(updated.match(/![A-Z]+(\d+)/)?.[1]) || undefined
-  if (rowNo) {
-    await step('시트 줄 서식', () =>
-      formatRow(sheets, cfg.sheetId, gid, rowNo, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS, muted)
-    )
-    await step('링크', () => linkCell(sheets, cfg.sheetId, gid, rowNo, INQUIRY_LINK_COL, openUrl, '사이트에서 열기'))
-    await step('열 너비 맞춤', () =>
-      fitColumns(sheets, cfg.sheetId, gid, INQUIRY_SHEET, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS)
-    )
-  }
+  await step('열 너비 맞춤', () =>
+    fitColumns(sheets, cfg.sheetId, gid, INQUIRY_SHEET, INQUIRY_HEADERS.length, INQUIRY_FIXED_WIDTHS)
+  )
   return { sheetRow: rowNo }
 }
 
@@ -1445,9 +1499,9 @@ export async function syncInquiry(
    · 테스트 계정은 쓰지 않는다(D-111). 테스트 계정이 된 회원의 줄 · 같은 회원번호의 두 번째 줄 · 사이트에서
      지워진 회원의 줄은 **[전체 반영]의 맨 끝에 한꺼번에 행 삭제**(아래 줄이 올라옴) — 「줄 찾기 → 쓰기」 사이에
      위 줄이 지워져 다른 줄을 덮어쓰는 드문 겹침을 줄이려고 지우는 일은 여기서만 한다
-   · 🔴 **새 줄은 append 가 아니라 「A열 마지막 값 바로 아래」에 직접 쓴다** (10-03 sunbell — 다른 탭의 append 는
-     중간에 빈 줄이 있으면 그 빈자리에 끼워 쓸 수 있다). 그 대가로 두 가입이 동시에 오면 같은 줄을 둘이 쓸 수
-     있어(findSheetRow 주석) — **쓴 뒤 그 줄 A열을 다시 읽어 확인하고, 덮였으면 다음 줄에 다시 쓴다**(세 번까지)
+   · 🔴 **새 줄은 append 가 아니라 「A열 마지막 값 바로 아래」에** (10-03 sunbell — append 는 중간 빈 줄에
+     끼워 쓸 수 있다). 처음엔 직접 쓰고 다시 읽어 확인했는데, D-127(10-07)부터 다른 탭과 같이 **빈 줄을 끼워
+     넣고 채우기를 한 번에**(`insertRowAfterLast`) — 동시에 와도 덮어쓰지 않는다
    ===================================================================== */
 
 const MEMBER_SHEET = '회원'
@@ -1569,35 +1623,34 @@ export async function syncMember(m: SupportUser): Promise<MemberSyncResult> {
   const row = memberRowValues(m)
   const muted = m.status === 'withdrawn'
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const colA = await step('시트 줄 찾기', () => memberColumnA(sheets, sid))
-    const found = colA.findIndex((v, i) => i > 0 && v === m.uid)
-    const rowNo = found > 0 ? found + 1 : Math.max(2, colA.length + 1)
-    await step(found > 0 ? '시트 줄 갱신' : '시트에 줄 추가', () =>
-      sheets.spreadsheets.values.update({
-        spreadsheetId: sid,
-        range: `'${MEMBER_SHEET}'!A${rowNo}:${MEMBER_LAST_COL}${rowNo}`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [row] },
-      })
-    )
-    if (found <= 0) {
-      // 새 줄 — 그 사이 다른 가입이 같은 줄을 썼는지 확인. 덮였으면 다시 찾아 그다음 줄에
-      const check = await step('시트 줄 확인', () =>
-        sheets.spreadsheets.values.get({ spreadsheetId: sid, range: `'${MEMBER_SHEET}'!A${rowNo}` })
-      )
-      if (String(check.data.values?.[0]?.[0] ?? '').trim() !== m.uid) continue
-    }
-    await step('시트 줄 서식', () =>
-      sheets.spreadsheets.batchUpdate({
-        spreadsheetId: sid,
-        requestBody: { requests: [memberRowFormat(gid, rowNo, rowNo, muted)] },
-      })
+  const colA = await step('시트 줄 찾기', () => memberColumnA(sheets, sid))
+  const found = colA.findIndex((v, i) => i > 0 && v === m.uid)
+  if (found <= 0) {
+    // 새 줄 — 다른 탭과 같은 방식(D-127). 처음(D-125)에는 「마지막 값 아래에 쓰고 다시 읽어 확인」이었는데,
+    // 먼저 쓴 쪽이 확인을 마친 직후 다른 가입이 같은 줄을 덮는 틈이 남아 끼워 넣기로 바꿨다
+    const rowNo = await step('시트에 줄 추가', () =>
+      insertRowAfterLast(sheets, sid, MEMBER_SHEET, gid, row, (r) => [memberRowFormat(gid, r, r, muted)])
     )
     await step('열 너비 맞춤', () => fitColumns(sheets, sid, gid, MEMBER_SHEET, MEMBER_HEADERS.length, {}))
     return { sheetRow: rowNo }
   }
-  throw new Error('[시트에 줄 추가] 다른 줄 쓰기와 세 번 겹쳤습니다 — 회원 관리의 [전체 반영]으로 맞춰 주세요')
+  const rowNo = found + 1
+  await step('시트 줄 갱신', () =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId: sid,
+      range: `'${MEMBER_SHEET}'!A${rowNo}:${MEMBER_LAST_COL}${rowNo}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [row] },
+    })
+  )
+  await step('시트 줄 서식', () =>
+    sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sid,
+      requestBody: { requests: [memberRowFormat(gid, rowNo, rowNo, muted)] },
+    })
+  )
+  await step('열 너비 맞춤', () => fitColumns(sheets, sid, gid, MEMBER_SHEET, MEMBER_HEADERS.length, {}))
+  return { sheetRow: rowNo }
 }
 
 export interface MemberFullSyncResult {

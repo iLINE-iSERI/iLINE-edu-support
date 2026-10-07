@@ -395,7 +395,11 @@ export async function setProgramPublished(
  * 서버가 다시 요청자를 검증하므로, 이 함수를 부를 수 있다는 것만으로
  * 권한이 생기지는 않는다.
  */
-export async function retrySync(applicationId: string): Promise<void> {
+export async function retrySync(
+  applicationId: string,
+  /** D-127 — 시트에 줄이 없을 때만 넣는다. 있으면 아무것도 쓰지 않고 `alreadyThere` */
+  opts: { onlyIfMissing?: boolean } = {}
+): Promise<{ sheetRow?: number; alreadyThere?: boolean; skipped?: string }> {
   const { getAuthClient } = await import('./config')
   const token = await getAuthClient().currentUser?.getIdToken()
   if (!token) throw new Error('로그인 정보를 확인할 수 없습니다.')
@@ -406,7 +410,7 @@ export async function retrySync(applicationId: string): Promise<void> {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ applicationId }),
+    body: JSON.stringify({ applicationId, onlyIfMissing: opts.onlyIfMissing === true }),
   })
 
   const data = await res.json().catch(() => ({}))
@@ -414,4 +418,5 @@ export async function retrySync(applicationId: string): Promise<void> {
   if (data.skipped === 'not-configured') {
     throw new Error('서버에 구글 연동 설정이 없습니다. 환경변수를 확인해 주세요.')
   }
+  return { sheetRow: data.sheetRow, alreadyThere: data.alreadyThere === true, skipped: data.skipped }
 }
