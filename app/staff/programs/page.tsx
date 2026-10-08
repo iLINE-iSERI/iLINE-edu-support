@@ -43,6 +43,8 @@ import { blankField, fieldProblems, groupEntryOf, newFieldId } from '@/lib/forms
 import { Timestamp } from 'firebase/firestore'
 import {
   outputVisibilityOf,
+  participationOf,
+  PARTICIPATION_LABEL,
   type GroupEntry,
   type OutputVisibility,
   type Program,
@@ -734,8 +736,8 @@ function StaffProgramsContent() {
                   }
                   className={inputCls()}
                 >
-                  <option value="individual">개인 신청</option>
-                  <option value="group">단체 프로그램</option>
+                  <option value="individual">{PARTICIPATION_LABEL.individual.label}</option>
+                  <option value="group">{PARTICIPATION_LABEL.group.label}</option>
                 </select>
               </Field>
             </div>
@@ -1255,7 +1257,7 @@ function StaffProgramsContent() {
                         p.participationType === 'group' ? 'group' : 'individual'
                       }
                     >
-                      {p.participationType === 'group' ? '단체' : '개인'}
+                      {PARTICIPATION_LABEL[participationOf(p)].short}
                     </Badge>
                     {!p.published && <Badge tone="closed">비공개</Badge>}
                   </div>

@@ -165,6 +165,36 @@ export const ROLE_REASON_MAX = 200
 export type ParticipationType = 'individual' | 'group'
 
 /**
+ * 참여 방식 이름 — 화면에 나가는 글자는 **여기 한 곳**이다 (D1 · 10-09).
+ *   label — 배지·고르기 칸: 공고 목록 카드 · 공고 상세 · 담당자 공고 편집
+ *   short — 좁은 배지: 담당자 공고 목록
+ * `Record<ParticipationType, …>` 라 값을 더하면 이름을 반드시 적게 된다.
+ */
+export const PARTICIPATION_LABEL: Record<ParticipationType, { label: string; short: string }> = {
+  individual: { label: '개인 신청', short: '개인' },
+  group: { label: '단체 프로그램', short: '단체' },
+}
+
+/**
+ * 개인 신청 공고의 「신청」 안내 — 단체 쪽 `GROUP_NOTICE`(`lib/forms/fields.ts`)의 짝.
+ *   short      — 목록·홈 카드의 「신청」 한 마디
+ *   howToApply — 공고 상세의 「신청 방식」 한 줄
+ */
+export const INDIVIDUAL_NOTICE = {
+  short: '개인',
+  howToApply: '개인별 신청 (팀 활동이어도 각자)',
+}
+
+/**
+ * 공고의 참여 방식 — 없거나 모르는 값이면 개인(기본값). `groupEntryOf`·`outputVisibilityOf` 와
+ * 같은 방식으로, 이름 목록에 있는지(자기 키만)로 판정한다.
+ */
+export function participationOf(p: Pick<Program, 'participationType'>): ParticipationType {
+  const v = p.participationType
+  return v && Object.prototype.hasOwnProperty.call(PARTICIPATION_LABEL, v) ? v : 'individual'
+}
+
+/**
  * 단체 프로그램에서 **신청을 누가 내는가** (D-99′ · 09-24).
  *
  *   leader — 대표자 한 분이 팀원 명단까지 함께 낸다 (지금까지의 기본값)

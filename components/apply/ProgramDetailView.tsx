@@ -20,7 +20,12 @@ import {
 } from '@/lib/firebase/programs'
 import { groupNoticeOf } from '@/lib/forms'
 import { SITE } from '@/lib/config/site'
-import { APPLICANT_STATUS_LABEL } from '@/lib/types'
+import {
+  APPLICANT_STATUS_LABEL,
+  INDIVIDUAL_NOTICE,
+  PARTICIPATION_LABEL,
+  participationOf,
+} from '@/lib/types'
 import type { Program, Application, SupportUser } from '@/lib/types'
 import type { User } from 'firebase/auth'
 import type { AuthStatus } from '@/components/auth/AuthProvider'
@@ -96,7 +101,7 @@ export default function ProgramDetailView({
     <div className="flex flex-wrap items-center gap-2">
       <Badge tone={phase}>{PHASE_LABEL[phase]}</Badge>
       <Badge tone={isGroup ? 'group' : 'individual'}>
-        {isGroup ? '단체 프로그램' : '개인 신청'}
+        {PARTICIPATION_LABEL[participationOf(program)].label}
       </Badge>
       {dday !== null && (
         <span className="text-[13px] font-bold text-warn-ink">
@@ -298,7 +303,7 @@ export default function ProgramDetailView({
               <dd className="mt-0.5 font-medium">
                 {isGroup
                   ? `${groupNotice.howToApply}${program.maxTeamSize ? ` · 최대 ${program.maxTeamSize}명` : ''}`
-                  : '개인별 신청 (팀 활동이어도 각자)'}
+                  : INDIVIDUAL_NOTICE.howToApply}
               </dd>
             </div>
             <div>

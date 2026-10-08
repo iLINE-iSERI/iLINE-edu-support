@@ -10,7 +10,7 @@ import {
   daysUntilClose,
   formatPeriod,
 } from '@/lib/firebase/programs'
-import type { Program } from '@/lib/types'
+import { INDIVIDUAL_NOTICE, PARTICIPATION_LABEL, participationOf, type Program } from '@/lib/types'
 
 /**
  * 프로그램 목록 카드 — 가로 분할 와이드 카드 (D-81 · 09-18 · Gemini 지시서 §4).
@@ -73,7 +73,7 @@ export default function ProgramCard({ program }: { program: Program }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={phase}>{PHASE_LABEL[phase]}</Badge>
           <Badge tone={isGroup ? 'group' : 'individual'}>
-            {isGroup ? '단체 프로그램' : '개인 신청'}
+            {PARTICIPATION_LABEL[participationOf(program)].label}
           </Badge>
           {/* 테스트 계정에게만 보이는 비공개 공고 (D-111) — 학생에게는 이 카드 자체가 없다 */}
           {!program.published && <Badge tone="warn">비공개 · 시험</Badge>}
@@ -139,7 +139,7 @@ export default function ProgramCard({ program }: { program: Program }) {
                 ? `${groupNoticeOf(program).short}${
                     program.maxTeamSize ? ` · 최대 ${program.maxTeamSize}명` : ''
                   }`
-                : '개인'}
+                : INDIVIDUAL_NOTICE.short}
             </dd>
           </div>
         </dl>

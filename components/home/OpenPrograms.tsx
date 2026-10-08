@@ -31,7 +31,7 @@ import {
   daysUntilClose,
   formatPeriodShort,
 } from '@/lib/firebase/programs'
-import type { Program } from '@/lib/types'
+import { INDIVIDUAL_NOTICE, type Program } from '@/lib/types'
 import { SITE } from '@/lib/config/site'
 
 /** 홈에 올리는 최대 개수 — 넘치면 목록으로 */
@@ -220,7 +220,7 @@ function ProgramHeroCard({
       </div>
       <div className="flex gap-2">
         <dt className="shrink-0 text-ink-subtle">신청</dt>
-        <dd className="font-medium">{isGroup ? groupNoticeOf(p).short : '개인'}</dd>
+        <dd className="font-medium">{isGroup ? groupNoticeOf(p).short : INDIVIDUAL_NOTICE.short}</dd>
       </div>
       {size !== 'compact' && (p.activityStart || p.activityEnd) && (
         <div className="flex gap-2">
