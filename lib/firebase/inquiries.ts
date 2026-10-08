@@ -15,7 +15,6 @@ import {
   addDoc,
   collection,
   doc,
-  getDoc,
   getDocs,
   orderBy,
   query,
@@ -103,11 +102,6 @@ export async function listOpenInquiries(): Promise<Inquiry[]> {
   const q = query(collection(getDb(), COL.inquiries), where('status', '==', 'open'))
   const snap = await getDocs(q)
   return snap.docs.map((d) => toInquiry(d.id, d.data()))
-}
-
-export async function getInquiry(id: string): Promise<Inquiry | null> {
-  const snap = await getDoc(doc(getDb(), COL.inquiries, id))
-  return snap.exists() ? toInquiry(snap.id, snap.data()) : null
 }
 
 /** 답 달기 — 상태가 answered 로. 이미 답이 있으면 고쳐 쓰는 것 */

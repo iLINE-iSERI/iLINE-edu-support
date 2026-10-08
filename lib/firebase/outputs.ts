@@ -14,7 +14,6 @@ import {
   doc,
   setDoc,
   deleteField,
-  getDoc,
   getDocs,
   query,
   where,
@@ -238,11 +237,6 @@ function toOutput(id: string, data: Record<string, unknown>): Output {
 
 function byNewest(a: Output, b: Output) {
   return (b.submittedAt?.toMillis() ?? 0) - (a.submittedAt?.toMillis() ?? 0)
-}
-
-export async function getOutput(id: string): Promise<Output | null> {
-  const snap = await getDoc(doc(getDb(), COL.outputs, id))
-  return snap.exists() ? toOutput(snap.id, snap.data()) : null
 }
 
 /** 내가 올린 것 전부 — 프로그램별로 나누는 건 화면이 한다 */

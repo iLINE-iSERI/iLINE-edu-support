@@ -18,7 +18,7 @@
  */
 
 import { FIELD_KIND_LABEL, type ProgramField, type ProgramFieldKind } from '@/lib/types'
-import { MAX_FIELDS, fieldTitle, optionsOf } from '@/lib/forms/fields'
+import { MAX_FIELDS, optionsOf } from '@/lib/forms/fields'
 
 /** 담당자 폼과 같은 입력칸 모양 — page.tsx 의 것을 일부러 복사했다.
  *  두 곳뿐이라 아직 묶지 않는다(셋째가 생기면 그때 — D-50 주석의 판단). */
