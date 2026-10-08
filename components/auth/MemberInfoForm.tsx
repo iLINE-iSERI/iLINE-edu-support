@@ -30,18 +30,18 @@ import Button from '@/components/ui/Button'
 import Field from '@/components/ui/Field'
 import Select from '@/components/ui/Select'
 import ConsentBlock from '@/components/ui/ConsentBlock'
-import { MEMBER_TYPE_LABEL, type MemberType } from '@/lib/types'
+import { GRADE_LABEL, MEMBER_TYPE_LABEL, type MemberType } from '@/lib/types'
 
+/**
+ * 학년 고르기 칸 — 목록은 `GRADE_LABEL`(lib/types) 한 벌에서 만든다 (D3 · 10-09).
+ * 순서는 JavaScript 규칙을 따른다: 숫자 이름('1'~'4')이 먼저 작은 순서로, 나머지
+ * ('5+'·'grad'·'etc')는 적은 순서로. ⚠️ 숫자 이름을 더하면(예: '6') 적은 자리와
+ * 상관없이 「5학년 이상」보다 앞에 선다.
+ */
 const GRADES = [
   { value: '', label: '선택하세요' },
-  { value: '1', label: '1학년' },
-  { value: '2', label: '2학년' },
-  { value: '3', label: '3학년' },
-  { value: '4', label: '4학년' },
-  { value: '5+', label: '5학년 이상' },
-  { value: 'grad', label: '대학원' },
-  { value: 'etc', label: '기타' },
-] as const
+  ...Object.entries(GRADE_LABEL).map(([value, label]) => ({ value, label })),
+]
 
 const TYPES: { value: MemberType; desc: string }[] = [
   { value: 'student', desc: '대학 재학생 · 예비교원' },
