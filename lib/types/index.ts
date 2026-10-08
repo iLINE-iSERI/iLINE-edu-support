@@ -748,9 +748,18 @@ export const OUTPUT_VISIBILITY_LABEL: Record<OutputVisibility, string> = {
   members: '참여자 공유 (로그인한 회원 누구나)',
 }
 
-/** 값이 없는 옛 프로그램은 비공개로 본다 */
+/**
+ * 값이 없는 옛 프로그램은 비공개로 본다. 모르는 값도 비공개.
+ * 공고 편집 화면의 읽기·저장도 이 함수로 판정한다 (D2 · 10-09).
+ *
+ * ⚠️ **`OutputVisibility` 에 값을 더하면 여기도 자동으로 따라간다** — `groupEntryOf` 와 같은
+ *    방식. 이름표가 `Record<OutputVisibility, …>` 라 새 값은 이름표를 반드시 적게 되므로
+ *    그 목록에 있는지로 판정한다. `in` 이 아니라 자기 키만 보는 것은 `constructor` 같은
+ *    기본 이름을 「있다」고 하지 않게 하려고.
+ */
 export function outputVisibilityOf(p: Pick<Program, 'outputVisibility'>): OutputVisibility {
-  return p.outputVisibility ?? 'private'
+  const v = p.outputVisibility
+  return v && Object.prototype.hasOwnProperty.call(OUTPUT_VISIBILITY_LABEL, v) ? v : 'private'
 }
 
 /* ── 1:1 문의 (D-93 · 09-18) ─────────────────────────────────────────

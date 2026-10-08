@@ -28,6 +28,7 @@ import { preparePoster } from '@/lib/ui/resizePoster'
 import { applicationKeyId } from './applications'
 import {
   APPLICATION_STATUS_LABEL,
+  outputVisibilityOf,
   type Application,
   type ApplicationStatus,
   type GroupEntry,
@@ -36,7 +37,7 @@ import {
   type ProgramPoster,
   type SettlementDocKind,
 } from '@/lib/types'
-import { cleanFields } from '@/lib/forms/fields'
+import { cleanFields, groupEntryOf } from '@/lib/forms/fields'
 
 /**
  * 전체 신청 목록.
@@ -299,15 +300,19 @@ function toDoc(input: ProgramInput): Record<string, unknown> {
   put('noteLabel', input.noteLabel?.trim())
   put('attachmentGuide', input.attachmentGuide?.trim())
   put('cautionText', input.cautionText?.trim())
-  // 'leader' 는 기본값이라 저장하지 않는다 — 옛 공고와 문서 모양을 같게 (D-99′)
-  if (input.groupEntry === 'each') out.groupEntry = 'each'
+  // 'leader' 는 기본값이라 저장하지 않는다 — 옛 공고와 문서 모양을 같게 (D-99′).
+  // 판정은 groupEntryOf 한 곳 — 값을 더해도 여기서 leader 로 뭉개지지 않는다 (D2)
+  const entry = groupEntryOf(input)
+  if (entry !== 'leader') out.groupEntry = entry
   put('formFields', cleanFields(input.formFields ?? []))
   // '기본 신청서'를 고르면 빈 문자열이 오고, put 이 걸러 낸다.
   // 위의 setDoc 이 문서를 통째로 덮어쓰므로 **전용 양식이 실제로 떨어진다.**
   put('formType', input.formType?.trim())
 
-  // 산출물 제출 (D-76). 'private' 는 기본값이라 저장하지 않는다 — 옛 문서와 같은 모양
-  if (input.outputVisibility === 'members') out.outputVisibility = 'members'
+  // 산출물 제출 (D-76). 'private' 는 기본값이라 저장하지 않는다 — 옛 문서와 같은 모양.
+  // 판정은 outputVisibilityOf 한 곳 (D2)
+  const visibility = outputVisibilityOf(input)
+  if (visibility !== 'private') out.outputVisibility = visibility
   put('outputOpensAt', input.outputOpensAt)
   put('outputClosesAt', input.outputClosesAt)
   put('outputGuide', input.outputGuide?.trim())

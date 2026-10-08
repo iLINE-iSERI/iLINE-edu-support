@@ -39,15 +39,17 @@ import {
 import { firestoreErrorMessage } from '@/lib/firebase/errors'
 import { useRevealForm } from '@/lib/hooks/useRevealForm'
 import { FORM_OPTIONS } from '@/lib/forms'
-import { blankField, fieldProblems, newFieldId } from '@/lib/forms/fields'
+import { blankField, fieldProblems, groupEntryOf, newFieldId } from '@/lib/forms/fields'
 import { Timestamp } from 'firebase/firestore'
-import type {
-  GroupEntry,
-  Program,
-  ProgramPoster,
-  ProgramField,
-  ProgramFieldKind,
-  SettlementDocKind,
+import {
+  outputVisibilityOf,
+  type GroupEntry,
+  type OutputVisibility,
+  type Program,
+  type ProgramPoster,
+  type ProgramField,
+  type ProgramFieldKind,
+  type SettlementDocKind,
 } from '@/lib/types'
 
 /* ── 날짜 칸 ↔ Timestamp ───────────────────────────────────────────
@@ -106,7 +108,7 @@ interface FormState {
   /** 담당자가 만든 칸들 (D-99) — 배열 순서가 곧 화면 순서 */
   fields: ProgramField[]
   /** 산출물 제출 (D-76) */
-  outputVisibility: 'private' | 'members'
+  outputVisibility: OutputVisibility
   outputOpensAt: string
   outputClosesAt: string
   outputGuide: string
@@ -163,7 +165,8 @@ function toForm(p: Program): FormState {
     participationType: p.participationType ?? 'individual',
     formType: p.formType ?? '',
     maxTeamSize: p.maxTeamSize ? String(p.maxTeamSize) : '',
-    groupEntry: p.groupEntry === 'each' ? 'each' : 'leader',
+    // 판정은 한 곳 — 값을 더해도 여기서 leader 로 뭉개지지 않는다 (D2)
+    groupEntry: groupEntryOf(p),
     description: p.description ?? '',
     opensAt: toInputValue(p.opensAt),
     closesAt: toInputValue(p.closesAt),
@@ -176,7 +179,7 @@ function toForm(p: Program): FormState {
     attachmentRequired: Boolean(p.attachmentRequired),
     // 줄 객체까지 복사한다 — 얕게 두면 폼에서 고친 값이 목록의 원본에 새어 나간다
     fields: (p.formFields ?? []).map((f) => ({ ...f })),
-    outputVisibility: p.outputVisibility === 'members' ? 'members' : 'private',
+    outputVisibility: outputVisibilityOf(p),
     outputOpensAt: toInputValue(p.outputOpensAt),
     outputClosesAt: toInputValue(p.outputClosesAt),
     outputGuide: p.outputGuide ?? '',
@@ -1081,7 +1084,7 @@ function StaffProgramsContent() {
                 <select
                   id="pf-outputVisibility"
                   value={form.outputVisibility}
-                  onChange={(e) => set('outputVisibility', e.target.value as 'private' | 'members')}
+                  onChange={(e) => set('outputVisibility', e.target.value as OutputVisibility)}
                   className={inputCls()}
                 >
                   <option value="private">비공개 — 본인 + 담당자</option>
